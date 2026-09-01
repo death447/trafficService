@@ -3,6 +3,7 @@ package com.example.backend.service;
 import com.example.backend.entity.Role;
 import com.example.backend.entity.Permission;
 import com.example.backend.mapper.RoleMapper;
+import com.example.backend.mapper.RolePermissionMapper;
 import com.example.backend.mapper.UserRoleMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -18,6 +19,9 @@ public class RoleService {
 
     @Autowired
     private UserRoleMapper userRoleMapper;
+
+    @Autowired
+    private RolePermissionMapper rolePermissionMapper;
 
     public Role findById(Long id) {
         return roleMapper.findById(id);
@@ -66,10 +70,10 @@ public class RoleService {
 
     @Transactional
     public boolean assignPermissions(Long roleId, List<Long> permissionIds) {
-        roleMapper.deleteAllPermissionsByRoleId(roleId);
-        if (permissionIds != null && !permissionIds.isEmpty()) {
+        rolePermissionMapper.deleteAllByRoleId(roleId);
+        if (permissionIds != null) {
             for (Long permissionId : permissionIds) {
-                roleMapper.addPermission(roleId, permissionId);
+                rolePermissionMapper.insert(roleId, permissionId);
             }
         }
         return true;
