@@ -115,8 +115,8 @@ INSERT INTO `role_permission` (`role_id`, `permission_id`) VALUES (3, 18);
 -- PARKING_ADMIN 拥有停车场管理
 INSERT INTO `role_permission` (`role_id`, `permission_id`) VALUES (4, 19);
 
--- admin 用户密码占位；Task 3 用 BCrypt 替换。临时明文仅用于确认表结构，不可用于生产
+-- admin 用户密码为 BCrypt(admin123)
 INSERT INTO `user` (`username`, `email`, `password`, `phone`, `real_name`, `status`) VALUES
-('admin', 'admin@example.com', '{bcrypt-placeholder}', '13800000000', '系统管理员', 1);
+('admin', 'admin@example.com', '$2a$10$tRbGvdiWK.72JRbBlUYmB.3K2h44sbb20U3qKWrAeggv0.lbqUhzW', '13800000000', '系统管理员', 1);
 
 INSERT INTO `user_role` (`user_id`, `role_id`) VALUES (1, 5);
