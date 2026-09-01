@@ -1,12 +1,16 @@
 <template>
   <div class="page">
     <div class="page-header">
-      <h1>角色管理</h1>
+      <div>
+        <h1>角色管理</h1>
+        <p class="subtitle">配置业务角色并动态分配功能权限</p>
+      </div>
       <button v-auth="'role:add'" type="button" @click="openCreate">新增角色</button>
     </div>
     <p v-if="error" class="error">{{ error }}</p>
-    <p v-if="loading">加载中…</p>
-    <table v-else class="data-table">
+    <p v-if="loading" class="loading-text">加载中…</p>
+    <div v-else class="panel">
+    <table class="data-table">
       <thead>
         <tr>
           <th>角色名称</th>
@@ -19,9 +23,13 @@
       <tbody>
         <tr v-for="role in roles" :key="role.id">
           <td>{{ role.roleName }}</td>
-          <td>{{ role.roleCode }}</td>
+          <td><span class="badge badge-info">{{ role.roleCode }}</span></td>
           <td>{{ role.description }}</td>
-          <td>{{ role.status === 1 ? '启用' : '停用' }}</td>
+          <td>
+            <span :class="['badge', role.status === 1 ? 'badge-success' : 'badge-muted']">
+              {{ role.status === 1 ? '启用' : '停用' }}
+            </span>
+          </td>
           <td class="actions">
             <button v-auth="'role:edit'" type="button" @click="openEdit(role)">编辑</button>
             <button v-auth="'role:edit'" type="button" @click="openAssign(role)">分配权限</button>
@@ -30,6 +38,7 @@
         </tr>
       </tbody>
     </table>
+    </div>
 
     <div v-if="formVisible" class="modal" @click.self="formVisible = false">
       <form class="modal-card" @submit.prevent="onSubmit">

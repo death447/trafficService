@@ -1,18 +1,85 @@
 <template>
-  <div id="app">
-    <header v-if="showNav" class="nav">
-      <nav>
-        <router-link to="/">首页</router-link>
-        <router-link v-auth="'user:manage'" to="/users">用户管理</router-link>
-        <router-link v-auth="'role:manage'" to="/roles">角色管理</router-link>
-        <router-link v-auth="'permission:manage'" to="/permissions">权限管理</router-link>
-      </nav>
-      <div class="nav-right">
-        <span v-if="store.username">{{ store.username }}</span>
-        <button type="button" class="secondary" @click="onLogout">退出</button>
-      </div>
-    </header>
+  <div v-if="isLoginPage" class="auth-shell">
     <router-view />
+  </div>
+
+  <div v-else class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">救</div>
+        <div class="brand-text">
+          <strong>救援派单系统</strong>
+          <span>运营管理平台</span>
+        </div>
+      </div>
+
+      <nav class="side-nav">
+        <p class="nav-section">工作台</p>
+        <router-link
+          to="/"
+          class="nav-item"
+          :class="{ active: route.path === '/' }"
+        >
+          <span class="nav-ico">⌂</span>
+          概览
+        </router-link>
+
+        <p class="nav-section">系统管理</p>
+        <router-link
+          v-auth="'user:manage'"
+          to="/users"
+          class="nav-item"
+          active-class="active"
+        >
+          <span class="nav-ico">用</span>
+          用户管理
+        </router-link>
+        <router-link
+          v-auth="'role:manage'"
+          to="/roles"
+          class="nav-item"
+          active-class="active"
+        >
+          <span class="nav-ico">角</span>
+          角色管理
+        </router-link>
+        <router-link
+          v-auth="'permission:manage'"
+          to="/permissions"
+          class="nav-item"
+          active-class="active"
+        >
+          <span class="nav-ico">权</span>
+          权限管理
+        </router-link>
+      </nav>
+
+      <div class="sidebar-foot">
+        <span>内部系统 · 机密</span>
+      </div>
+    </aside>
+
+    <div class="main-area">
+      <header class="topbar">
+        <div class="topbar-left">
+          <h1 class="topbar-title">{{ pageTitle }}</h1>
+        </div>
+        <div class="topbar-right">
+          <div class="user-chip">
+            <span class="avatar">{{ avatarText }}</span>
+            <div class="user-meta">
+              <strong>{{ displayName }}</strong>
+              <span>{{ roleLabel }}</span>
+            </div>
+          </div>
+          <button type="button" class="secondary" @click="onLogout">退出登录</button>
+        </div>
+      </header>
+
+      <main class="content">
+        <router-view />
+      </main>
+    </div>
   </div>
 </template>
 
@@ -25,7 +92,37 @@ const route = useRoute()
 const router = useRouter()
 const store = useUserStore()
 
-const showNav = computed(() => route.path !== '/login' && !!store.token)
+const isLoginPage = computed(() => route.path === '/login')
+
+const pageTitle = computed(() => {
+  const map = {
+    '/': '工作台概览',
+    '/users': '用户管理',
+    '/roles': '角色管理',
+    '/permissions': '权限管理',
+    '/403': '访问受限'
+  }
+  return map[route.path] || '救援派单系统'
+})
+
+const displayName = computed(() => store.username || '未登录用户')
+
+const avatarText = computed(() => {
+  const name = displayName.value
+  return name ? name.slice(0, 1).toUpperCase() : '?'
+})
+
+const roleLabel = computed(() => {
+  if (!store.roles?.length) return '已登录'
+  const labels = {
+    ADMIN: '系统管理员',
+    TRAFFIC_POLICE: '交警',
+    DISPATCHER: '调度员',
+    TOW_DRIVER: '施救员',
+    PARKING_ADMIN: '停车场管理员'
+  }
+  return store.roles.map((r) => labels[r] || r).join(' / ')
+})
 
 function onLogout() {
   store.logout()
@@ -33,204 +130,219 @@ function onLogout() {
 }
 </script>
 
-<style>
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-#app {
-  width: 100%;
+<style scoped>
+.app-shell {
+  display: flex;
   min-height: 100vh;
-  background: #f5f6f8;
 }
 
-.nav {
+.sidebar {
+  width: var(--sidebar-width);
+  flex-shrink: 0;
+  background: linear-gradient(180deg, #18263c 0%, #121c2d 100%);
+  color: var(--text-inverse);
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+
+.brand {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0.75rem 1.5rem;
-  background: #fff;
-  border-bottom: 1px solid #e8e8e8;
+  gap: 0.75rem;
+  padding: 1.15rem 1.1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.nav a {
-  margin-right: 1rem;
-  color: #1677ff;
-  text-decoration: none;
+.brand-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: linear-gradient(145deg, #3aa0df, #1f6fa8);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #fff;
 }
 
-.nav a.router-link-active {
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.brand-text strong {
+  font-size: 0.92rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.brand-text span {
+  font-size: 0.72rem;
+  color: var(--text-inverse-muted);
+}
+
+.side-nav {
+  flex: 1;
+  padding: 0.85rem 0.7rem;
+  overflow: auto;
+}
+
+.nav-section {
+  margin: 0.85rem 0.65rem 0.4rem;
+  font-size: 0.7rem;
+  color: var(--text-inverse-muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.62rem 0.75rem;
+  margin-bottom: 0.2rem;
+  border-radius: 6px;
+  color: var(--text-inverse-muted);
+  font-size: 0.875rem;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.nav-item:hover {
+  background: var(--bg-sidebar-hover);
+  color: var(--text-inverse);
+}
+
+.nav-item.active {
+  background: var(--bg-sidebar-active);
+  color: #fff;
   font-weight: 600;
 }
 
-.nav-right {
+.nav-ico {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.08);
+  display: grid;
+  place-items: center;
+  font-size: 0.7rem;
+  flex-shrink: 0;
+}
+
+.sidebar-foot {
+  padding: 0.9rem 1.1rem 1.1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.7rem;
+  color: var(--text-inverse-muted);
+}
+
+.main-area {
+  flex: 1;
+  min-width: 0;
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
+  flex-direction: column;
 }
 
-.page {
-  padding: 1.5rem;
-}
-
-.page-header {
+.topbar {
+  height: var(--topbar-height);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 1rem;
+  padding: 0 1.5rem;
+  position: sticky;
+  top: 0;
+  z-index: 20;
 }
 
-.page h1,
-.page h2 {
-  font-size: 1.25rem;
+.topbar-title {
+  font-size: 1rem;
+  font-weight: 600;
 }
 
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
-  background: #fff;
-}
-
-.data-table th,
-.data-table td {
-  padding: 0.6rem 0.75rem;
-  border-bottom: 1px solid #f0f0f0;
-  text-align: left;
-  font-size: 0.9rem;
-}
-
-.data-table th {
-  background: #fafafa;
-}
-
-.actions {
+.topbar-right {
   display: flex;
-  gap: 0.4rem;
-  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.85rem;
 }
 
-button {
-  padding: 0.4rem 0.75rem;
-  border: none;
-  border-radius: 4px;
-  background: #1677ff;
-  color: #fff;
-  cursor: pointer;
+.user-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
 }
 
-button.secondary {
-  background: #fff;
-  color: #333;
-  border: 1px solid #d9d9d9;
-}
-
-button.danger {
-  background: #ff4d4f;
-}
-
-button:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
-.error {
-  color: #d4380d;
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+  display: grid;
+  place-items: center;
   font-size: 0.85rem;
-  margin-bottom: 0.75rem;
+  font-weight: 600;
 }
 
-.muted {
-  color: #8c8c8c;
-  font-size: 0.8rem;
-  margin-left: 0.35rem;
-}
-
-.modal {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.35);
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 4rem 1rem;
-  overflow: auto;
-}
-
-.modal-card {
-  width: 420px;
-  max-width: 100%;
-  padding: 1.5rem;
-  background: #fff;
-  border-radius: 8px;
+.user-meta {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  line-height: 1.2;
 }
 
-.modal-card label,
-.modal-card fieldset {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  font-size: 0.9rem;
+.user-meta strong {
+  font-size: 0.85rem;
+  font-weight: 600;
 }
 
-.modal-card fieldset {
-  border: 1px solid #f0f0f0;
-  padding: 0.5rem;
-  max-height: 180px;
-  overflow: auto;
+.user-meta span {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
 }
 
-.modal-card input,
-.modal-card select {
-  padding: 0.45rem 0.6rem;
-  border: 1px solid #d9d9d9;
-  border-radius: 4px;
+.content {
+  flex: 1;
 }
 
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
+.auth-shell {
+  min-height: 100vh;
 }
 
-.check {
-  flex-direction: row;
-  align-items: center;
-  gap: 0.4rem;
-}
+@media (max-width: 860px) {
+  .app-shell {
+    flex-direction: column;
+  }
 
-.check.nested,
-.tree-row.nested {
-  margin-left: 1.5rem;
-}
+  .sidebar {
+    width: 100%;
+    height: auto;
+    position: relative;
+  }
 
-.tree {
-  background: #fff;
-  padding: 0.5rem 0;
-}
+  .side-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    padding: 0.6rem;
+  }
 
-.tree-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  border-bottom: 1px solid #f5f5f5;
-}
+  .nav-section {
+    width: 100%;
+    margin: 0.4rem 0.4rem 0.15rem;
+  }
 
-.tree-row .actions {
-  margin-left: auto;
-}
+  .sidebar-foot {
+    display: none;
+  }
 
-.perm-groups {
-  max-height: 360px;
-  overflow: auto;
-}
-
-.perm-group {
-  margin-bottom: 0.75rem;
+  .user-meta {
+    display: none;
+  }
 }
 </style>

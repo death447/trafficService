@@ -1,12 +1,16 @@
 <template>
   <div class="page">
     <div class="page-header">
-      <h1>用户管理</h1>
+      <div>
+        <h1>用户管理</h1>
+        <p class="subtitle">维护系统账号、联系方式与角色分配</p>
+      </div>
       <button v-auth="'user:add'" type="button" @click="openCreate">新增用户</button>
     </div>
     <p v-if="error" class="error">{{ error }}</p>
-    <p v-if="loading">加载中…</p>
-    <table v-else class="data-table">
+    <p v-if="loading" class="loading-text">加载中…</p>
+    <div v-else class="panel">
+    <table class="data-table">
       <thead>
         <tr>
           <th>用户名</th>
@@ -24,7 +28,11 @@
           <td>{{ user.email }}</td>
           <td>{{ user.phone }}</td>
           <td>{{ user.realName }}</td>
-          <td>{{ user.status === 1 ? '启用' : '停用' }}</td>
+          <td>
+            <span :class="['badge', user.status === 1 ? 'badge-success' : 'badge-muted']">
+              {{ user.status === 1 ? '启用' : '停用' }}
+            </span>
+          </td>
           <td>{{ roleNames(user) }}</td>
           <td class="actions">
             <button v-auth="'user:edit'" type="button" @click="openEdit(user)">编辑</button>
@@ -36,6 +44,7 @@
         </tr>
       </tbody>
     </table>
+    </div>
 
     <div v-if="formVisible" class="modal" @click.self="formVisible = false">
       <form class="modal-card" @submit.prevent="onSubmit">

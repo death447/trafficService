@@ -1,16 +1,20 @@
 <template>
   <div class="page">
     <div class="page-header">
-      <h1>权限管理</h1>
+      <div>
+        <h1>权限管理</h1>
+        <p class="subtitle">维护模块与操作权限树，支撑动态授权</p>
+      </div>
       <button v-auth="'permission:add'" type="button" @click="openCreate">新增权限</button>
     </div>
     <p v-if="error" class="error">{{ error }}</p>
-    <p v-if="loading">加载中…</p>
-    <div v-else class="tree">
+    <p v-if="loading" class="loading-text">加载中…</p>
+    <div v-else class="panel tree">
       <div v-for="group in permissionGroups" :key="group.id" class="tree-group">
         <div class="tree-row">
           <strong>{{ group.permissionName }}</strong>
-          <span class="muted">{{ group.permissionCode }} / {{ group.permissionType }}</span>
+          <span class="badge badge-info">{{ group.permissionType }}</span>
+          <span class="muted">{{ group.permissionCode }}</span>
           <span class="actions">
             <button v-auth="'permission:edit'" type="button" @click="openEdit(group)">编辑</button>
             <button v-auth="'permission:delete'" type="button" class="danger" @click="onDelete(group)">删除</button>
@@ -18,7 +22,8 @@
         </div>
         <div v-for="child in group.children" :key="child.id" class="tree-row nested">
           <span>{{ child.permissionName }}</span>
-          <span class="muted">{{ child.permissionCode }} / {{ child.permissionType }}</span>
+          <span class="badge badge-muted">{{ child.permissionType }}</span>
+          <span class="muted">{{ child.permissionCode }}</span>
           <span class="actions">
             <button v-auth="'permission:edit'" type="button" @click="openEdit(child)">编辑</button>
             <button v-auth="'permission:delete'" type="button" class="danger" @click="onDelete(child)">删除</button>
