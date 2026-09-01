@@ -16,6 +16,24 @@ const routes = [
     path: '/',
     name: 'Home',
     component: () => import('@/views/Home.vue')
+  },
+  {
+    path: '/users',
+    name: 'UserList',
+    component: () => import('../views/user/UserList.vue'),
+    meta: { permissions: ['user:manage'] }
+  },
+  {
+    path: '/roles',
+    name: 'RoleList',
+    component: () => import('../views/role/RoleList.vue'),
+    meta: { permissions: ['role:manage'] }
+  },
+  {
+    path: '/permissions',
+    name: 'PermissionList',
+    component: () => import('../views/permission/PermissionList.vue'),
+    meta: { permissions: ['permission:manage'] }
   }
 ]
 
