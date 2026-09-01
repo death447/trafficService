@@ -98,6 +98,44 @@ npm run dev
 
 前端服务地址: http://localhost:5173
 
+## 登录与 RBAC
+
+### 默认账号
+
+执行 `database/init.sql` 后会创建默认管理员账号：
+
+- 用户名: `admin`
+- 密码: `admin123`
+
+### 登录接口
+
+```bash
+POST /api/auth/login
+Content-Type: application/json
+
+{"username": "admin", "password": "admin123"}
+```
+
+响应中的 `data.token` 为 JWT，后续请求需在 Header 中携带：
+
+```
+Authorization: Bearer <token>
+```
+
+### 角色与权限
+
+系统预置四类业务角色及系统管理员角色：
+
+| 角色代码 | 说明 |
+|---------|------|
+| `TRAFFIC_POLICE` | 交警，负责事故处理 |
+| `DISPATCHER` | 调度员，负责派单与资源调度 |
+| `TOW_DRIVER` | 拖车施救员，执行救援任务 |
+| `PARKING_ADMIN` | 停车场管理员 |
+| `ADMIN` | 系统管理员，拥有用户/角色/权限管理权限 |
+
+权限基于 RBAC：用户可拥有多个角色，角色关联权限（模块/按钮/API）。JWT 登录时加载当前权限列表；**修改角色或权限后需重新登录** 才能刷新 token 中的权限。
+
 ## 项目说明
 
 ### 前端项目
