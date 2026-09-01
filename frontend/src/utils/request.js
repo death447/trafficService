@@ -1,26 +1,35 @@
 import axios from 'axios'
+import { useUserStore } from '../stores/user'
+import router from '../router'
 
 const request = axios.create({
   baseURL: '/api',
-  timeout: 5000
+  timeout: 15000
 })
 
-request.interceptors.request.use(
-  config => {
-    return config
-  },
-  error => {
-    return Promise.reject(error)
+request.interceptors.request.use((config) => {
+  const store = useUserStore()
+  if (store.token) {
+    config.headers.Authorization = `Bearer ${store.token}`
   }
-)
+  return config
+})
 
 request.interceptors.response.use(
-  response => {
-    return response.data
+  (res) => {
+    const data = res.data
+    if (data.code !== 200) {
+      return Promise.reject(new Error(data.message || '请求失败'))
+    }
+    return data
   },
-  error => {
-    console.error('请求错误:', error)
-    return Promise.reject(error)
+  (err) => {
+    if (err.response?.status === 401) {
+      const store = useUserStore()
+      store.logout()
+      router.push('/login')
+    }
+    return Promise.reject(err)
   }
 )
 
