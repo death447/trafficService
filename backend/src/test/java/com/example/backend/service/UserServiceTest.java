@@ -13,6 +13,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
@@ -81,6 +82,39 @@ class UserServiceTest {
 
         verify(passwordEncoder, never()).encode(anyString());
         assertEquals("$2a$10$alreadyHashed", user.getPassword());
+        verify(userMapper).update(user);
+    }
+
+    @Test
+    void createUserStoresNullWhenPhoneBlank() {
+        User user = new User();
+        user.setUsername("bob");
+        user.setPassword("secret");
+        user.setPhone("  ");
+        when(passwordEncoder.encode("secret")).thenReturn("$2a$10$x");
+        when(userMapper.insert(user)).thenReturn(1);
+
+        userService.createUser(user, null);
+
+        assertNull(user.getPhone());
+        verify(userMapper).insert(user);
+    }
+
+    @Test
+    void updateUserStoresNullWhenPhoneBlank() {
+        User user = new User();
+        user.setId(4L);
+        user.setPassword(null);
+        user.setPhone("");
+        User existing = new User();
+        existing.setId(4L);
+        existing.setPassword("$2a$10$alreadyHashed");
+        when(userMapper.findById(4L)).thenReturn(existing);
+        when(userMapper.update(user)).thenReturn(1);
+
+        userService.updateUser(user, List.of());
+
+        assertNull(user.getPhone());
         verify(userMapper).update(user);
     }
 }

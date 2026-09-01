@@ -49,7 +49,7 @@ public class PermissionService {
     private List<Permission> buildMenuTree(Long parentId) {
         List<Permission> permissions = permissionMapper.findByParentId(parentId);
         for (Permission permission : permissions) {
-            buildMenuTree(permission.getId());
+            permission.setChildren(buildMenuTree(permission.getId()));
         }
         return permissions;
     }

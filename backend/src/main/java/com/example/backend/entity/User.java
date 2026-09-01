@@ -1,6 +1,8 @@
 package com.example.backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
+import lombok.Getter;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -10,6 +12,7 @@ public class User {
     private Long id;
     private String username;
     private String email;
+    @Getter(onMethod_ = @JsonIgnore)
     private String password;
     private String phone;
     private String realName;

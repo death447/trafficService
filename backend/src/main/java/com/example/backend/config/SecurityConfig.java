@@ -55,7 +55,7 @@ public class SecurityConfig {
                     response.setStatus(HttpStatus.UNAUTHORIZED.value());
                     response.setContentType(MediaType.APPLICATION_JSON_VALUE);
                     response.setCharacterEncoding("UTF-8");
-                    new ObjectMapper().writeValue(response.getWriter(), Result.error("未登录或 token 无效"));
+                    new ObjectMapper().writeValue(response.getWriter(), Result.error(401, "未登录或 token 无效"));
                 }))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();

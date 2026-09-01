@@ -1,8 +1,10 @@
 package com.example.backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 public class Permission {
@@ -15,4 +17,7 @@ public class Permission {
     private Integer sortOrder;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
+
+    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+    private List<Permission> children;
 }

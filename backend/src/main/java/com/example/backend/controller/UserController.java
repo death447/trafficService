@@ -1,6 +1,7 @@
 package com.example.backend.controller;
 
 import com.example.backend.common.Result;
+import com.example.backend.dto.UserRequest;
 import com.example.backend.entity.User;
 import com.example.backend.entity.Role;
 import com.example.backend.entity.Permission;
@@ -64,19 +65,9 @@ public class UserController {
 
     @PostMapping
     @PreAuthorize("hasAuthority('user:add')")
-    public Result<User> createUser(@RequestBody Map<String, Object> params) {
-        User user = new User();
-        user.setUsername((String) params.get("username"));
-        user.setEmail((String) params.get("email"));
-        user.setPassword((String) params.get("password"));
-        user.setPhone((String) params.get("phone"));
-        user.setRealName((String) params.get("realName"));
-        user.setStatus(params.get("status") != null ? (Integer) params.get("status") : 1);
-
-        @SuppressWarnings("unchecked")
-        List<Long> roleIds = (List<Long>) params.get("roleIds");
-
-        boolean success = userService.createUser(user, roleIds);
+    public Result<User> createUser(@RequestBody UserRequest request) {
+        User user = request.toUser();
+        boolean success = userService.createUser(user, request.getRoleIds());
         if (success) {
             return Result.success(user);
         } else {
@@ -86,27 +77,24 @@ public class UserController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('user:edit')")
-    public Result<User> updateUser(@PathVariable Long id, @RequestBody Map<String, Object> params) {
+    public Result<User> updateUser(@PathVariable Long id, @RequestBody UserRequest request) {
         User user = userService.findById(id);
         if (user == null) {
             return Result.error("用户不存在");
         }
 
-        user.setUsername((String) params.get("username"));
-        user.setEmail((String) params.get("email"));
-        if (params.get("password") != null && !params.get("password").toString().isEmpty()) {
-            user.setPassword((String) params.get("password"));
+        user.setUsername(request.getUsername());
+        user.setEmail(request.getEmail());
+        if (request.getPassword() != null && !request.getPassword().isEmpty()) {
+            user.setPassword(request.getPassword());
         } else {
             user.setPassword(null);
         }
-        user.setPhone((String) params.get("phone"));
-        user.setRealName((String) params.get("realName"));
-        user.setStatus(params.get("status") != null ? (Integer) params.get("status") : 1);
+        user.setPhone(request.getPhone());
+        user.setRealName(request.getRealName());
+        user.setStatus(request.getStatus() != null ? request.getStatus() : 1);
 
-        @SuppressWarnings("unchecked")
-        List<Long> roleIds = (List<Long>) params.get("roleIds");
-
-        boolean success = userService.updateUser(user, roleIds);
+        boolean success = userService.updateUser(user, request.getRoleIds());
         if (success) {
             return Result.success(user);
         } else {

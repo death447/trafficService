@@ -44,6 +44,7 @@ public class UserService {
 
     @Transactional
     public boolean createUser(User user, List<Long> roleIds) {
+        blankPhoneToNull(user);
         user.setPassword(passwordEncoder.encode(user.getPassword()));
         int result = userMapper.insert(user);
         if (result > 0 && roleIds != null && !roleIds.isEmpty()) {
@@ -56,6 +57,7 @@ public class UserService {
 
     @Transactional
     public boolean updateUser(User user, List<Long> roleIds) {
+        blankPhoneToNull(user);
         if (user.getPassword() != null && !user.getPassword().isBlank()) {
             user.setPassword(passwordEncoder.encode(user.getPassword()));
         } else {
@@ -92,5 +94,11 @@ public class UserService {
         List<com.example.backend.entity.Permission> permissions = getUserPermissions(userId);
         return permissions.stream()
                 .anyMatch(p -> p.getPermissionCode().equals(permissionCode));
+    }
+
+    private void blankPhoneToNull(User user) {
+        if (user.getPhone() != null && user.getPhone().isBlank()) {
+            user.setPhone(null);
+        }
     }
 }

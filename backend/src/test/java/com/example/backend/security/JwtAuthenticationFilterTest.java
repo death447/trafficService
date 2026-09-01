@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Collections;
@@ -59,6 +60,42 @@ class JwtAuthenticationFilterTest {
     @Test
     void skipsAuthenticationWhenNoBearerHeader() throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        FilterChain chain = mock(FilterChain.class);
+
+        filter.doFilterInternal(request, response, chain);
+
+        assertNull(SecurityContextHolder.getContext().getAuthentication());
+        verify(chain).doFilter(request, response);
+    }
+
+    @Test
+    void doesNotAuthenticateWhenUserDisabled() throws Exception {
+        CustomUserDetails user = new CustomUserDetails(2L, "disabled", "pw", false, Collections.emptyList());
+        when(tokenProvider.validateToken("good.jwt")).thenReturn(true);
+        when(tokenProvider.getUsername("good.jwt")).thenReturn("disabled");
+        when(userDetailsService.loadUserByUsername("disabled")).thenReturn(user);
+
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("Authorization", "Bearer good.jwt");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        FilterChain chain = mock(FilterChain.class);
+
+        filter.doFilterInternal(request, response, chain);
+
+        assertNull(SecurityContextHolder.getContext().getAuthentication());
+        verify(chain).doFilter(request, response);
+    }
+
+    @Test
+    void continuesWithoutAuthWhenUsernameNotFound() throws Exception {
+        when(tokenProvider.validateToken("good.jwt")).thenReturn(true);
+        when(tokenProvider.getUsername("good.jwt")).thenReturn("ghost");
+        when(userDetailsService.loadUserByUsername("ghost"))
+                .thenThrow(new UsernameNotFoundException("用户不存在: ghost"));
+
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("Authorization", "Bearer good.jwt");
         MockHttpServletResponse response = new MockHttpServletResponse();
         FilterChain chain = mock(FilterChain.class);
 
