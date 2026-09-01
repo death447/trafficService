@@ -16,3 +16,9 @@ mybatis:
   configuration:
     map-underscore-to-camel-case: true
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+app:
+  jwt:
+    # 生产环境请用环境变量覆盖；长度建议 >= 32 字节
+    secret: "vue-springboot-rbac-jwt-secret-change-me-32bytes"
+    expiration-ms: 7200000
