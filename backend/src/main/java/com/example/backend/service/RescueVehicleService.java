@@ -26,6 +26,18 @@ public class RescueVehicleService {
         return vehicleMapper.findById(id);
     }
 
+    /** Returns vehicle only when IDLE; otherwise throws with a clear Chinese message. */
+    public RescueVehicle requireIdle(Long id) {
+        RescueVehicle vehicle = vehicleMapper.findById(id);
+        if (vehicle == null) {
+            throw new RuntimeException("车辆不存在");
+        }
+        if (!"IDLE".equals(vehicle.getStatus())) {
+            throw new RuntimeException("车辆非空闲，无法派单");
+        }
+        return vehicle;
+    }
+
     public List<RescueVehicle> findAll() {
         return vehicleMapper.findAll();
     }
