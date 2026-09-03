@@ -117,7 +117,7 @@ const isLoginPage = computed(() => route.path === '/login')
 const pageTitle = computed(() => {
   const path = route.path
   if (path === '/dispatches/new') return '新建工单'
-  if (/^\/dispatches\/[^/]+$/.test(path)) return '工单详情'
+  if (/^\/dispatches\/[^/]+$/.test(path) && path !== '/dispatches/new') return '工单详情'
   const map = {
     '/': '工作台概览',
     '/users': '用户管理',

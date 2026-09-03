@@ -5,7 +5,7 @@
         <p class="eyebrow">内部工作台</p>
         <h2>欢迎回来{{ greetingName }}</h2>
         <p class="lead">
-          从左侧菜单进入用户、角色与权限管理模块，按组织职责配置系统访问能力。
+          从工作台进入任务调度、施救车辆与系统管理模块，按组织职责处理派单与权限配置。
         </p>
       </div>
       <div class="hero-stat">
@@ -15,6 +15,26 @@
     </section>
 
     <section class="module-grid">
+      <router-link
+        v-auth="'dispatch:manage'"
+        to="/dispatches"
+        class="module-item"
+      >
+        <span class="module-tag">调度</span>
+        <h3>任务管理</h3>
+        <p>新建与处理救援派单工单，完成派单、结案与中止流转。</p>
+      </router-link>
+
+      <router-link
+        v-auth="'vehicle:manage'"
+        to="/vehicles"
+        class="module-item"
+      >
+        <span class="module-tag">运力</span>
+        <h3>施救车辆</h3>
+        <p>维护拖车、清障车等救援车辆信息与空闲/忙碌状态。</p>
+      </router-link>
+
       <router-link
         v-auth="'user:manage'"
         to="/users"
@@ -131,7 +151,7 @@ const roleText = computed(() => {
 
 .module-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 1rem;
 }
 

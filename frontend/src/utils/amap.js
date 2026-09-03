@@ -18,7 +18,10 @@ export function loadAmap() {
     const script = document.createElement('script')
     script.src = `https://webapi.amap.com/maps?v=2.0&key=${KEY}`
     script.onload = () => resolve(window.AMap)
-    script.onerror = () => reject(new Error('高德地图加载失败'))
+    script.onerror = () => {
+      loading = undefined
+      reject(new Error('高德地图加载失败'))
+    }
     document.head.appendChild(script)
   })
   return loading
