@@ -40,6 +40,24 @@ const routes = [
     name: 'VehicleList',
     component: () => import('../views/vehicle/VehicleList.vue'),
     meta: { permissions: ['vehicle:manage'] }
+  },
+  {
+    path: '/dispatches',
+    name: 'DispatchList',
+    component: () => import('../views/dispatch/DispatchList.vue'),
+    meta: { permissions: ['dispatch:manage'] }
+  },
+  {
+    path: '/dispatches/new',
+    name: 'DispatchCreate',
+    component: () => import('../views/dispatch/DispatchCreate.vue'),
+    meta: { permissions: ['dispatch:add'] }
+  },
+  {
+    path: '/dispatches/:id',
+    name: 'DispatchDetail',
+    component: () => import('../views/dispatch/DispatchDetail.vue'),
+    meta: { permissions: ['dispatch:query'] }
   }
 ]
 

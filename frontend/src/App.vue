@@ -115,6 +115,9 @@ const store = useUserStore()
 const isLoginPage = computed(() => route.path === '/login')
 
 const pageTitle = computed(() => {
+  const path = route.path
+  if (path === '/dispatches/new') return '新建工单'
+  if (/^\/dispatches\/[^/]+$/.test(path)) return '工单详情'
   const map = {
     '/': '工作台概览',
     '/users': '用户管理',
@@ -124,7 +127,7 @@ const pageTitle = computed(() => {
     '/dispatches': '任务管理',
     '/403': '访问受限'
   }
-  return map[route.path] || '救援派单系统'
+  return map[path] || '救援派单系统'
 })
 
 const displayName = computed(() => store.username || '未登录用户')
