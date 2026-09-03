@@ -24,6 +24,26 @@
           概览
         </router-link>
 
+        <p class="nav-section">业务调度</p>
+        <router-link
+          v-auth="'dispatch:manage'"
+          to="/dispatches"
+          class="nav-item"
+          active-class="active"
+        >
+          <span class="nav-ico">任</span>
+          任务管理
+        </router-link>
+        <router-link
+          v-auth="'vehicle:manage'"
+          to="/vehicles"
+          class="nav-item"
+          active-class="active"
+        >
+          <span class="nav-ico">车</span>
+          施救车辆
+        </router-link>
+
         <p class="nav-section">系统管理</p>
         <router-link
           v-auth="'user:manage'"
@@ -100,6 +120,8 @@ const pageTitle = computed(() => {
     '/users': '用户管理',
     '/roles': '角色管理',
     '/permissions': '权限管理',
+    '/vehicles': '施救车辆',
+    '/dispatches': '任务管理',
     '/403': '访问受限'
   }
   return map[route.path] || '救援派单系统'

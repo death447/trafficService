@@ -34,6 +34,12 @@ const routes = [
     name: 'PermissionList',
     component: () => import('../views/permission/PermissionList.vue'),
     meta: { permissions: ['permission:manage'] }
+  },
+  {
+    path: '/vehicles',
+    name: 'VehicleList',
+    component: () => import('../views/vehicle/VehicleList.vue'),
+    meta: { permissions: ['vehicle:manage'] }
   }
 ]
 
