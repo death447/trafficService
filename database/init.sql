@@ -1,6 +1,8 @@
 CREATE DATABASE IF NOT EXISTS vue_springboot_system DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE vue_springboot_system;
 
+DROP TABLE IF EXISTS `dispatch_order`;
+DROP TABLE IF EXISTS `rescue_vehicle`;
 DROP TABLE IF EXISTS `role_permission`;
 DROP TABLE IF EXISTS `user_role`;
 DROP TABLE IF EXISTS `permission`;
@@ -71,6 +73,49 @@ CREATE TABLE `role_permission` (
   KEY `idx_permission_id` (`permission_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='角色权限关联表';
 
+CREATE TABLE `rescue_vehicle` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `plate_no` VARCHAR(20) NOT NULL COMMENT '车牌',
+  `vehicle_type` VARCHAR(50) NOT NULL COMMENT '车辆类型：TOW/CLEARANCE/OTHER 等',
+  `color` VARCHAR(30) DEFAULT NULL,
+  `equipment` VARCHAR(200) DEFAULT NULL COMMENT '配备装备',
+  `longitude` DECIMAL(10,7) DEFAULT NULL,
+  `latitude` DECIMAL(10,7) DEFAULT NULL,
+  `status` VARCHAR(20) NOT NULL DEFAULT 'IDLE' COMMENT 'IDLE/BUSY/OFFLINE',
+  `district_id` BIGINT DEFAULT NULL COMMENT '预留片区',
+  `driver_user_id` BIGINT DEFAULT NULL COMMENT '绑定施救员 user.id',
+  `remark` VARCHAR(200) DEFAULT NULL,
+  `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_plate_no` (`plate_no`),
+  KEY `idx_status` (`status`),
+  KEY `idx_district_id` (`district_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='施救车辆';
+
+CREATE TABLE `dispatch_order` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `order_no` VARCHAR(32) NOT NULL COMMENT '业务单号',
+  `accident_address` VARCHAR(255) NOT NULL,
+  `longitude` DECIMAL(10,7) DEFAULT NULL,
+  `latitude` DECIMAL(10,7) DEFAULT NULL,
+  `rescue_reason` VARCHAR(500) DEFAULT NULL,
+  `status` VARCHAR(20) NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING/DISPATCHED/COMPLETED/ABORTED',
+  `dispatcher_id` BIGINT NOT NULL COMMENT '创建调度员 user.id',
+  `vehicle_id` BIGINT DEFAULT NULL,
+  `rescuer_id` BIGINT DEFAULT NULL COMMENT '施救员 user.id',
+  `abort_reason` VARCHAR(500) DEFAULT NULL,
+  `dispatched_at` DATETIME DEFAULT NULL,
+  `completed_at` DATETIME DEFAULT NULL,
+  `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_order_no` (`order_no`),
+  KEY `idx_status` (`status`),
+  KEY `idx_dispatcher_id` (`dispatcher_id`),
+  KEY `idx_vehicle_id` (`vehicle_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='救援工单';
+
 INSERT INTO `role` (`role_name`, `role_code`, `description`) VALUES
 ('交警', 'TRAFFIC_POLICE', '负责事故处理'),
 ('调度员', 'DISPATCHER', '负责派单管理、资源调度、任务分配'),
@@ -97,14 +142,27 @@ INSERT INTO `permission` (`id`, `permission_name`, `permission_code`, `permissio
 (16, '派单管理', 'dispatch:manage', 'MODULE', 0, 4),
 (17, '事故处理', 'accident:manage', 'MODULE', 0, 5),
 (18, '救援执行', 'rescue:manage', 'MODULE', 0, 6),
-(19, '停车场管理', 'parking:manage', 'MODULE', 0, 7);
+(19, '停车场管理', 'parking:manage', 'MODULE', 0, 7),
+(20, '工单查询', 'dispatch:query', 'BUTTON', 16, 1),
+(21, '工单新增', 'dispatch:add', 'BUTTON', 16, 2),
+(22, '工单编辑', 'dispatch:edit', 'BUTTON', 16, 3),
+(23, '工单派单', 'dispatch:dispatch', 'BUTTON', 16, 4),
+(24, '工单完成', 'dispatch:complete', 'BUTTON', 16, 5),
+(25, '工单中止', 'dispatch:abort', 'BUTTON', 16, 6),
+(26, '施救车辆', 'vehicle:manage', 'MODULE', 0, 8),
+(27, '车辆查询', 'vehicle:query', 'BUTTON', 26, 1),
+(28, '车辆新增', 'vehicle:add', 'BUTTON', 26, 2),
+(29, '车辆编辑', 'vehicle:edit', 'BUTTON', 26, 3),
+(30, '车辆删除', 'vehicle:delete', 'BUTTON', 26, 4);
 
--- ADMIN 拥有全部管理权限 1-15
+-- ADMIN: 系统管理 1-15 + 派单模块及按钮 16,20-25 + 车辆 26-30
 INSERT INTO `role_permission` (`role_id`, `permission_id`)
-SELECT 5, id FROM `permission` WHERE id BETWEEN 1 AND 15;
+SELECT 5, id FROM `permission` WHERE id BETWEEN 1 AND 15
+   OR id = 16 OR id BETWEEN 20 AND 30;
 
--- DISPATCHER 拥有派单管理
-INSERT INTO `role_permission` (`role_id`, `permission_id`) VALUES (2, 16);
+-- DISPATCHER: 派单 + 车辆
+INSERT INTO `role_permission` (`role_id`, `permission_id`)
+SELECT 2, id FROM `permission` WHERE id = 16 OR id BETWEEN 20 AND 30;
 
 -- TRAFFIC_POLICE 拥有事故处理
 INSERT INTO `role_permission` (`role_id`, `permission_id`) VALUES (1, 17);
@@ -120,3 +178,16 @@ INSERT INTO `user` (`username`, `email`, `password`, `phone`, `real_name`, `stat
 ('admin', 'admin@example.com', '$2a$10$tRbGvdiWK.72JRbBlUYmB.3K2h44sbb20U3qKWrAeggv0.lbqUhzW', '13800000000', '系统管理员', 1);
 
 INSERT INTO `user_role` (`user_id`, `role_id`) VALUES (1, 5);
+
+INSERT INTO `user` (`username`, `email`, `password`, `phone`, `real_name`, `status`) VALUES
+('dispatcher', 'dispatcher@example.com',
+ '$2a$10$tRbGvdiWK.72JRbBlUYmB.3K2h44sbb20U3qKWrAeggv0.lbqUhzW',
+ '13800000001', '调度员演示', 1);
+INSERT INTO `user_role` (`user_id`, `role_id`) VALUES (2, 2);
+
+INSERT INTO `rescue_vehicle`
+(`plate_no`, `vehicle_type`, `color`, `equipment`, `longitude`, `latitude`, `status`, `remark`) VALUES
+('粤B·救援01', 'TOW', '黄', '拖车绳', 114.0578680, 22.5430990, 'IDLE', '深圳市民中心附近'),
+('粤B·救援02', 'TOW', '白', '液压绞盘', 114.0859470, 22.5470000, 'IDLE', '稍偏东'),
+('粤B·救援03', 'CLEARANCE', '蓝', '清障设备', 114.0300000, 22.5400000, 'IDLE', '稍偏西'),
+('粤B·救援04', 'TOW', '红', NULL, 114.0578680, 22.5430990, 'OFFLINE', '离线样例');
