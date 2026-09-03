@@ -84,6 +84,11 @@ public class RescueVehicleService {
         if (existingByPlate != null && !existingByPlate.getId().equals(vehicle.getId())) {
             throw new RuntimeException("车牌号已存在");
         }
+        String status = vehicle.getStatus();
+        if (("IDLE".equals(status) || "OFFLINE".equals(status))
+                && dispatchOrderMapper.countDispatchedByVehicleId(vehicle.getId()) > 0) {
+            throw new RuntimeException("该车辆有进行中的派单，不能改为空闲或离线");
+        }
         return vehicleMapper.update(vehicle) > 0;
     }
 

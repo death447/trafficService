@@ -72,8 +72,8 @@
             <div v-else class="map-placeholder">
               <p v-if="!hasCoords">工单缺少坐标，无法在地图上展示事故点。</p>
               <p v-else-if="!amapReady">未配置 VITE_AMAP_KEY，地图不可用；请从下方列表派单。</p>
-              <p v-if="mapError" class="error">{{ mapError }}</p>
             </div>
+            <p v-if="mapError" class="error">{{ mapError }}</p>
           </div>
 
           <div class="panel vehicle-panel">

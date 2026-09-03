@@ -32,6 +32,54 @@ class RescueVehicleServiceTest {
     }
 
     @Test
+    void updateRejectsIdleWhenDispatchedOrdersExist() {
+        RescueVehicle v = vehicle(1L, "粤B1", "114.058", "22.543");
+        v.setStatus("IDLE");
+        when(vehicleMapper.findByPlateNo("粤B1")).thenReturn(null);
+        when(dispatchOrderMapper.countDispatchedByVehicleId(1L)).thenReturn(1);
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> service.updateVehicle(v));
+        assertTrue(ex.getMessage().contains("派单"));
+        verify(vehicleMapper, never()).update(any());
+    }
+
+    @Test
+    void updateRejectsOfflineWhenDispatchedOrdersExist() {
+        RescueVehicle v = vehicle(1L, "粤B1", "114.058", "22.543");
+        v.setStatus("OFFLINE");
+        when(vehicleMapper.findByPlateNo("粤B1")).thenReturn(null);
+        when(dispatchOrderMapper.countDispatchedByVehicleId(1L)).thenReturn(2);
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> service.updateVehicle(v));
+        assertTrue(ex.getMessage().contains("空闲或离线"));
+        verify(vehicleMapper, never()).update(any());
+    }
+
+    @Test
+    void updateAllowsBusyEvenWhenDispatched() {
+        RescueVehicle v = vehicle(1L, "粤B1", "114.058", "22.543");
+        v.setStatus("BUSY");
+        when(vehicleMapper.findByPlateNo("粤B1")).thenReturn(null);
+        when(vehicleMapper.update(v)).thenReturn(1);
+
+        assertTrue(service.updateVehicle(v));
+        verify(dispatchOrderMapper, never()).countDispatchedByVehicleId(any());
+        verify(vehicleMapper).update(v);
+    }
+
+    @Test
+    void updateAllowsIdleWhenNoDispatchedOrders() {
+        RescueVehicle v = vehicle(1L, "粤B1", "114.058", "22.543");
+        v.setStatus("IDLE");
+        when(vehicleMapper.findByPlateNo("粤B1")).thenReturn(null);
+        when(dispatchOrderMapper.countDispatchedByVehicleId(1L)).thenReturn(0);
+        when(vehicleMapper.update(v)).thenReturn(1);
+
+        assertTrue(service.updateVehicle(v));
+        verify(vehicleMapper).update(v);
+    }
+
+    @Test
     void nearbySortsIdleByDistanceAscending() {
         RescueVehicle near = vehicle(1L, "粤B1", "114.058", "22.543");
         RescueVehicle far = vehicle(2L, "粤B2", "114.100", "22.600");
