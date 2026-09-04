@@ -23,9 +23,16 @@ class GeoUtilsTest {
     }
 
     @Test
+    void containsOnEdge() {
+        // 边上视为内 — left edge of SQUARE at lng=114.04, lat=22.545
+        assertTrue(GeoUtils.contains(SQUARE, 114.04, 22.545));
+    }
+
+    @Test
     void normalizeRejectsTwoPoints() {
-        assertThrows(RuntimeException.class,
+        RuntimeException ex = assertThrows(RuntimeException.class,
                 () -> GeoUtils.normalizeFence(List.of(new LngLat(1, 1), new LngLat(2, 2))));
+        assertTrue(ex.getMessage().contains("围栏至少需要3个顶点"));
     }
 
     @Test
