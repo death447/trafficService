@@ -25,6 +25,11 @@ public final class GeoUtils {
             return MAPPER.convertValue(node, new TypeReference<List<LngLat>>() {});
         } catch (JsonProcessingException e) {
             throw new RuntimeException("围栏格式无效");
+        } catch (RuntimeException e) {
+            if ("围栏格式无效".equals(e.getMessage())) {
+                throw e;
+            }
+            throw new RuntimeException("围栏格式无效");
         }
     }
 

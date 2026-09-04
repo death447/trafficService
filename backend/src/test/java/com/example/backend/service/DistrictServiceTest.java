@@ -94,6 +94,26 @@ class DistrictServiceTest {
     }
 
     @Test
+    void resolveSkipsCorruptFenceAndHitsGoodDistrict() {
+        District corrupt = existing(1L, "BAD", "not-valid-json");
+        District good = existing(2L, "GOOD", SQUARE_JSON);
+        when(districtMapper.findByStatus("ENABLED")).thenReturn(List.of(corrupt, good));
+
+        District hit = service.resolve(new BigDecimal("114.057868"), new BigDecimal("22.543099"));
+        assertNotNull(hit);
+        assertEquals(2L, hit.getId());
+    }
+
+    @Test
+    void resolveReturnsNullWhenAllFencesCorrupt() {
+        District corrupt1 = existing(1L, "BAD1", "not-valid-json");
+        District corrupt2 = existing(2L, "BAD2", "[]");
+        when(districtMapper.findByStatus("ENABLED")).thenReturn(List.of(corrupt1, corrupt2));
+
+        assertNull(service.resolve(new BigDecimal("114.057868"), new BigDecimal("22.543099")));
+    }
+
+    @Test
     void deleteRejectsWhenVehicleReferenced() {
         when(districtMapper.findById(5L)).thenReturn(existing(5L, "X", SQUARE_JSON));
         when(districtMapper.countVehiclesByDistrictId(5L)).thenReturn(1);

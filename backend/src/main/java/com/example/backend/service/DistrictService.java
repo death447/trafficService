@@ -88,8 +88,13 @@ public class DistrictService {
         return districtMapper.findByStatus("ENABLED").stream()
                 .sorted(Comparator.comparing(District::getId))
                 .filter(d -> {
-                    List<LngLat> polygon = GeoUtils.normalizeFence(GeoUtils.parseFence(d.getFenceJson()));
-                    return GeoUtils.contains(polygon, x, y);
+                    try {
+                        List<LngLat> polygon =
+                                GeoUtils.normalizeFence(GeoUtils.parseFence(d.getFenceJson()));
+                        return GeoUtils.contains(polygon, x, y);
+                    } catch (RuntimeException e) {
+                        return false;
+                    }
                 })
                 .findFirst()
                 .orElse(null);

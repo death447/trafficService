@@ -41,4 +41,16 @@ class GeoUtilsTest {
         List<LngLat> parsed = GeoUtils.normalizeFence(GeoUtils.parseFence(json));
         assertEquals(4, parsed.size());
     }
+
+    @Test
+    void parseRejectsInvalidJson() {
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> GeoUtils.parseFence("not json"));
+        assertEquals("围栏格式无效", ex.getMessage());
+    }
+
+    @Test
+    void parseRejectsMalformedElements() {
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> GeoUtils.parseFence("[\"bad\"]"));
+        assertEquals("围栏格式无效", ex.getMessage());
+    }
 }
