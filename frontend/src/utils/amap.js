@@ -27,29 +27,114 @@ export function loadAmap() {
   return loading
 }
 
-/** 在 container 元素上创建地图；点击设标记并逆地理（若 Geocoder 可用） */
-export async function createPickerMap(container, { lng, lat, onPicked }) {
+/**
+ * 选点地图：定位 / 搜索 / 点击与拖拽标记 + 逆地理。
+ * @returns {{ map, setMarker(lng, lat, address?), destroy() }}
+ */
+export async function createPickerMap(container, { lng, lat, onPicked, searchInput } = {}) {
   const AMap = await loadAmap()
-  const center = lng && lat ? [Number(lng), Number(lat)] : [114.057868, 22.543099]
-  const map = new AMap.Map(container, { zoom: 13, center })
-  let marker
+  const map = new AMap.Map(container, { zoom: 5, center: [105, 35] })
+
+  let marker = null
+  let geocoder = null
+
+  const emitPicked = (x, y, address) => {
+    onPicked?.({ lng: Number(x), lat: Number(y), address: address || '' })
+  }
+
+  const reverseGeocode = (x, y) => {
+    if (!geocoder) {
+      emitPicked(x, y, '')
+      return
+    }
+    geocoder.getAddress([Number(x), Number(y)], (status, result) => {
+      if (status === 'complete' && result.regeocode) {
+        emitPicked(x, y, result.regeocode.formattedAddress)
+      } else {
+        emitPicked(x, y, '')
+      }
+    })
+  }
+
+  const setMarker = (x, y, address) => {
+    const position = [Number(x), Number(y)]
+    if (!marker) {
+      marker = new AMap.Marker({ position, map, draggable: true })
+      marker.on('dragend', () => {
+        const pos = marker.getPosition()
+        reverseGeocode(pos.lng, pos.lat)
+      })
+    } else {
+      marker.setPosition(position)
+    }
+    if (address != null && address !== undefined) {
+      emitPicked(x, y, address)
+    }
+  }
+
+  await new Promise((resolve) => {
+    AMap.plugin(
+      ['AMap.Geolocation', 'AMap.Geocoder', 'AMap.AutoComplete', 'AMap.PlaceSearch'],
+      () => resolve()
+    )
+  })
+
+  geocoder = new AMap.Geocoder()
+
+  const hasInitial = lng != null && lat != null && lng !== '' && lat !== ''
+  if (hasInitial) {
+    map.setZoomAndCenter(13, [Number(lng), Number(lat)])
+    setMarker(lng, lat)
+  } else {
+    const geolocation = new AMap.Geolocation({
+      enableHighAccuracy: true,
+      timeout: 10000
+    })
+    geolocation.getCurrentPosition((status, result) => {
+      if (status === 'complete' && result.position) {
+        const { lng: x, lat: y } = result.position
+        map.setZoomAndCenter(15, [x, y])
+        // 仅定位视图，不自动 onPicked
+      } else {
+        map.setZoomAndCenter(5, [105, 35])
+      }
+    })
+  }
+
   map.on('click', (e) => {
     const { lng: x, lat: y } = e.lnglat
-    if (!marker) marker = new AMap.Marker({ position: [x, y], map })
-    else marker.setPosition([x, y])
-    const done = (address) => onPicked?.({ lng: x, lat: y, address: address || '' })
-    if (AMap.plugin) {
-      AMap.plugin('AMap.Geocoder', () => {
-        const geocoder = new AMap.Geocoder()
-        geocoder.getAddress([x, y], (status, result) => {
-          if (status === 'complete' && result.regeocode) {
-            done(result.regeocode.formattedAddress)
-          } else done('')
-        })
-      })
-    } else done('')
+    setMarker(x, y)
+    reverseGeocode(x, y)
   })
-  return map
+
+  if (searchInput) {
+    const inputEl =
+      typeof searchInput === 'string' ? document.querySelector(searchInput) : searchInput
+    if (inputEl) {
+      const autoComplete = new AMap.AutoComplete({ input: inputEl, city: '全国' })
+      autoComplete.on('select', (e) => {
+        const poi = e.poi
+        if (!poi?.location) return
+        const x = poi.location.lng
+        const y = poi.location.lat
+        const name = poi.name || poi.address || ''
+        map.setZoomAndCenter(15, [x, y])
+        setMarker(x, y, name)
+      })
+    }
+  }
+
+  return {
+    map,
+    setMarker(x, y, address) {
+      map.setZoomAndCenter(13, [Number(x), Number(y)])
+      setMarker(x, y, address)
+      if (address == null) reverseGeocode(x, y)
+    },
+    destroy() {
+      if (map && typeof map.destroy === 'function') map.destroy()
+    }
+  }
 }
 
 /** 多边形围栏编辑：点击追加顶点；无 Key 时由页面用 textarea 编辑 JSON */
