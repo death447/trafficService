@@ -10,6 +10,7 @@
 
     <p v-if="!amapReady" class="hint">未配置 VITE_AMAP_KEY，请手填坐标。</p>
     <p v-if="mapError" class="error">{{ mapError }}</p>
+    <p v-if="lookupError" class="error">{{ lookupError }}</p>
 
     <form class="panel form-panel" @submit.prevent="onSubmit">
       <label>
@@ -18,7 +19,12 @@
       </label>
       <label>
         事故地点
-        <input v-model.trim="form.accidentAddress" required placeholder="可点击地图选点自动填充" />
+        <input
+          ref="searchInput"
+          v-model.trim="form.accidentAddress"
+          required
+          placeholder="可搜索地点，或点击/拖动地图标记选点"
+        />
       </label>
       <div class="coord-row">
         <label>
@@ -31,8 +37,36 @@
         </label>
       </div>
 
+      <label>
+        调度员
+        <select v-model="form.dispatcherId" required>
+          <option value="" disabled>请选择调度员</option>
+          <option v-for="u in dispatcherOptions" :key="u.id" :value="String(u.id)">
+            {{ userDisplay(u) }}
+          </option>
+        </select>
+      </label>
+      <label>
+        施救员
+        <select v-model="form.rescuerId">
+          <option value="">暂不指定</option>
+          <option v-for="u in rescuerOptions" :key="u.id" :value="String(u.id)">
+            {{ userDisplay(u) }}
+          </option>
+        </select>
+      </label>
+      <label>
+        救援车辆
+        <select v-model="form.vehicleId">
+          <option value="">暂不指定</option>
+          <option v-for="v in vehicles" :key="v.id" :value="String(v.id)">
+            {{ vehicleDisplay(v) }}
+          </option>
+        </select>
+      </label>
+
       <div v-if="amapReady" class="map-wrap">
-        <p class="map-hint">点击地图选点，将自动填充地址与坐标</p>
+        <p class="map-hint">可搜索地点、点击或拖动标记选点</p>
         <div ref="mapEl" class="map-box" />
       </div>
 
@@ -46,34 +80,109 @@
 </template>
 
 <script setup>
-import { nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { createDispatch } from '../../api/dispatch'
+import { getUserList } from '../../api/user'
+import { listVehicles } from '../../api/vehicle'
+import { useUserStore } from '../../stores/user'
 import { createPickerMap, hasAmapKey } from '../../utils/amap'
 
 const router = useRouter()
+const userStore = useUserStore()
 const mapEl = ref(null)
+const searchInput = ref(null)
 const amapReady = hasAmapKey()
 const mapError = ref('')
+const lookupError = ref('')
 const formError = ref('')
 const saving = ref(false)
+const users = ref([])
+const vehicles = ref([])
 let mapInstance = null
+
+const vehicleStatusLabels = {
+  IDLE: '空闲',
+  BUSY: '忙碌',
+  OFFLINE: '离线'
+}
 
 const form = reactive({
   rescueReason: '',
   accidentAddress: '',
   longitude: '',
-  latitude: ''
+  latitude: '',
+  dispatcherId: userStore.userId != null ? String(userStore.userId) : '',
+  rescuerId: '',
+  vehicleId: ''
 })
+
+const dispatcherOptions = computed(() =>
+  users.value.filter((u) => {
+    if (u.status !== 1) return false
+    const roles = u.roles || []
+    return roles.some((r) => r.roleCode === 'DISPATCHER' || r.roleCode === 'ADMIN')
+  })
+)
+
+const rescuerOptions = computed(() =>
+  users.value.filter((u) => {
+    if (u.status !== 1) return false
+    const roles = u.roles || []
+    return roles.some((r) => r.roleCode === 'TOW_DRIVER')
+  })
+)
+
+function userDisplay(u) {
+  if (!u) return '—'
+  return u.realName ? `${u.realName}（${u.username}）` : u.username
+}
+
+function vehicleDisplay(v) {
+  const status = vehicleStatusLabels[v.status] || v.status || '—'
+  return `${v.plateNo}（${status}）`
+}
+
+function toNullableId(value) {
+  if (value === '' || value == null) return null
+  const n = Number(value)
+  return Number.isNaN(n) ? null : n
+}
 
 function goBack() {
   router.push('/dispatches')
+}
+
+async function loadLookups() {
+  lookupError.value = ''
+  const results = await Promise.allSettled([
+    getUserList({ size: 500 }),
+    listVehicles({})
+  ])
+  const [userResult, vehicleResult] = results
+  if (userResult.status === 'fulfilled') {
+    users.value = userResult.value.data?.list || []
+  }
+  if (vehicleResult.status === 'fulfilled') {
+    vehicles.value = vehicleResult.value.data?.list || []
+  }
+  const failed = results.filter((r) => r.status === 'rejected')
+  if (failed.length === results.length) {
+    const first = failed[0].reason
+    lookupError.value =
+      first?.response?.data?.message || first?.message || '加载基础数据失败'
+  } else if (failed.length) {
+    const first = failed[0].reason
+    lookupError.value =
+      first?.response?.data?.message || first?.message || '部分基础数据加载失败'
+  }
 }
 
 async function initMap() {
   if (!amapReady || !mapEl.value) return
   try {
     mapInstance = await createPickerMap(mapEl.value, {
+      searchInput: searchInput.value,
       onPicked({ lng, lat, address }) {
         form.longitude = String(lng)
         form.latitude = String(lat)
@@ -93,7 +202,10 @@ async function onSubmit() {
       rescueReason: form.rescueReason,
       accidentAddress: form.accidentAddress,
       longitude: Number(form.longitude),
-      latitude: Number(form.latitude)
+      latitude: Number(form.latitude),
+      dispatcherId: toNullableId(form.dispatcherId),
+      rescuerId: toNullableId(form.rescuerId),
+      vehicleId: toNullableId(form.vehicleId)
     })
     const id = res.data?.id
     if (id != null) {
@@ -109,6 +221,7 @@ async function onSubmit() {
 }
 
 onMounted(async () => {
+  await loadLookups()
   await nextTick()
   await initMap()
 })
@@ -149,13 +262,15 @@ onBeforeUnmount(() => {
 }
 
 .form-panel input,
-.form-panel textarea {
+.form-panel textarea,
+.form-panel select {
   padding: 0.5rem 0.65rem;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   font-family: inherit;
   font-size: 0.875rem;
   color: var(--text);
+  background: #fff;
 }
 
 .coord-row {
