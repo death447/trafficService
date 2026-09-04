@@ -2,6 +2,7 @@ package com.example.backend.service;
 
 import com.example.backend.entity.DispatchOrder;
 import com.example.backend.entity.RescueVehicle;
+import com.example.backend.entity.Role;
 import com.example.backend.entity.User;
 import com.example.backend.mapper.DispatchOrderMapper;
 import com.example.backend.mapper.RescueVehicleMapper;
@@ -13,7 +14,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -74,12 +77,10 @@ public class DispatchOrderService {
     }
 
     @Transactional
-    public boolean create(DispatchOrder order, Long dispatcherId) {
+    public boolean create(DispatchOrder order, Long currentUserId) {
         order.setOrderNo(generateOrderNo());
         order.setStatus("PENDING");
-        order.setDispatcherId(dispatcherId);
-        order.setVehicleId(null);
-        order.setRescuerId(null);
+        applyDispatcherAndPrefill(order, currentUserId);
         order.setAbortReason(null);
         order.setDispatchedAt(null);
         order.setCompletedAt(null);
@@ -99,7 +100,45 @@ public class DispatchOrderService {
         existing.setLongitude(order.getLongitude());
         existing.setLatitude(order.getLatitude());
         existing.setRescueReason(order.getRescueReason());
+        Long previousDispatcherId = existing.getDispatcherId();
+        existing.setDispatcherId(order.getDispatcherId());
+        existing.setRescuerId(order.getRescuerId());
+        existing.setVehicleId(order.getVehicleId());
+        applyDispatcherAndPrefill(existing, previousDispatcherId);
         return dispatchOrderMapper.update(existing) > 0;
+    }
+
+    void applyDispatcherAndPrefill(DispatchOrder order, Long currentUserId) {
+        Long dispatcherId = order.getDispatcherId() != null ? order.getDispatcherId() : currentUserId;
+        assertHasRole(dispatcherId, "DISPATCHER", "ADMIN");
+        order.setDispatcherId(dispatcherId);
+
+        if (order.getRescuerId() != null) {
+            assertHasRole(order.getRescuerId(), "TOW_DRIVER");
+        }
+        if (order.getVehicleId() != null) {
+            RescueVehicle vehicle = rescueVehicleService.findById(order.getVehicleId());
+            if (vehicle == null) {
+                throw new RuntimeException("车辆不存在");
+            }
+        }
+    }
+
+    void assertHasRole(Long userId, String... roleCodes) {
+        if (userId == null) {
+            throw new RuntimeException("用户无效");
+        }
+        List<Role> roles = userMapper.findRolesByUserId(userId);
+        Set<String> codes = roles == null
+                ? Set.of()
+                : roles.stream().map(Role::getRoleCode).collect(Collectors.toSet());
+        boolean ok = Arrays.stream(roleCodes).anyMatch(codes::contains);
+        if (!ok) {
+            if (Arrays.asList(roleCodes).contains("TOW_DRIVER")) {
+                throw new RuntimeException("施救员角色无效");
+            }
+            throw new RuntimeException("调度员角色无效");
+        }
     }
 
     @Transactional
