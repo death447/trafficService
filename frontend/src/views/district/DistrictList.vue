@@ -75,8 +75,11 @@
               <button type="button" class="secondary" @click="clearFence">清空</button>
             </div>
           </div>
-          <p v-if="!amapReady" class="hint">
+          <p v-if="!amapReady && !hasAmapKey()" class="hint">
             未配置 VITE_AMAP_KEY，请直接编辑下方 JSON 围栏（格式：[{"lng":…,"lat":…},…]）。
+          </p>
+          <p v-else-if="!amapReady" class="hint">
+            地图加载失败，请直接编辑下方 JSON 围栏（格式：[{"lng":…,"lat":…},…]）。
           </p>
           <p v-else class="map-hint">点击地图追加顶点；可撤销或清空后重绘。</p>
           <div v-if="amapReady" ref="mapEl" class="map-box" />
@@ -120,7 +123,7 @@ const formError = ref('')
 const saving = ref(false)
 const editingId = ref(null)
 const mapEl = ref(null)
-const amapReady = hasAmapKey()
+const amapReady = ref(hasAmapKey())
 const fencePoints = ref([])
 const fenceJsonText = ref('[]')
 let polygonEditor = null
@@ -167,6 +170,7 @@ function resetForm() {
   formError.value = ''
   fencePoints.value = []
   fenceJsonText.value = '[]'
+  amapReady.value = hasAmapKey()
 }
 
 function destroyEditor() {
@@ -178,7 +182,7 @@ function destroyEditor() {
 
 async function initEditor(path) {
   destroyEditor()
-  if (!amapReady || !mapEl.value) return
+  if (!amapReady.value || !mapEl.value) return
   try {
     polygonEditor = await createPolygonEditor(mapEl.value, {
       path,
@@ -187,7 +191,9 @@ async function initEditor(path) {
       }
     })
   } catch (e) {
-    formError.value = e.message || '地图加载失败，请改用 JSON 编辑（需配置 Key）'
+    amapReady.value = false
+    fenceJsonText.value = JSON.stringify(fencePoints.value, null, 2)
+    formError.value = e.message || '地图加载失败，请改用 JSON 编辑'
   }
 }
 
@@ -209,7 +215,7 @@ async function openCreate() {
   resetForm()
   formVisible.value = true
   await nextTick()
-  if (amapReady) await initEditor([])
+  if (amapReady.value) await initEditor([])
 }
 
 async function openEdit(district) {
@@ -224,7 +230,7 @@ async function openEdit(district) {
   fenceJsonText.value = JSON.stringify(path, null, 2)
   formVisible.value = true
   await nextTick()
-  if (amapReady) await initEditor(path)
+  if (amapReady.value) await initEditor(path)
 }
 
 function closeForm() {
@@ -245,7 +251,7 @@ function clearFence() {
 }
 
 function resolveFencePayload() {
-  if (amapReady) {
+  if (amapReady.value) {
     return fencePoints.value
   }
   const points = parseFenceJson(fenceJsonText.value)
