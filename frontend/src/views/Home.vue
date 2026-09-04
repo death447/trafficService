@@ -46,6 +46,16 @@
       </router-link>
 
       <router-link
+        v-auth="'schedule:manage'"
+        to="/schedules"
+        class="module-item"
+      >
+        <span class="module-tag">排班</span>
+        <h3>排班管理</h3>
+        <p>按日期维护调度员与施救员值班时段及车辆绑定。</p>
+      </router-link>
+
+      <router-link
         v-auth="'user:manage'"
         to="/users"
         class="module-item"

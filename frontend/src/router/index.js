@@ -64,6 +64,12 @@ const routes = [
     name: 'DistrictList',
     component: () => import('../views/district/DistrictList.vue'),
     meta: { permissions: ['district:manage'] }
+  },
+  {
+    path: '/schedules',
+    name: 'ScheduleList',
+    component: () => import('../views/schedule/ScheduleList.vue'),
+    meta: { permissions: ['schedule:manage'] }
   }
 ]
 

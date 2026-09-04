@@ -52,6 +52,15 @@
           <span class="nav-ico">区</span>
           片区管理
         </router-link>
+        <router-link
+          v-auth="'schedule:manage'"
+          to="/schedules"
+          class="nav-item"
+          active-class="active"
+        >
+          <span class="nav-ico">班</span>
+          排班管理
+        </router-link>
 
         <p class="nav-section">系统管理</p>
         <router-link
@@ -135,6 +144,7 @@ const pageTitle = computed(() => {
     '/vehicles': '施救车辆',
     '/dispatches': '任务管理',
     '/districts': '片区管理',
+    '/schedules': '排班管理',
     '/403': '访问受限'
   }
   return map[path] || '救援派单系统'

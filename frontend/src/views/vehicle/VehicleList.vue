@@ -16,6 +16,7 @@
             <th>车牌号</th>
             <th>类型</th>
             <th>状态</th>
+            <th>所属片区</th>
             <th>经度</th>
             <th>纬度</th>
             <th>操作</th>
@@ -30,6 +31,7 @@
                 {{ statusLabel(vehicle.status) }}
               </span>
             </td>
+            <td>{{ districtLabel(vehicle.districtId) }}</td>
             <td>{{ vehicle.longitude ?? '—' }}</td>
             <td>{{ vehicle.latitude ?? '—' }}</td>
             <td class="actions">
@@ -81,6 +83,22 @@
           </select>
         </label>
         <label>
+          所属片区
+          <select v-model="form.districtId">
+            <option value="">未绑定</option>
+            <option
+              v-if="readonlyDistrict"
+              :value="String(readonlyDistrict.id)"
+              disabled
+            >
+              {{ readonlyDistrict.name }}（已停用）
+            </option>
+            <option v-for="d in enabledDistricts" :key="d.id" :value="String(d.id)">
+              {{ d.name }}
+            </option>
+          </select>
+        </label>
+        <label>
           备注
           <input v-model.trim="form.remark" />
         </label>
@@ -95,16 +113,20 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { listVehicles, createVehicle, updateVehicle, deleteVehicle } from '../../api/vehicle'
+import { listDistricts } from '../../api/district'
 
 const vehicles = ref([])
+const enabledDistricts = ref([])
+const allDistricts = ref([])
 const loading = ref(false)
 const error = ref('')
 const formVisible = ref(false)
 const formError = ref('')
 const saving = ref(false)
 const editingId = ref(null)
+const boundDisabledDistrict = ref(null)
 
 const form = reactive({
   plateNo: '',
@@ -114,6 +136,7 @@ const form = reactive({
   longitude: '',
   latitude: '',
   status: 'IDLE',
+  districtId: '',
   remark: ''
 })
 
@@ -129,6 +152,20 @@ const statusLabels = {
   OFFLINE: '离线'
 }
 
+const districtMap = computed(() => {
+  const map = {}
+  for (const d of allDistricts.value) map[d.id] = d
+  for (const d of enabledDistricts.value) map[d.id] = d
+  return map
+})
+
+const readonlyDistrict = computed(() => {
+  const d = boundDisabledDistrict.value
+  if (!d) return null
+  if (enabledDistricts.value.some((x) => x.id === d.id)) return null
+  return d
+})
+
 function vehicleTypeLabel(type) {
   return vehicleTypeLabels[type] || type || '—'
 }
@@ -143,6 +180,11 @@ function statusBadgeClass(status) {
   return 'badge-muted'
 }
 
+function districtLabel(districtId) {
+  if (districtId == null) return '—'
+  return districtMap.value[districtId]?.name || String(districtId)
+}
+
 function resetForm() {
   form.plateNo = ''
   form.vehicleType = 'TOW'
@@ -151,8 +193,19 @@ function resetForm() {
   form.longitude = ''
   form.latitude = ''
   form.status = 'IDLE'
+  form.districtId = ''
   form.remark = ''
   formError.value = ''
+  boundDisabledDistrict.value = null
+}
+
+async function loadDistricts() {
+  const [enabledRes, allRes] = await Promise.all([
+    listDistricts({ status: 'ENABLED' }),
+    listDistricts()
+  ])
+  enabledDistricts.value = enabledRes.data?.list || []
+  allDistricts.value = allRes.data?.list || []
 }
 
 async function loadVehicles() {
@@ -185,6 +238,14 @@ function openEdit(vehicle) {
   form.latitude = vehicle.latitude != null ? String(vehicle.latitude) : ''
   form.status = vehicle.status || 'IDLE'
   form.remark = vehicle.remark || ''
+  form.districtId = vehicle.districtId != null ? String(vehicle.districtId) : ''
+
+  if (vehicle.districtId != null) {
+    const current = districtMap.value[vehicle.districtId]
+    if (current && current.status !== 'ENABLED') {
+      boundDisabledDistrict.value = current
+    }
+  }
   formVisible.value = true
 }
 
@@ -195,7 +256,8 @@ function payload() {
     color: form.color || null,
     equipment: form.equipment || null,
     status: form.status,
-    remark: form.remark || null
+    remark: form.remark || null,
+    districtId: form.districtId ? Number(form.districtId) : null
   }
   if (form.longitude !== '') {
     data.longitude = Number(form.longitude)
@@ -208,6 +270,14 @@ function payload() {
 
 async function onSubmit() {
   formError.value = ''
+  if (
+    form.districtId &&
+    boundDisabledDistrict.value &&
+    Number(form.districtId) === boundDisabledDistrict.value.id
+  ) {
+    formError.value = '当前片区已停用，请改选启用片区或清空绑定'
+    return
+  }
   saving.value = true
   try {
     if (editingId.value) {
@@ -235,7 +305,12 @@ async function onDelete(vehicle) {
   }
 }
 
-onMounted(() => {
-  loadVehicles()
+onMounted(async () => {
+  try {
+    await loadDistricts()
+  } catch (e) {
+    error.value = e.response?.data?.message || e.message || '加载片区失败'
+  }
+  await loadVehicles()
 })
 </script>
