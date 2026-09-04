@@ -207,9 +207,9 @@ INSERT INTO `role_permission` (`role_id`, `permission_id`)
 SELECT 5, id FROM `permission` WHERE id BETWEEN 1 AND 15
    OR id = 16 OR id BETWEEN 20 AND 41;
 
--- DISPATCHER: 派单 + 车辆 + 片区 + 排班
+-- DISPATCHER: user:query（排班选人）+ 派单 + 车辆 + 片区 + 排班（无 user:manage 菜单）
 INSERT INTO `role_permission` (`role_id`, `permission_id`)
-SELECT 2, id FROM `permission` WHERE id = 16 OR id BETWEEN 20 AND 41;
+SELECT 2, id FROM `permission` WHERE id = 2 OR id = 16 OR id BETWEEN 20 AND 41;
 
 -- TRAFFIC_POLICE 拥有事故处理
 INSERT INTO `role_permission` (`role_id`, `permission_id`) VALUES (1, 17);

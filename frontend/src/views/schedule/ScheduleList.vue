@@ -318,14 +318,30 @@ function resetFilters() {
 }
 
 async function loadLookups() {
-  const [userRes, vehicleRes, districtRes] = await Promise.all([
+  const results = await Promise.allSettled([
     getUserList(),
     listVehicles(),
     listDistricts()
   ])
-  users.value = userRes.data?.list || []
-  vehicles.value = vehicleRes.data?.list || []
-  districts.value = districtRes.data?.list || []
+  const [userResult, vehicleResult, districtResult] = results
+  if (userResult.status === 'fulfilled') {
+    users.value = userResult.value.data?.list || []
+  }
+  if (vehicleResult.status === 'fulfilled') {
+    vehicles.value = vehicleResult.value.data?.list || []
+  }
+  if (districtResult.status === 'fulfilled') {
+    districts.value = districtResult.value.data?.list || []
+  }
+  const failed = results.filter((r) => r.status === 'rejected')
+  if (failed.length === results.length) {
+    throw failed[0].reason
+  }
+  if (failed.length) {
+    const first = failed[0].reason
+    error.value =
+      first?.response?.data?.message || first?.message || '部分基础数据加载失败'
+  }
 }
 
 async function loadSchedules() {

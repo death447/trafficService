@@ -68,6 +68,14 @@ WHERE p.id BETWEEN 31 AND 41
     WHERE rp.role_id = 2 AND rp.permission_id = p.id
   );
 
+-- DISPATCHER: user:query（id=2）供排班值班人下拉；不含 user:manage 菜单
+INSERT INTO `role_permission` (`role_id`, `permission_id`)
+SELECT 2, 2 FROM DUAL
+WHERE NOT EXISTS (
+  SELECT 1 FROM `role_permission` rp
+  WHERE rp.role_id = 2 AND rp.permission_id = 2
+);
+
 INSERT IGNORE INTO `district` (`name`, `code`, `fence_json`, `status`, `remark`) VALUES
 ('福田中心片区', 'FT-CENTER',
  '[{"lng":114.040,"lat":22.530},{"lng":114.080,"lat":22.530},{"lng":114.080,"lat":22.560},{"lng":114.040,"lat":22.560}]',
