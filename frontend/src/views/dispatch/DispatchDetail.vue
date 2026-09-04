@@ -78,27 +78,40 @@
 
           <div class="panel vehicle-panel">
             <h2 class="section-title">附近空闲车辆</h2>
+            <p v-if="matchedDistrict" class="hint-inline">
+              所属片区：{{ matchedDistrict.name }}（{{ matchedDistrict.code }}）
+            </p>
+            <p v-else-if="hasCoords && !nearbyLoading" class="hint-inline">未匹配到片区</p>
             <p v-if="nearbyHint" class="hint-inline">{{ nearbyHint }}</p>
             <p v-if="nearbyError" class="error">{{ nearbyError }}</p>
             <p v-if="nearbyLoading" class="loading-text">加载附近车辆…</p>
-            <ul v-else class="vehicle-list">
-              <li
-                v-for="item in nearby"
-                :key="item.vehicle.id"
-                :class="['vehicle-item', { selected: selectedVehicleId === item.vehicle.id }]"
-                @click="selectedVehicleId = item.vehicle.id"
+            <template v-else>
+              <div
+                v-for="section in vehicleSections"
+                :key="section.key"
+                class="vehicle-section"
               >
-                <div class="vehicle-main">
-                  <strong>{{ item.vehicle.plateNo }}</strong>
-                  <span class="muted">{{ vehicleTypeLabel(item.vehicle.vehicleType) }}</span>
-                </div>
-                <div class="vehicle-meta">
-                  <span :class="['badge', 'badge-success']">空闲</span>
-                  <span class="distance">{{ formatDistance(item.distanceMeters) }}</span>
-                </div>
-              </li>
-              <li v-if="!nearby.length" class="empty-item">暂无空闲车辆</li>
-            </ul>
+                <h3 class="subsection-title">{{ section.title }}</h3>
+                <ul class="vehicle-list">
+                  <li
+                    v-for="item in section.items"
+                    :key="item.vehicle.id"
+                    :class="['vehicle-item', { selected: selectedVehicleId === item.vehicle.id }]"
+                    @click="selectedVehicleId = item.vehicle.id"
+                  >
+                    <div class="vehicle-main">
+                      <strong>{{ item.vehicle.plateNo }}</strong>
+                      <span class="muted">{{ vehicleTypeLabel(item.vehicle.vehicleType) }}</span>
+                    </div>
+                    <div class="vehicle-meta">
+                      <span :class="['badge', 'badge-success']">空闲</span>
+                      <span class="distance">{{ formatDistance(item.distanceMeters) }}</span>
+                    </div>
+                  </li>
+                  <li v-if="!section.items.length" class="empty-item">{{ section.emptyText }}</li>
+                </ul>
+              </div>
+            </template>
             <div class="assign-actions">
               <button
                 v-auth="'dispatch:abort'"
@@ -204,10 +217,43 @@ const assigning = ref(false)
 const acting = ref('')
 
 const nearby = ref([])
+const matchedDistrict = ref(null)
 const nearbyLoading = ref(false)
 const nearbyError = ref('')
 const nearbyHint = ref('')
 const selectedVehicleId = ref(null)
+
+const nearbyInDistrict = computed(() =>
+  nearby.value.filter((i) => i.inMatchedDistrict))
+const nearbyOthers = computed(() =>
+  nearby.value.filter((i) => !i.inMatchedDistrict))
+
+const vehicleSections = computed(() => {
+  if (matchedDistrict.value) {
+    return [
+      {
+        key: 'in-district',
+        title: '本片区推荐',
+        items: nearbyInDistrict.value,
+        emptyText: '本片区暂无空闲车辆'
+      },
+      {
+        key: 'others',
+        title: '其它车辆',
+        items: nearbyOthers.value,
+        emptyText: '暂无空闲车辆'
+      }
+    ]
+  }
+  return [
+    {
+      key: 'others',
+      title: '其它车辆',
+      items: nearby.value,
+      emptyText: '暂无空闲车辆'
+    }
+  ]
+})
 
 const mapEl = ref(null)
 const amapReady = hasAmapKey()
@@ -285,6 +331,7 @@ async function loadNearby() {
   nearbyHint.value = ''
   selectedVehicleId.value = null
   nearby.value = []
+  matchedDistrict.value = null
   try {
     if (hasCoords.value) {
       const res = await nearbyVehicles({
@@ -292,17 +339,20 @@ async function loadNearby() {
         lat: order.value.latitude,
         limit: 20
       })
-      nearby.value = res.data || []
+      matchedDistrict.value = res.data?.matchedDistrict ?? null
+      nearby.value = res.data?.vehicles || []
       if (!amapReady) {
         nearbyHint.value = '未配置地图 Key，已按距离排序展示附近空闲车辆。'
       }
     } else {
       nearbyHint.value = '工单无坐标，展示空闲车辆列表（无距离排序）。'
+      matchedDistrict.value = null
       const res = await listVehicles({ status: 'IDLE' })
       const list = res.data?.list || []
       nearby.value = list.slice(0, 20).map((vehicle) => ({
         vehicle,
-        distanceMeters: null
+        distanceMeters: null,
+        inMatchedDistrict: false
       }))
     }
   } catch (e) {
@@ -405,6 +455,7 @@ watch(
   async () => {
     destroyMap()
     nearby.value = []
+    matchedDistrict.value = null
     selectedVehicleId.value = null
     await loadOrder()
   }
@@ -462,6 +513,21 @@ onBeforeUnmount(() => {
   font-size: 0.95rem;
   font-weight: 600;
   margin-bottom: 0.75rem;
+}
+
+.subsection-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin: 0.75rem 0 0.5rem;
+  color: var(--text);
+}
+
+.vehicle-section:first-of-type .subsection-title {
+  margin-top: 0;
+}
+
+.vehicle-section + .vehicle-section {
+  margin-top: 0.35rem;
 }
 
 .map-panel,
