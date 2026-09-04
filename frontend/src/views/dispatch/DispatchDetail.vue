@@ -45,6 +45,10 @@
             <strong>{{ order.dispatcherName || order.dispatcherId || '—' }}</strong>
           </div>
           <div>
+            <span class="label">施救员</span>
+            <strong>{{ order.rescuerName || order.rescuerId || '—' }}</strong>
+          </div>
+          <div>
             <span class="label">车辆</span>
             <strong>{{ order.vehiclePlate || order.vehicleId || '—' }}</strong>
           </div>
@@ -355,6 +359,15 @@ async function loadNearby() {
         inMatchedDistrict: false
       }))
     }
+    const pref = order.value?.vehicleId
+    if (pref != null) {
+      const hit = nearby.value.find((i) => i.vehicle.id === pref)
+      if (hit) selectedVehicleId.value = pref
+      else {
+        nearbyHint.value =
+          (nearbyHint.value ? nearbyHint.value + ' ' : '') + '预填车辆当前不可派，请另选'
+      }
+    }
   } catch (e) {
     nearbyError.value = e.response?.data?.message || e.message || '加载附近车辆失败'
   } finally {
@@ -392,7 +405,10 @@ async function onAssign() {
   assigning.value = true
   actionError.value = ''
   try {
-    const res = await assignDispatch(id.value, { vehicleId: selectedVehicleId.value })
+    const res = await assignDispatch(id.value, {
+      vehicleId: selectedVehicleId.value,
+      rescuerId: order.value?.rescuerId ?? null
+    })
     order.value = res.data
   } catch (e) {
     actionError.value = e.response?.data?.message || e.message || '派单失败'
