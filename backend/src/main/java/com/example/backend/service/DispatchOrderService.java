@@ -102,8 +102,12 @@ public class DispatchOrderService {
         existing.setRescueReason(order.getRescueReason());
         Long previousDispatcherId = existing.getDispatcherId();
         existing.setDispatcherId(order.getDispatcherId());
-        existing.setRescuerId(order.getRescuerId());
-        existing.setVehicleId(order.getVehicleId());
+        if (order.getRescuerId() != null) {
+            existing.setRescuerId(order.getRescuerId());
+        }
+        if (order.getVehicleId() != null) {
+            existing.setVehicleId(order.getVehicleId());
+        }
         applyDispatcherAndPrefill(existing, previousDispatcherId);
         return dispatchOrderMapper.update(existing) > 0;
     }

@@ -224,6 +224,38 @@ class DispatchOrderServiceTest {
     }
 
     @Test
+    void updateAddressOnlyPreservesPrefillFields() {
+        DispatchOrder existing = new DispatchOrder();
+        existing.setId(9L);
+        existing.setStatus("PENDING");
+        existing.setDispatcherId(1L);
+        existing.setRescuerId(3L);
+        existing.setVehicleId(1L);
+        when(dispatchOrderMapper.findById(9L)).thenReturn(existing);
+        when(dispatchOrderMapper.update(any())).thenReturn(1);
+
+        Role d = new Role(); d.setRoleCode("DISPATCHER");
+        Role t = new Role(); t.setRoleCode("TOW_DRIVER");
+        when(userMapper.findRolesByUserId(1L)).thenReturn(List.of(d));
+        when(userMapper.findRolesByUserId(3L)).thenReturn(List.of(t));
+        RescueVehicle v = new RescueVehicle(); v.setId(1L); v.setStatus("IDLE");
+        when(rescueVehicleService.findById(1L)).thenReturn(v);
+
+        DispatchOrder patch = new DispatchOrder();
+        patch.setId(9L);
+        patch.setAccidentAddress("仅改地址");
+
+        assertTrue(service.update(patch));
+        assertEquals("仅改地址", existing.getAccidentAddress());
+        assertEquals(1L, existing.getDispatcherId());
+        assertEquals(3L, existing.getRescuerId());
+        assertEquals(1L, existing.getVehicleId());
+        assertEquals("PENDING", existing.getStatus());
+        verify(rescueVehicleService, never()).markBusy(any());
+        verify(dispatchOrderMapper).update(existing);
+    }
+
+    @Test
     void updateRejectsNonPendingOrder() {
         DispatchOrder existing = new DispatchOrder();
         existing.setId(9L);
