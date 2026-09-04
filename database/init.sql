@@ -1,6 +1,8 @@
 CREATE DATABASE IF NOT EXISTS vue_springboot_system DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE vue_springboot_system;
 
+DROP TABLE IF EXISTS `duty_schedule`;
+DROP TABLE IF EXISTS `district`;
 DROP TABLE IF EXISTS `dispatch_order`;
 DROP TABLE IF EXISTS `rescue_vehicle`;
 DROP TABLE IF EXISTS `role_permission`;
@@ -116,6 +118,40 @@ CREATE TABLE `dispatch_order` (
   KEY `idx_vehicle_id` (`vehicle_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='救援工单';
 
+CREATE TABLE `district` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `name` VARCHAR(100) NOT NULL COMMENT '片区名称',
+  `code` VARCHAR(50) NOT NULL COMMENT '片区编码',
+  `fence_json` TEXT NOT NULL COMMENT '多边形顶点 JSON：[{lng,lat},...]',
+  `status` VARCHAR(20) NOT NULL DEFAULT 'ENABLED' COMMENT 'ENABLED/DISABLED',
+  `remark` VARCHAR(200) DEFAULT NULL,
+  `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_code` (`code`),
+  KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='片区电子围栏';
+
+CREATE TABLE `duty_schedule` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `duty_date` DATE NOT NULL COMMENT '值班归属日（用于列表筛选）',
+  `start_time` DATETIME NOT NULL COMMENT '班次开始',
+  `end_time` DATETIME NOT NULL COMMENT '班次结束（可跨日）',
+  `user_id` BIGINT NOT NULL COMMENT '值班人 user.id',
+  `role_type` VARCHAR(30) NOT NULL COMMENT 'DISPATCHER/TOW_DRIVER',
+  `district_id` BIGINT DEFAULT NULL COMMENT '可选片区',
+  `vehicle_id` BIGINT DEFAULT NULL COMMENT '施救班次必填；调度班次必须为空',
+  `remark` VARCHAR(200) DEFAULT NULL,
+  `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_duty_date` (`duty_date`),
+  KEY `idx_user_id` (`user_id`),
+  KEY `idx_vehicle_id` (`vehicle_id`),
+  KEY `idx_district_id` (`district_id`),
+  KEY `idx_start_end` (`start_time`, `end_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='值班排班';
+
 INSERT INTO `role` (`role_name`, `role_code`, `description`) VALUES
 ('交警', 'TRAFFIC_POLICE', '负责事故处理'),
 ('调度员', 'DISPATCHER', '负责派单管理、资源调度、任务分配'),
@@ -153,16 +189,27 @@ INSERT INTO `permission` (`id`, `permission_name`, `permission_code`, `permissio
 (27, '车辆查询', 'vehicle:query', 'BUTTON', 26, 1),
 (28, '车辆新增', 'vehicle:add', 'BUTTON', 26, 2),
 (29, '车辆编辑', 'vehicle:edit', 'BUTTON', 26, 3),
-(30, '车辆删除', 'vehicle:delete', 'BUTTON', 26, 4);
+(30, '车辆删除', 'vehicle:delete', 'BUTTON', 26, 4),
+(31, '片区管理', 'district:manage', 'MODULE', 0, 9),
+(32, '片区查询', 'district:query', 'BUTTON', 31, 1),
+(33, '片区新增', 'district:add', 'BUTTON', 31, 2),
+(34, '片区编辑', 'district:edit', 'BUTTON', 31, 3),
+(35, '片区删除', 'district:delete', 'BUTTON', 31, 4),
+(36, '片区解析', 'district:resolve', 'BUTTON', 31, 5),
+(37, '排班管理', 'schedule:manage', 'MODULE', 0, 10),
+(38, '排班查询', 'schedule:query', 'BUTTON', 37, 1),
+(39, '排班新增', 'schedule:add', 'BUTTON', 37, 2),
+(40, '排班编辑', 'schedule:edit', 'BUTTON', 37, 3),
+(41, '排班删除', 'schedule:delete', 'BUTTON', 37, 4);
 
--- ADMIN: 系统管理 1-15 + 派单模块及按钮 16,20-25 + 车辆 26-30
+-- ADMIN: 1-15 + 派单 16,20-25 + 车辆 26-30 + 片区/排班 31-41
 INSERT INTO `role_permission` (`role_id`, `permission_id`)
 SELECT 5, id FROM `permission` WHERE id BETWEEN 1 AND 15
-   OR id = 16 OR id BETWEEN 20 AND 30;
+   OR id = 16 OR id BETWEEN 20 AND 41;
 
--- DISPATCHER: 派单 + 车辆
+-- DISPATCHER: 派单 + 车辆 + 片区 + 排班
 INSERT INTO `role_permission` (`role_id`, `permission_id`)
-SELECT 2, id FROM `permission` WHERE id = 16 OR id BETWEEN 20 AND 30;
+SELECT 2, id FROM `permission` WHERE id = 16 OR id BETWEEN 20 AND 41;
 
 -- TRAFFIC_POLICE 拥有事故处理
 INSERT INTO `role_permission` (`role_id`, `permission_id`) VALUES (1, 17);
@@ -191,3 +238,26 @@ INSERT INTO `rescue_vehicle`
 ('粤B·救援02', 'TOW', '白', '液压绞盘', 114.0859470, 22.5470000, 'IDLE', '稍偏东'),
 ('粤B·救援03', 'CLEARANCE', '蓝', '清障设备', 114.0300000, 22.5400000, 'IDLE', '稍偏西'),
 ('粤B·救援04', 'TOW', '红', NULL, 114.0578680, 22.5430990, 'OFFLINE', '离线样例');
+
+INSERT INTO `district` (`name`, `code`, `fence_json`, `status`, `remark`) VALUES
+('福田中心片区', 'FT-CENTER',
+ '[{"lng":114.040,"lat":22.530},{"lng":114.080,"lat":22.530},{"lng":114.080,"lat":22.560},{"lng":114.040,"lat":22.560}]',
+ 'ENABLED', '市民中心一带'),
+('南山前海片区', 'NS-QIANHAI',
+ '[{"lng":113.980,"lat":22.500},{"lng":114.020,"lat":22.500},{"lng":114.020,"lat":22.540},{"lng":113.980,"lat":22.540}]',
+ 'ENABLED', '前海样例');
+
+UPDATE `rescue_vehicle` SET `district_id` = 1 WHERE `plate_no` IN ('粤B·救援01', '粤B·救援02');
+
+INSERT INTO `user` (`username`, `email`, `password`, `phone`, `real_name`, `status`) VALUES
+('towdriver', 'tow@example.com',
+ '$2a$10$tRbGvdiWK.72JRbBlUYmB.3K2h44sbb20U3qKWrAeggv0.lbqUhzW',
+ '13800000002', '施救员演示', 1);
+INSERT INTO `user_role` (`user_id`, `role_id`) VALUES (3, 3);
+
+INSERT INTO `duty_schedule`
+(`duty_date`, `start_time`, `end_time`, `user_id`, `role_type`, `district_id`, `vehicle_id`, `remark`) VALUES
+(CURDATE(), CONCAT(CURDATE(), ' 08:00:00'), CONCAT(CURDATE(), ' 18:00:00'),
+ 2, 'DISPATCHER', 1, NULL, '调度白班样例'),
+(CURDATE(), CONCAT(CURDATE(), ' 08:00:00'), CONCAT(CURDATE(), ' 18:00:00'),
+ 3, 'TOW_DRIVER', 1, 1, '施救白班样例');
