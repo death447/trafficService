@@ -58,6 +58,12 @@ const routes = [
     name: 'DispatchDetail',
     component: () => import('../views/dispatch/DispatchDetail.vue'),
     meta: { permissions: ['dispatch:query'] }
+  },
+  {
+    path: '/districts',
+    name: 'DistrictList',
+    component: () => import('../views/district/DistrictList.vue'),
+    meta: { permissions: ['district:manage'] }
   }
 ]
 

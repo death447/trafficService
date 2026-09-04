@@ -51,3 +51,63 @@ export async function createPickerMap(container, { lng, lat, onPicked }) {
   })
   return map
 }
+
+/** 多边形围栏编辑：点击追加顶点；无 Key 时由页面用 textarea 编辑 JSON */
+export async function createPolygonEditor(container, { path = [], onChange } = {}) {
+  const AMap = await loadAmap()
+  const map = new AMap.Map(container, { zoom: 12, center: [114.057868, 22.543099] })
+  let polygon
+  const apply = (ring) => {
+    const pathLL = ring.map((p) => [p.lng, p.lat])
+    if (!polygon) {
+      polygon = new AMap.Polygon({
+        path: pathLL,
+        map,
+        strokeWeight: 2,
+        strokeColor: '#1f6fa8',
+        fillColor: '#3aa0df',
+        fillOpacity: 0.25
+      })
+    } else {
+      polygon.setPath(pathLL)
+    }
+    if (pathLL.length) {
+      map.setFitView([polygon])
+    }
+    onChange?.(ring)
+  }
+  if (path.length) apply(path)
+  map.on('click', (e) => {
+    const current = polygon
+      ? polygon.getPath().map((ll) => ({ lng: ll.lng, lat: ll.lat }))
+      : []
+    apply([...current, { lng: e.lnglat.lng, lat: e.lnglat.lat }])
+  })
+  return {
+    map,
+    setPath: apply,
+    undo() {
+      if (!polygon) return
+      const current = polygon.getPath().map((ll) => ({ lng: ll.lng, lat: ll.lat }))
+      if (!current.length) return
+      const next = current.slice(0, -1)
+      if (!next.length) {
+        map.remove(polygon)
+        polygon = null
+        onChange?.([])
+        return
+      }
+      apply(next)
+    },
+    clear() {
+      if (polygon) {
+        map.remove(polygon)
+        polygon = null
+      }
+      onChange?.([])
+    },
+    destroy() {
+      if (map && typeof map.destroy === 'function') map.destroy()
+    }
+  }
+}

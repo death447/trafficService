@@ -36,6 +36,16 @@
       </router-link>
 
       <router-link
+        v-auth="'district:manage'"
+        to="/districts"
+        class="module-item"
+      >
+        <span class="module-tag">片区</span>
+        <h3>片区管理</h3>
+        <p>维护服务片区编码、状态与电子围栏多边形。</p>
+      </router-link>
+
+      <router-link
         v-auth="'user:manage'"
         to="/users"
         class="module-item"
