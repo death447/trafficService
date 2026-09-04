@@ -1,8 +1,10 @@
 package com.example.backend.service;
 
 import com.example.backend.dto.NearbyVehicleVO;
+import com.example.backend.entity.District;
 import com.example.backend.entity.RescueVehicle;
 import com.example.backend.mapper.DispatchOrderMapper;
+import com.example.backend.mapper.DistrictMapper;
 import com.example.backend.mapper.RescueVehicleMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -21,6 +23,9 @@ public class RescueVehicleService {
 
     @Autowired
     private DispatchOrderMapper dispatchOrderMapper;
+
+    @Autowired
+    private DistrictMapper districtMapper;
 
     public RescueVehicle findById(Long id) {
         return vehicleMapper.findById(id);
@@ -72,6 +77,7 @@ public class RescueVehicleService {
         if (vehicleMapper.findByPlateNo(vehicle.getPlateNo()) != null) {
             throw new RuntimeException("车牌号已存在");
         }
+        validateDistrict(vehicle.getDistrictId());
         if (vehicle.getStatus() == null || vehicle.getStatus().isEmpty()) {
             vehicle.setStatus("IDLE");
         }
@@ -84,6 +90,7 @@ public class RescueVehicleService {
         if (existingByPlate != null && !existingByPlate.getId().equals(vehicle.getId())) {
             throw new RuntimeException("车牌号已存在");
         }
+        validateDistrict(vehicle.getDistrictId());
         String status = vehicle.getStatus();
         if (("IDLE".equals(status) || "OFFLINE".equals(status))
                 && dispatchOrderMapper.countDispatchedByVehicleId(vehicle.getId()) > 0) {
@@ -132,6 +139,15 @@ public class RescueVehicleService {
 
     public void updateStatus(Long id, String status) {
         vehicleMapper.updateStatus(id, status);
+    }
+
+    private void validateDistrict(Long districtId) {
+        if (districtId != null) {
+            District district = districtMapper.findById(districtId);
+            if (district == null || !"ENABLED".equals(district.getStatus())) {
+                throw new RuntimeException("片区不存在或已禁用");
+            }
+        }
     }
 
     private static double haversineMeters(double lng1, double lat1, double lng2, double lat2) {

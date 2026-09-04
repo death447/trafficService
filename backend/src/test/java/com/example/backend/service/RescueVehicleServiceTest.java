@@ -1,8 +1,10 @@
 package com.example.backend.service;
 
 import com.example.backend.dto.NearbyVehicleVO;
+import com.example.backend.entity.District;
 import com.example.backend.entity.RescueVehicle;
 import com.example.backend.mapper.DispatchOrderMapper;
+import com.example.backend.mapper.DistrictMapper;
 import com.example.backend.mapper.RescueVehicleMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,6 +23,7 @@ class RescueVehicleServiceTest {
 
     @Mock RescueVehicleMapper vehicleMapper;
     @Mock DispatchOrderMapper dispatchOrderMapper;
+    @Mock DistrictMapper districtMapper;
     @InjectMocks RescueVehicleService service;
 
     @Test
@@ -99,6 +102,106 @@ class RescueVehicleServiceTest {
         v.setPlateNo("粤B·救援01");
         when(vehicleMapper.findByPlateNo("粤B·救援01")).thenReturn(new RescueVehicle());
         assertThrows(RuntimeException.class, () -> service.createVehicle(v));
+    }
+
+    @Test
+    void createRejectsDisabledDistrict() {
+        RescueVehicle v = new RescueVehicle();
+        v.setPlateNo("粤B·救援02");
+        v.setDistrictId(5L);
+        when(vehicleMapper.findByPlateNo("粤B·救援02")).thenReturn(null);
+        District disabled = new District();
+        disabled.setId(5L);
+        disabled.setStatus("DISABLED");
+        when(districtMapper.findById(5L)).thenReturn(disabled);
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> service.createVehicle(v));
+        assertTrue(ex.getMessage().contains("片区"));
+        verify(vehicleMapper, never()).insert(any());
+    }
+
+    @Test
+    void createRejectsMissingDistrict() {
+        RescueVehicle v = new RescueVehicle();
+        v.setPlateNo("粤B·救援03");
+        v.setDistrictId(99L);
+        when(vehicleMapper.findByPlateNo("粤B·救援03")).thenReturn(null);
+        when(districtMapper.findById(99L)).thenReturn(null);
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> service.createVehicle(v));
+        assertTrue(ex.getMessage().contains("片区"));
+        verify(vehicleMapper, never()).insert(any());
+    }
+
+    @Test
+    void createSucceedsWithNullDistrictId() {
+        RescueVehicle v = new RescueVehicle();
+        v.setPlateNo("粤B·救援04");
+        when(vehicleMapper.findByPlateNo("粤B·救援04")).thenReturn(null);
+        when(vehicleMapper.insert(v)).thenReturn(1);
+
+        assertTrue(service.createVehicle(v));
+        verify(districtMapper, never()).findById(any());
+        verify(vehicleMapper).insert(v);
+    }
+
+    @Test
+    void createSucceedsWithEnabledDistrict() {
+        RescueVehicle v = new RescueVehicle();
+        v.setPlateNo("粤B·救援05");
+        v.setDistrictId(3L);
+        when(vehicleMapper.findByPlateNo("粤B·救援05")).thenReturn(null);
+        District enabled = new District();
+        enabled.setId(3L);
+        enabled.setStatus("ENABLED");
+        when(districtMapper.findById(3L)).thenReturn(enabled);
+        when(vehicleMapper.insert(v)).thenReturn(1);
+
+        assertTrue(service.createVehicle(v));
+        verify(vehicleMapper).insert(v);
+    }
+
+    @Test
+    void updateRejectsDisabledDistrict() {
+        RescueVehicle v = vehicle(1L, "粤B1", "114.058", "22.543");
+        v.setDistrictId(5L);
+        when(vehicleMapper.findByPlateNo("粤B1")).thenReturn(null);
+        District disabled = new District();
+        disabled.setId(5L);
+        disabled.setStatus("DISABLED");
+        when(districtMapper.findById(5L)).thenReturn(disabled);
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> service.updateVehicle(v));
+        assertTrue(ex.getMessage().contains("片区"));
+        verify(vehicleMapper, never()).update(any());
+    }
+
+    @Test
+    void updateSucceedsWithNullDistrictId() {
+        RescueVehicle v = vehicle(1L, "粤B1", "114.058", "22.543");
+        v.setStatus("BUSY");
+        when(vehicleMapper.findByPlateNo("粤B1")).thenReturn(null);
+        when(vehicleMapper.update(v)).thenReturn(1);
+
+        assertTrue(service.updateVehicle(v));
+        verify(districtMapper, never()).findById(any());
+        verify(vehicleMapper).update(v);
+    }
+
+    @Test
+    void updateSucceedsWithEnabledDistrict() {
+        RescueVehicle v = vehicle(1L, "粤B1", "114.058", "22.543");
+        v.setStatus("BUSY");
+        v.setDistrictId(3L);
+        when(vehicleMapper.findByPlateNo("粤B1")).thenReturn(null);
+        District enabled = new District();
+        enabled.setId(3L);
+        enabled.setStatus("ENABLED");
+        when(districtMapper.findById(3L)).thenReturn(enabled);
+        when(vehicleMapper.update(v)).thenReturn(1);
+
+        assertTrue(service.updateVehicle(v));
+        verify(vehicleMapper).update(v);
     }
 
     private static RescueVehicle vehicle(Long id, String plate, String lng, String lat) {
