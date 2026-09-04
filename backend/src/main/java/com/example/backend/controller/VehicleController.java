@@ -1,7 +1,7 @@
 package com.example.backend.controller;
 
 import com.example.backend.common.Result;
-import com.example.backend.dto.NearbyVehicleVO;
+import com.example.backend.dto.NearbyVehiclesResponse;
 import com.example.backend.entity.RescueVehicle;
 import com.example.backend.service.RescueVehicleService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,7 +43,7 @@ public class VehicleController {
 
     @GetMapping("/nearby")
     @PreAuthorize("hasAuthority('dispatch:dispatch')")
-    public Result<List<NearbyVehicleVO>> findNearby(
+    public Result<NearbyVehiclesResponse> findNearby(
             @RequestParam BigDecimal lng,
             @RequestParam BigDecimal lat,
             @RequestParam(required = false) Integer limit) {

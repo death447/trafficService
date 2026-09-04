@@ -1,6 +1,6 @@
 package com.example.backend.service;
 
-import com.example.backend.dto.NearbyVehicleVO;
+import com.example.backend.dto.NearbyVehiclesResponse;
 import com.example.backend.entity.District;
 import com.example.backend.entity.RescueVehicle;
 import com.example.backend.mapper.DispatchOrderMapper;
@@ -16,6 +16,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -24,6 +25,7 @@ class RescueVehicleServiceTest {
     @Mock RescueVehicleMapper vehicleMapper;
     @Mock DispatchOrderMapper dispatchOrderMapper;
     @Mock DistrictMapper districtMapper;
+    @Mock DistrictService districtService;
     @InjectMocks RescueVehicleService service;
 
     @Test
@@ -87,13 +89,64 @@ class RescueVehicleServiceTest {
         RescueVehicle near = vehicle(1L, "粤B1", "114.058", "22.543");
         RescueVehicle far = vehicle(2L, "粤B2", "114.100", "22.600");
         when(vehicleMapper.findByStatus("IDLE")).thenReturn(List.of(far, near));
+        when(districtService.resolve(any(), any())).thenReturn(null);
 
-        List<NearbyVehicleVO> list = service.findNearby(
+        NearbyVehiclesResponse resp = service.findNearby(
+                new BigDecimal("114.057868"), new BigDecimal("22.543099"), 10);
+        assertNull(resp.getMatchedDistrict());
+        assertEquals(2, resp.getVehicles().size());
+        assertEquals(1L, resp.getVehicles().get(0).getVehicle().getId());
+        assertFalse(resp.getVehicles().get(0).isInMatchedDistrict());
+        assertTrue(resp.getVehicles().get(0).getDistanceMeters()
+                < resp.getVehicles().get(1).getDistanceMeters());
+    }
+
+    @Test
+    void nearbyPrefersMatchedDistrictThenDistance() {
+        District matched = new District();
+        matched.setId(1L);
+        matched.setName("福田中心片区");
+        matched.setCode("FT-CENTER");
+        matched.setStatus("ENABLED");
+        when(districtService.resolve(any(), any())).thenReturn(matched);
+
+        RescueVehicle inDistrictFar = vehicle(10L, "粤B远本区", "114.100", "22.600");
+        inDistrictFar.setDistrictId(1L);
+        RescueVehicle otherNear = vehicle(11L, "粤B近外区", "114.058", "22.543");
+        otherNear.setDistrictId(2L);
+        RescueVehicle inDistrictNear = vehicle(12L, "粤B近本区", "114.058", "22.544");
+        inDistrictNear.setDistrictId(1L);
+        when(vehicleMapper.findByStatus("IDLE"))
+                .thenReturn(List.of(inDistrictFar, otherNear, inDistrictNear));
+
+        NearbyVehiclesResponse resp = service.findNearby(
                 new BigDecimal("114.057868"), new BigDecimal("22.543099"), 10);
 
-        assertEquals(2, list.size());
-        assertEquals(1L, list.get(0).getVehicle().getId());
-        assertTrue(list.get(0).getDistanceMeters() < list.get(1).getDistanceMeters());
+        assertEquals(1L, resp.getMatchedDistrict().getId());
+        assertEquals(List.of(12L, 10L, 11L),
+                resp.getVehicles().stream().map(v -> v.getVehicle().getId()).toList());
+        assertTrue(resp.getVehicles().get(0).isInMatchedDistrict());
+        assertTrue(resp.getVehicles().get(1).isInMatchedDistrict());
+        assertFalse(resp.getVehicles().get(2).isInMatchedDistrict());
+    }
+
+    @Test
+    void nearbyUnmatchedMarksAllFalse() {
+        RescueVehicle withDistrict = vehicle(1L, "粤B1", "114.058", "22.543");
+        withDistrict.setDistrictId(5L);
+        RescueVehicle alsoWithDistrict = vehicle(2L, "粤B2", "114.100", "22.600");
+        alsoWithDistrict.setDistrictId(5L);
+        when(vehicleMapper.findByStatus("IDLE"))
+                .thenReturn(List.of(withDistrict, alsoWithDistrict));
+        when(districtService.resolve(any(), any())).thenReturn(null);
+
+        NearbyVehiclesResponse resp = service.findNearby(
+                new BigDecimal("114.057868"), new BigDecimal("22.543099"), 10);
+
+        assertNull(resp.getMatchedDistrict());
+        assertEquals(2, resp.getVehicles().size());
+        assertFalse(resp.getVehicles().get(0).isInMatchedDistrict());
+        assertFalse(resp.getVehicles().get(1).isInMatchedDistrict());
     }
 
     @Test

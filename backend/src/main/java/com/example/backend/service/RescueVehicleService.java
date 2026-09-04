@@ -1,6 +1,8 @@
 package com.example.backend.service;
 
+import com.example.backend.dto.MatchedDistrictVO;
 import com.example.backend.dto.NearbyVehicleVO;
+import com.example.backend.dto.NearbyVehiclesResponse;
 import com.example.backend.entity.District;
 import com.example.backend.entity.RescueVehicle;
 import com.example.backend.mapper.DispatchOrderMapper;
@@ -26,6 +28,9 @@ public class RescueVehicleService {
 
     @Autowired
     private DistrictMapper districtMapper;
+
+    @Autowired
+    private DistrictService districtService;
 
     public RescueVehicle findById(Long id) {
         return vehicleMapper.findById(id);
@@ -108,12 +113,15 @@ public class RescueVehicleService {
         return vehicleMapper.deleteById(id) > 0;
     }
 
-    public List<NearbyVehicleVO> findNearby(BigDecimal lng, BigDecimal lat, Integer limit) {
+    public NearbyVehiclesResponse findNearby(BigDecimal lng, BigDecimal lat, Integer limit) {
         int effectiveLimit = limit == null || limit <= 0 ? 20 : Math.min(limit, 50);
         double originLng = lng.doubleValue();
         double originLat = lat.doubleValue();
 
-        return vehicleMapper.findByStatus("IDLE").stream()
+        District matched = districtService.resolve(lng, lat);
+        Long matchedId = matched == null ? null : matched.getId();
+
+        List<NearbyVehicleVO> list = vehicleMapper.findByStatus("IDLE").stream()
                 .filter(v -> v.getLongitude() != null && v.getLatitude() != null)
                 .map(v -> {
                     NearbyVehicleVO vo = new NearbyVehicleVO();
@@ -122,11 +130,19 @@ public class RescueVehicleService {
                             originLng, originLat,
                             v.getLongitude().doubleValue(),
                             v.getLatitude().doubleValue()));
+                    vo.setInMatchedDistrict(matchedId != null && matchedId.equals(v.getDistrictId()));
                     return vo;
                 })
-                .sorted(Comparator.comparingDouble(NearbyVehicleVO::getDistanceMeters))
+                .sorted(Comparator
+                        .comparing((NearbyVehicleVO x) -> !x.isInMatchedDistrict())
+                        .thenComparingDouble(NearbyVehicleVO::getDistanceMeters))
                 .limit(effectiveLimit)
                 .collect(Collectors.toList());
+
+        NearbyVehiclesResponse resp = new NearbyVehiclesResponse();
+        resp.setMatchedDistrict(MatchedDistrictVO.from(matched));
+        resp.setVehicles(list);
+        return resp;
     }
 
     public void markBusy(Long id) {

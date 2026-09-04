@@ -7,4 +7,5 @@ import lombok.Data;
 public class NearbyVehicleVO {
     private RescueVehicle vehicle;
     private double distanceMeters;
+    private boolean inMatchedDistrict;
 }
