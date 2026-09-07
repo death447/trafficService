@@ -47,6 +47,9 @@ buildNumber.properties
 *.tar.gz
 *.rar
 
+# Uploads (rescuer media)
+/uploads/
+
 # Logs
 logs/
 *.log
