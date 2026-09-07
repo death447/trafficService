@@ -35,4 +35,10 @@ public interface RescueVehicleMapper {
 
     @Delete("DELETE FROM rescue_vehicle WHERE id = #{id}")
     int deleteById(Long id);
+
+    @Select("SELECT * FROM rescue_vehicle WHERE driver_user_id = #{driverUserId} LIMIT 1")
+    RescueVehicle findByDriverUserId(Long driverUserId);
+
+    @Update("UPDATE rescue_vehicle SET driver_user_id = NULL WHERE driver_user_id = #{driverUserId}")
+    int clearDriverByUserId(Long driverUserId);
 }

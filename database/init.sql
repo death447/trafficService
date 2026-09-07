@@ -5,6 +5,8 @@ DROP TABLE IF EXISTS `detained_vehicle`;
 DROP TABLE IF EXISTS `parking_lot`;
 DROP TABLE IF EXISTS `duty_schedule`;
 DROP TABLE IF EXISTS `district`;
+DROP TABLE IF EXISTS `dispatch_media`;
+DROP TABLE IF EXISTS `dispatch_field_record`;
 DROP TABLE IF EXISTS `dispatch_order`;
 DROP TABLE IF EXISTS `rescue_vehicle`;
 DROP TABLE IF EXISTS `role_permission`;
@@ -104,13 +106,20 @@ CREATE TABLE `dispatch_order` (
   `longitude` DECIMAL(10,7) DEFAULT NULL,
   `latitude` DECIMAL(10,7) DEFAULT NULL,
   `rescue_reason` VARCHAR(500) DEFAULT NULL,
-  `status` VARCHAR(20) NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING/DISPATCHED/COMPLETED/ABORTED',
+  `status` VARCHAR(20) NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING/DISPATCHED/ACCEPTED/COMPLETED/ABORTED',
   `dispatcher_id` BIGINT NOT NULL COMMENT '创建调度员 user.id',
   `vehicle_id` BIGINT DEFAULT NULL,
   `rescuer_id` BIGINT DEFAULT NULL COMMENT '施救员 user.id',
   `abort_reason` VARCHAR(500) DEFAULT NULL,
   `dispatched_at` DATETIME DEFAULT NULL,
   `completed_at` DATETIME DEFAULT NULL,
+  `accepted_at` DATETIME DEFAULT NULL COMMENT '接单时间',
+  `checked_in_at` DATETIME DEFAULT NULL COMMENT '签到时间',
+  `checkin_lng` DECIMAL(10,7) DEFAULT NULL,
+  `checkin_lat` DECIMAL(10,7) DEFAULT NULL,
+  `checkin_mode` VARCHAR(20) DEFAULT NULL COMMENT 'AUTO/MANUAL',
+  `checkin_remark` VARCHAR(500) DEFAULT NULL,
+  `reject_reason` VARCHAR(500) DEFAULT NULL COMMENT '最近退单原因',
   `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
   `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -119,6 +128,35 @@ CREATE TABLE `dispatch_order` (
   KEY `idx_dispatcher_id` (`dispatcher_id`),
   KEY `idx_vehicle_id` (`vehicle_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='救援工单';
+
+CREATE TABLE `dispatch_field_record` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `dispatch_order_id` BIGINT NOT NULL,
+  `plate_no` VARCHAR(20) DEFAULT NULL,
+  `vehicle_type` VARCHAR(50) DEFAULT NULL,
+  `damage_desc` VARCHAR(1000) DEFAULT NULL,
+  `scene_remark` VARCHAR(500) DEFAULT NULL,
+  `park_address` VARCHAR(255) DEFAULT NULL,
+  `park_remark` VARCHAR(500) DEFAULT NULL,
+  `scene_submitted_at` DATETIME DEFAULT NULL,
+  `park_submitted_at` DATETIME DEFAULT NULL,
+  `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_dispatch_order_id` (`dispatch_order_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='工单现场与入库登记';
+
+CREATE TABLE `dispatch_media` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `dispatch_order_id` BIGINT NOT NULL,
+  `biz_type` VARCHAR(20) NOT NULL COMMENT 'DAMAGE/PARK',
+  `file_path` VARCHAR(500) NOT NULL,
+  `sort_order` INT DEFAULT 0,
+  `uploaded_by` BIGINT NOT NULL,
+  `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_order_biz` (`dispatch_order_id`, `biz_type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='工单现场媒体';
 
 CREATE TABLE `district` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
@@ -254,12 +292,22 @@ INSERT INTO `permission` (`id`, `permission_name`, `permission_code`, `permissio
 (49, '扣留编辑', 'detain:edit', 'BUTTON', 46, 3),
 (50, '扣留出库', 'detain:out', 'BUTTON', 46, 4),
 (51, '扣留清理', 'detain:clear', 'BUTTON', 46, 5),
-(52, '吊牌打印', 'detain:print', 'BUTTON', 46, 6);
+(52, '吊牌打印', 'detain:print', 'BUTTON', 46, 6),
+(53, '施救员移动端', 'mobile:rescuer', 'MODULE', 0, 12),
+(54, '施救资料', 'rescuer:profile', 'BUTTON', 53, 1),
+(55, '扫码绑车', 'rescuer:bind-vehicle', 'BUTTON', 53, 2),
+(56, '施救任务', 'rescuer:task', 'BUTTON', 53, 3),
+(57, '施救接单', 'rescuer:accept', 'BUTTON', 53, 4),
+(58, '施救退单', 'rescuer:reject', 'BUTTON', 53, 5),
+(59, '施救签到', 'rescuer:checkin', 'BUTTON', 53, 6),
+(60, '现场采集', 'rescuer:scene', 'BUTTON', 53, 7),
+(61, '入库登记', 'rescuer:park', 'BUTTON', 53, 8),
+(62, '施救完成', 'rescuer:complete', 'BUTTON', 53, 9);
 
--- ADMIN: 1-15 + 派单 16,19,20-52
+-- ADMIN: 1-15 + 派单 16,19,20-62
 INSERT INTO `role_permission` (`role_id`, `permission_id`)
 SELECT 5, id FROM `permission` WHERE id BETWEEN 1 AND 15
-   OR id = 16 OR id = 19 OR id BETWEEN 20 AND 52;
+   OR id = 16 OR id = 19 OR id BETWEEN 20 AND 62;
 
 -- DISPATCHER: user:query（排班选人）+ 派单 + 车辆 + 片区 + 排班（无 user:manage 菜单）
 INSERT INTO `role_permission` (`role_id`, `permission_id`)
@@ -268,8 +316,10 @@ SELECT 2, id FROM `permission` WHERE id = 2 OR id = 16 OR id BETWEEN 20 AND 41;
 -- TRAFFIC_POLICE 拥有事故处理
 INSERT INTO `role_permission` (`role_id`, `permission_id`) VALUES (1, 17);
 
--- TOW_DRIVER 拥有救援执行
+-- TOW_DRIVER 拥有救援执行 + 施救员移动端 53-62
 INSERT INTO `role_permission` (`role_id`, `permission_id`) VALUES (3, 18);
+INSERT INTO `role_permission` (`role_id`, `permission_id`)
+SELECT 3, id FROM `permission` WHERE id BETWEEN 53 AND 62;
 
 -- PARKING_ADMIN 拥有停车场与扣留车辆管理
 INSERT INTO `role_permission` (`role_id`, `permission_id`)

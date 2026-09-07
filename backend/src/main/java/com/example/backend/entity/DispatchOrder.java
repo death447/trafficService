@@ -20,6 +20,13 @@ public class DispatchOrder {
     private String abortReason;
     private LocalDateTime dispatchedAt;
     private LocalDateTime completedAt;
+    private LocalDateTime acceptedAt;
+    private LocalDateTime checkedInAt;
+    private BigDecimal checkinLng;
+    private BigDecimal checkinLat;
+    private String checkinMode;
+    private String checkinRemark;
+    private String rejectReason;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 
