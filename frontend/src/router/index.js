@@ -66,6 +66,12 @@ const routes = [
     meta: { permissions: ['district:manage'] }
   },
   {
+    path: '/parkings',
+    name: 'ParkingList',
+    component: () => import('../views/parking/ParkingList.vue'),
+    meta: { permissions: ['parking:manage'] }
+  },
+  {
     path: '/schedules',
     name: 'ScheduleList',
     component: () => import('../views/schedule/ScheduleList.vue'),

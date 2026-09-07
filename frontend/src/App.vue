@@ -53,6 +53,15 @@
           片区管理
         </router-link>
         <router-link
+          v-auth="'parking:manage'"
+          to="/parkings"
+          class="nav-item"
+          active-class="active"
+        >
+          <span class="nav-ico">场</span>
+          停车场
+        </router-link>
+        <router-link
           v-auth="'schedule:manage'"
           to="/schedules"
           class="nav-item"
@@ -144,6 +153,7 @@ const pageTitle = computed(() => {
     '/vehicles': '施救车辆',
     '/dispatches': '任务管理',
     '/districts': '片区管理',
+    '/parkings': '停车场管理',
     '/schedules': '排班管理',
     '/403': '访问受限'
   }

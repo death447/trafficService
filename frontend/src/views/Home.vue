@@ -46,6 +46,16 @@
       </router-link>
 
       <router-link
+        v-auth="'parking:manage'"
+        to="/parkings"
+        class="module-item"
+      >
+        <span class="module-tag">停车场</span>
+        <h3>停车场管理</h3>
+        <p>维护停车场编码、地址、联系人与启用状态。</p>
+      </router-link>
+
+      <router-link
         v-auth="'schedule:manage'"
         to="/schedules"
         class="module-item"
