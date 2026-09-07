@@ -8,7 +8,7 @@
       <button type="button" class="secondary" @click="goBack">返回列表</button>
     </div>
 
-    <p v-if="!amapReady" class="hint">未配置 VITE_AMAP_KEY，请手填坐标。</p>
+    <p v-if="!amapReady" class="hint">未配置 VITE_AMAP_KEY，无法用地图选点，请先配置高德 Key。</p>
     <p v-if="mapError" class="error">{{ mapError }}</p>
     <p v-if="lookupError" class="error">{{ lookupError }}</p>
 
@@ -23,50 +23,31 @@
           ref="searchInput"
           v-model.trim="form.accidentAddress"
           required
-          placeholder="可搜索地点，或点击/拖动地图标记选点"
+          placeholder="输入地点后回车定位，或从下拉选点 / 点击地图"
+          @keydown.enter.prevent="onAddressEnter"
         />
       </label>
-      <div class="coord-row">
-        <label>
-          经度
-          <input v-model.trim="form.longitude" type="number" step="any" required />
-        </label>
-        <label>
-          纬度
-          <input v-model.trim="form.latitude" type="number" step="any" required />
-        </label>
-      </div>
 
       <label>
         调度员
-        <select v-model="form.dispatcherId" required>
-          <option value="" disabled>请选择调度员</option>
-          <option v-for="u in dispatcherOptions" :key="u.id" :value="String(u.id)">
-            {{ userDisplay(u) }}
-          </option>
-        </select>
-      </label>
-      <label>
-        施救员
-        <select v-model="form.rescuerId">
-          <option value="">暂不指定</option>
-          <option v-for="u in rescuerOptions" :key="u.id" :value="String(u.id)">
-            {{ userDisplay(u) }}
-          </option>
-        </select>
+        <input type="text" :value="currentDispatcherLabel" readonly class="readonly-input" />
       </label>
       <label>
         救援车辆
         <select v-model="form.vehicleId">
           <option value="">暂不指定</option>
-          <option v-for="v in vehicles" :key="v.id" :value="String(v.id)">
+          <option v-for="v in idleVehicles" :key="v.id" :value="String(v.id)">
             {{ vehicleDisplay(v) }}
           </option>
         </select>
       </label>
+      <label>
+        施救员
+        <input type="text" :value="boundRescuerLabel" readonly class="readonly-input" />
+      </label>
 
       <div v-if="amapReady" class="map-wrap">
-        <p class="map-hint">可搜索地点、点击或拖动标记选点</p>
+        <p class="map-hint">输入地址回车可跳转地图；也可下拉选点、点击或拖动标记</p>
         <div ref="mapEl" class="map-box" />
       </div>
 
@@ -80,10 +61,9 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { createDispatch } from '../../api/dispatch'
-import { getUserList } from '../../api/user'
 import { listVehicles } from '../../api/vehicle'
 import { useUserStore } from '../../stores/user'
 import { createPickerMap, hasAmapKey } from '../../utils/amap'
@@ -97,50 +77,57 @@ const mapError = ref('')
 const lookupError = ref('')
 const formError = ref('')
 const saving = ref(false)
-const users = ref([])
 const vehicles = ref([])
 let mapInstance = null
-
-const vehicleStatusLabels = {
-  IDLE: '空闲',
-  BUSY: '忙碌',
-  OFFLINE: '离线'
-}
 
 const form = reactive({
   rescueReason: '',
   accidentAddress: '',
   longitude: '',
   latitude: '',
-  dispatcherId: userStore.userId != null ? String(userStore.userId) : '',
   rescuerId: '',
   vehicleId: ''
 })
 
-const dispatcherOptions = computed(() =>
-  users.value.filter((u) => {
-    if (u.status !== 1) return false
-    const roles = u.roles || []
-    return roles.some((r) => r.roleCode === 'DISPATCHER' || r.roleCode === 'ADMIN')
-  })
+const currentDispatcherLabel = computed(() => {
+  const name = userStore.username || ''
+  return name ? `${name}（当前登录）` : '当前登录账号'
+})
+
+const idleVehicles = computed(() =>
+  vehicles.value.filter((v) => v.status === 'IDLE')
 )
 
-const rescuerOptions = computed(() =>
-  users.value.filter((u) => {
-    if (u.status !== 1) return false
-    const roles = u.roles || []
-    return roles.some((r) => r.roleCode === 'TOW_DRIVER')
-  })
-)
+const selectedVehicle = computed(() => {
+  if (!form.vehicleId) return null
+  return idleVehicles.value.find((v) => String(v.id) === form.vehicleId) || null
+})
 
-function userDisplay(u) {
-  if (!u) return '—'
-  return u.realName ? `${u.realName}（${u.username}）` : u.username
-}
+const boundRescuerLabel = computed(() => {
+  const v = selectedVehicle.value
+  if (!form.vehicleId) return '请先选择救援车辆'
+  if (!v) return '—'
+  if (v.driverUserId == null) return '该车辆未绑定施救员'
+  if (v.driverName) return v.driverName
+  return `用户#${v.driverUserId}`
+})
+
+watch(
+  () => form.vehicleId,
+  (id) => {
+    if (!id) {
+      form.rescuerId = ''
+      return
+    }
+    const v = idleVehicles.value.find((item) => String(item.id) === id)
+    form.rescuerId = v?.driverUserId != null ? String(v.driverUserId) : ''
+  }
+)
 
 function vehicleDisplay(v) {
-  const status = vehicleStatusLabels[v.status] || v.status || '—'
-  return `${v.plateNo}（${status}）`
+  const driver =
+    v.driverName || (v.driverUserId != null ? `施救员#${v.driverUserId}` : '未绑定施救员')
+  return `${v.plateNo}（空闲 · ${driver}）`
 }
 
 function toNullableId(value) {
@@ -155,26 +142,13 @@ function goBack() {
 
 async function loadLookups() {
   lookupError.value = ''
-  const results = await Promise.allSettled([
-    getUserList({ size: 500 }),
-    listVehicles({})
-  ])
-  const [userResult, vehicleResult] = results
-  if (userResult.status === 'fulfilled') {
-    users.value = userResult.value.data?.list || []
-  }
-  if (vehicleResult.status === 'fulfilled') {
-    vehicles.value = vehicleResult.value.data?.list || []
-  }
-  const failed = results.filter((r) => r.status === 'rejected')
-  if (failed.length === results.length) {
-    const first = failed[0].reason
+  try {
+    const res = await listVehicles({ status: 'IDLE' })
+    vehicles.value = res.data?.list || []
+  } catch (e) {
+    vehicles.value = []
     lookupError.value =
-      first?.response?.data?.message || first?.message || '加载基础数据失败'
-  } else if (failed.length) {
-    const first = failed[0].reason
-    lookupError.value =
-      first?.response?.data?.message || first?.message || '部分基础数据加载失败'
+      e?.response?.data?.message || e?.message || '加载空闲车辆失败'
   }
 }
 
@@ -190,20 +164,48 @@ async function initMap() {
       }
     })
   } catch (e) {
-    mapError.value = e.message || '地图加载失败，请手填坐标'
+    mapError.value = e.message || '地图加载失败'
+  }
+}
+
+async function onAddressEnter() {
+  mapError.value = ''
+  if (!mapInstance?.geocodeAddress) {
+    mapError.value = amapReady ? '地图尚未就绪' : '未配置地图 Key，无法定位'
+    return
+  }
+  try {
+    await mapInstance.geocodeAddress(form.accidentAddress)
+  } catch (e) {
+    mapError.value = e.message || '地点解析失败'
   }
 }
 
 async function onSubmit() {
   formError.value = ''
+  const lng = Number(form.longitude)
+  const lat = Number(form.latitude)
+  if (
+    form.longitude === '' ||
+    form.latitude === '' ||
+    Number.isNaN(lng) ||
+    Number.isNaN(lat)
+  ) {
+    formError.value = '请通过地图选点或输入事故地点后回车定位'
+    return
+  }
+  if (userStore.userId == null) {
+    formError.value = '未获取到当前登录用户，请重新登录'
+    return
+  }
   saving.value = true
   try {
     const res = await createDispatch({
       rescueReason: form.rescueReason,
       accidentAddress: form.accidentAddress,
-      longitude: Number(form.longitude),
-      latitude: Number(form.latitude),
-      dispatcherId: toNullableId(form.dispatcherId),
+      longitude: lng,
+      latitude: lat,
+      dispatcherId: userStore.userId,
       rescuerId: toNullableId(form.rescuerId),
       vehicleId: toNullableId(form.vehicleId)
     })
@@ -273,10 +275,10 @@ onBeforeUnmount(() => {
   background: #fff;
 }
 
-.coord-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.85rem;
+.readonly-input {
+  background: var(--bg-muted) !important;
+  color: var(--text-secondary) !important;
+  cursor: default;
 }
 
 .map-wrap {
@@ -303,11 +305,5 @@ onBeforeUnmount(() => {
   gap: 0.5rem;
   justify-content: flex-end;
   margin-top: 0.35rem;
-}
-
-@media (max-width: 640px) {
-  .coord-row {
-    grid-template-columns: 1fr;
-  }
 }
 </style>

@@ -107,6 +107,33 @@ export async function createPickerMap(container, { lng, lat, onPicked, searchInp
     reverseGeocode(x, y)
   })
 
+  const geocodeAddress = (address) =>
+    new Promise((resolve, reject) => {
+      const text = address == null ? '' : String(address).trim()
+      if (!text) {
+        reject(new Error('请输入事故地点'))
+        return
+      }
+      if (!geocoder) {
+        reject(new Error('地图地理编码未就绪'))
+        return
+      }
+      geocoder.getLocation(text, (status, result) => {
+        if (status === 'complete' && result.geocodes?.length) {
+          const geo = result.geocodes[0]
+          const loc = geo.location
+          const x = loc.lng
+          const y = loc.lat
+          const formatted = geo.formattedAddress || text
+          map.setZoomAndCenter(15, [x, y])
+          setMarker(x, y, formatted)
+          resolve({ lng: x, lat: y, address: formatted })
+        } else {
+          reject(new Error('未找到该地点，请换关键词或在地图上选点'))
+        }
+      })
+    })
+
   if (searchInput) {
     const inputEl =
       typeof searchInput === 'string' ? document.querySelector(searchInput) : searchInput
@@ -126,6 +153,7 @@ export async function createPickerMap(container, { lng, lat, onPicked, searchInp
 
   return {
     map,
+    geocodeAddress,
     setMarker(x, y, address) {
       map.setZoomAndCenter(13, [Number(x), Number(y)])
       setMarker(x, y, address)

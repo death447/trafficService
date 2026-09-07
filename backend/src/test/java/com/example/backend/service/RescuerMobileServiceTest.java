@@ -48,6 +48,7 @@ class RescuerMobileServiceTest {
         ArgumentCaptor<RescueVehicle> captor = ArgumentCaptor.forClass(RescueVehicle.class);
         verify(rescueVehicleMapper).update(captor.capture());
         assertEquals(9L, captor.getValue().getDriverUserId());
+        assertEquals("IDLE", captor.getValue().getStatus());
         assertEquals(1L, bound.getId());
     }
 

@@ -119,14 +119,13 @@ public class DispatchOrderService {
         assertHasRole(dispatcherId, "DISPATCHER", "ADMIN");
         order.setDispatcherId(dispatcherId);
 
+        if (order.getVehicleId() != null) {
+            RescueVehicle vehicle = rescueVehicleService.requireIdle(order.getVehicleId());
+            // 施救员由车辆绑定关系带出，不允许单独指定
+            order.setRescuerId(vehicle.getDriverUserId());
+        }
         if (order.getRescuerId() != null) {
             assertHasRole(order.getRescuerId(), "TOW_DRIVER");
-        }
-        if (order.getVehicleId() != null) {
-            RescueVehicle vehicle = rescueVehicleService.findById(order.getVehicleId());
-            if (vehicle == null) {
-                throw new RuntimeException("车辆不存在");
-            }
         }
     }
 

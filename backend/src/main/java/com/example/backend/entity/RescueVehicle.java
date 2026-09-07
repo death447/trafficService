@@ -20,4 +20,7 @@ public class RescueVehicle {
     private String remark;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
+
+    /** Non-table: display name for bound rescuer */
+    private String driverName;
 }

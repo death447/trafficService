@@ -32,14 +32,17 @@ class DispatchOrderServiceTest {
         order.setAccidentAddress("测试路");
         order.setRescueReason("追尾");
         order.setDispatcherId(2L);
-        order.setRescuerId(3L);
+        order.setRescuerId(999L); // client-sent value should be overwritten by vehicle driver
         order.setVehicleId(1L);
         Role d = new Role(); d.setRoleCode("DISPATCHER");
         Role t = new Role(); t.setRoleCode("TOW_DRIVER");
         when(userMapper.findRolesByUserId(2L)).thenReturn(List.of(d));
         when(userMapper.findRolesByUserId(3L)).thenReturn(List.of(t));
-        RescueVehicle v = new RescueVehicle(); v.setId(1L); v.setStatus("IDLE");
-        when(rescueVehicleService.findById(1L)).thenReturn(v);
+        RescueVehicle v = new RescueVehicle();
+        v.setId(1L);
+        v.setStatus("IDLE");
+        v.setDriverUserId(3L);
+        when(rescueVehicleService.requireIdle(1L)).thenReturn(v);
         when(dispatchOrderMapper.insert(any())).thenReturn(1);
 
         assertTrue(service.create(order, 99L));
@@ -84,8 +87,21 @@ class DispatchOrderServiceTest {
         order.setVehicleId(404L);
         Role d = new Role(); d.setRoleCode("DISPATCHER");
         when(userMapper.findRolesByUserId(7L)).thenReturn(List.of(d));
-        when(rescueVehicleService.findById(404L)).thenReturn(null);
+        when(rescueVehicleService.requireIdle(404L)).thenThrow(new RuntimeException("车辆不存在"));
         assertThrows(RuntimeException.class, () -> service.create(order, 7L));
+    }
+
+    @Test
+    void createRejectsNonIdleVehicle() {
+        DispatchOrder order = new DispatchOrder();
+        order.setAccidentAddress("A");
+        order.setRescueReason("B");
+        order.setVehicleId(1L);
+        Role d = new Role(); d.setRoleCode("DISPATCHER");
+        when(userMapper.findRolesByUserId(7L)).thenReturn(List.of(d));
+        when(rescueVehicleService.requireIdle(1L)).thenThrow(new RuntimeException("车辆非空闲，无法派单"));
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> service.create(order, 7L));
+        assertTrue(ex.getMessage().contains("空闲"));
     }
 
     @Test
@@ -101,8 +117,11 @@ class DispatchOrderServiceTest {
         Role t = new Role(); t.setRoleCode("TOW_DRIVER");
         when(userMapper.findRolesByUserId(2L)).thenReturn(List.of(d));
         when(userMapper.findRolesByUserId(3L)).thenReturn(List.of(t));
-        RescueVehicle v = new RescueVehicle(); v.setId(1L); v.setStatus("IDLE");
-        when(rescueVehicleService.findById(1L)).thenReturn(v);
+        RescueVehicle v = new RescueVehicle();
+        v.setId(1L);
+        v.setStatus("IDLE");
+        v.setDriverUserId(3L);
+        when(rescueVehicleService.requireIdle(1L)).thenReturn(v);
 
         DispatchOrder patch = new DispatchOrder();
         patch.setId(9L);
@@ -111,7 +130,7 @@ class DispatchOrderServiceTest {
         patch.setLongitude(new BigDecimal("120.1"));
         patch.setLatitude(new BigDecimal("30.2"));
         patch.setDispatcherId(2L);
-        patch.setRescuerId(3L);
+        patch.setRescuerId(999L);
         patch.setVehicleId(1L);
 
         assertTrue(service.update(patch));
@@ -239,8 +258,11 @@ class DispatchOrderServiceTest {
         Role t = new Role(); t.setRoleCode("TOW_DRIVER");
         when(userMapper.findRolesByUserId(1L)).thenReturn(List.of(d));
         when(userMapper.findRolesByUserId(3L)).thenReturn(List.of(t));
-        RescueVehicle v = new RescueVehicle(); v.setId(1L); v.setStatus("IDLE");
-        when(rescueVehicleService.findById(1L)).thenReturn(v);
+        RescueVehicle v = new RescueVehicle();
+        v.setId(1L);
+        v.setStatus("IDLE");
+        v.setDriverUserId(3L);
+        when(rescueVehicleService.requireIdle(1L)).thenReturn(v);
 
         DispatchOrder patch = new DispatchOrder();
         patch.setId(9L);

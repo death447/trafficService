@@ -16,6 +16,7 @@
             <th>车牌号</th>
             <th>类型</th>
             <th>状态</th>
+            <th>施救员</th>
             <th>所属片区</th>
             <th>经度</th>
             <th>纬度</th>
@@ -31,6 +32,7 @@
                 {{ statusLabel(vehicle.status) }}
               </span>
             </td>
+            <td>{{ driverLabel(vehicle) }}</td>
             <td>{{ districtLabel(vehicle.districtId) }}</td>
             <td>{{ vehicle.longitude ?? '—' }}</td>
             <td>{{ vehicle.latitude ?? '—' }}</td>
@@ -117,6 +119,15 @@
           </select>
         </label>
         <label>
+          施救员
+          <select v-model="form.driverUserId">
+            <option value="">未绑定（待扫码上线）</option>
+            <option v-for="u in rescuerOptions" :key="u.id" :value="String(u.id)">
+              {{ userDisplay(u) }}
+            </option>
+          </select>
+        </label>
+        <label>
           备注
           <input v-model.trim="form.remark" />
         </label>
@@ -135,10 +146,12 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import QRCode from 'qrcode'
 import { listVehicles, createVehicle, updateVehicle, deleteVehicle } from '../../api/vehicle'
 import { listDistricts } from '../../api/district'
+import { getUserList } from '../../api/user'
 
 const vehicles = ref([])
 const enabledDistricts = ref([])
 const allDistricts = ref([])
+const users = ref([])
 const loading = ref(false)
 const error = ref('')
 const formVisible = ref(false)
@@ -158,8 +171,9 @@ const form = reactive({
   equipment: '',
   longitude: '',
   latitude: '',
-  status: 'IDLE',
+  status: 'OFFLINE',
   districtId: '',
+  driverUserId: '',
   remark: ''
 })
 
@@ -174,6 +188,14 @@ const statusLabels = {
   BUSY: '忙碌',
   OFFLINE: '离线'
 }
+
+const rescuerOptions = computed(() =>
+  users.value.filter((u) => {
+    if (u.status !== 1) return false
+    const roles = u.roles || []
+    return roles.some((r) => r.roleCode === 'TOW_DRIVER')
+  })
+)
 
 const districtMap = computed(() => {
   const map = {}
@@ -208,6 +230,18 @@ function districtLabel(districtId) {
   return districtMap.value[districtId]?.name || String(districtId)
 }
 
+function driverLabel(vehicle) {
+  if (!vehicle) return '—'
+  if (vehicle.driverName) return vehicle.driverName
+  if (vehicle.driverUserId == null) return '—'
+  return String(vehicle.driverUserId)
+}
+
+function userDisplay(u) {
+  if (!u) return '—'
+  return u.realName ? `${u.realName}（${u.username}）` : u.username
+}
+
 function resetForm() {
   form.plateNo = ''
   form.vehicleType = 'TOW'
@@ -215,8 +249,9 @@ function resetForm() {
   form.equipment = ''
   form.longitude = ''
   form.latitude = ''
-  form.status = 'IDLE'
+  form.status = 'OFFLINE'
   form.districtId = ''
+  form.driverUserId = ''
   form.remark = ''
   formError.value = ''
   boundDisabledDistrict.value = null
@@ -229,6 +264,15 @@ async function loadDistricts() {
   ])
   enabledDistricts.value = enabledRes.data?.list || []
   allDistricts.value = allRes.data?.list || []
+}
+
+async function loadUsers() {
+  try {
+    const res = await getUserList({ size: 500 })
+    users.value = res.data?.list || []
+  } catch (_) {
+    users.value = []
+  }
 }
 
 async function loadVehicles() {
@@ -259,9 +303,10 @@ function openEdit(vehicle) {
   form.equipment = vehicle.equipment || ''
   form.longitude = vehicle.longitude != null ? String(vehicle.longitude) : ''
   form.latitude = vehicle.latitude != null ? String(vehicle.latitude) : ''
-  form.status = vehicle.status || 'IDLE'
+  form.status = vehicle.status || 'OFFLINE'
   form.remark = vehicle.remark || ''
   form.districtId = vehicle.districtId != null ? String(vehicle.districtId) : ''
+  form.driverUserId = vehicle.driverUserId != null ? String(vehicle.driverUserId) : ''
 
   if (vehicle.districtId != null) {
     const current = districtMap.value[vehicle.districtId]
@@ -280,7 +325,8 @@ function payload() {
     equipment: form.equipment || null,
     status: form.status,
     remark: form.remark || null,
-    districtId: form.districtId ? Number(form.districtId) : null
+    districtId: form.districtId ? Number(form.districtId) : null,
+    driverUserId: form.driverUserId ? Number(form.driverUserId) : null
   }
   if (form.longitude !== '') {
     data.longitude = Number(form.longitude)
@@ -350,9 +396,9 @@ async function onDelete(vehicle) {
 
 onMounted(async () => {
   try {
-    await loadDistricts()
+    await Promise.all([loadDistricts(), loadUsers()])
   } catch (e) {
-    error.value = e.response?.data?.message || e.message || '加载片区失败'
+    error.value = e.response?.data?.message || e.message || '加载基础数据失败'
   }
   await loadVehicles()
 })

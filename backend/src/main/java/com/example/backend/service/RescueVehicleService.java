@@ -5,9 +5,12 @@ import com.example.backend.dto.NearbyVehicleVO;
 import com.example.backend.dto.NearbyVehiclesResponse;
 import com.example.backend.entity.District;
 import com.example.backend.entity.RescueVehicle;
+import com.example.backend.entity.Role;
+import com.example.backend.entity.User;
 import com.example.backend.mapper.DispatchOrderMapper;
 import com.example.backend.mapper.DistrictMapper;
 import com.example.backend.mapper.RescueVehicleMapper;
+import com.example.backend.mapper.UserMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,8 +35,15 @@ public class RescueVehicleService {
     @Autowired
     private DistrictService districtService;
 
+    @Autowired
+    private UserMapper userMapper;
+
     public RescueVehicle findById(Long id) {
-        return vehicleMapper.findById(id);
+        RescueVehicle vehicle = vehicleMapper.findById(id);
+        if (vehicle != null) {
+            enrichDriver(vehicle);
+        }
+        return vehicle;
     }
 
     /** Returns vehicle only when IDLE; otherwise throws with a clear Chinese message. */
@@ -49,12 +59,13 @@ public class RescueVehicleService {
     }
 
     public List<RescueVehicle> findAll() {
-        return vehicleMapper.findAll();
+        return vehicleMapper.findAll().stream()
+                .peek(this::enrichDriver)
+                .collect(Collectors.toList());
     }
 
     public List<RescueVehicle> list(String keyword, String status, String vehicleType) {
-        List<RescueVehicle> vehicles = vehicleMapper.findAll();
-        return vehicles.stream()
+        return findAll().stream()
                 .filter(v -> {
                     if (keyword != null && !keyword.isEmpty()) {
                         String plate = v.getPlateNo() != null ? v.getPlateNo() : "";
@@ -83,8 +94,15 @@ public class RescueVehicleService {
             throw new RuntimeException("车牌号已存在");
         }
         validateDistrict(vehicle.getDistrictId());
-        if (vehicle.getStatus() == null || vehicle.getStatus().isEmpty()) {
-            vehicle.setStatus("IDLE");
+        validateDriver(vehicle.getDriverUserId());
+        if (vehicle.getDriverUserId() != null) {
+            ensureExclusiveDriver(vehicle.getDriverUserId(), null);
+            if (vehicle.getStatus() == null || vehicle.getStatus().isEmpty()
+                    || "OFFLINE".equals(vehicle.getStatus())) {
+                vehicle.setStatus("IDLE");
+            }
+        } else if (vehicle.getStatus() == null || vehicle.getStatus().isEmpty()) {
+            vehicle.setStatus("OFFLINE");
         }
         return vehicleMapper.insert(vehicle) > 0;
     }
@@ -96,6 +114,10 @@ public class RescueVehicleService {
             throw new RuntimeException("车牌号已存在");
         }
         validateDistrict(vehicle.getDistrictId());
+        validateDriver(vehicle.getDriverUserId());
+        if (vehicle.getDriverUserId() != null) {
+            ensureExclusiveDriver(vehicle.getDriverUserId(), vehicle.getId());
+        }
         String status = vehicle.getStatus();
         if (("IDLE".equals(status) || "OFFLINE".equals(status))
                 && dispatchOrderMapper.countDispatchedByVehicleId(vehicle.getId()) > 0) {
@@ -163,6 +185,45 @@ public class RescueVehicleService {
             if (district == null || !"ENABLED".equals(district.getStatus())) {
                 throw new RuntimeException("片区不存在或已禁用");
             }
+        }
+    }
+
+    private void validateDriver(Long driverUserId) {
+        if (driverUserId == null) {
+            return;
+        }
+        User user = userMapper.findById(driverUserId);
+        if (user == null || user.getStatus() == null || user.getStatus() != 1) {
+            throw new RuntimeException("施救员不存在或已停用");
+        }
+        List<Role> roles = userMapper.findRolesByUserId(driverUserId);
+        boolean ok = roles != null && roles.stream().anyMatch(r -> "TOW_DRIVER".equals(r.getRoleCode()));
+        if (!ok) {
+            throw new RuntimeException("所选用户不是施救员角色");
+        }
+    }
+
+    private void ensureExclusiveDriver(Long driverUserId, Long keepVehicleId) {
+        RescueVehicle bound = vehicleMapper.findByDriverUserId(driverUserId);
+        if (bound != null && (keepVehicleId == null || !bound.getId().equals(keepVehicleId))) {
+            bound.setDriverUserId(null);
+            if (!"BUSY".equals(bound.getStatus())) {
+                bound.setStatus("OFFLINE");
+            }
+            vehicleMapper.update(bound);
+        }
+    }
+
+    private void enrichDriver(RescueVehicle vehicle) {
+        if (vehicle.getDriverUserId() == null) {
+            return;
+        }
+        User user = userMapper.findById(vehicle.getDriverUserId());
+        if (user != null) {
+            vehicle.setDriverName(
+                    user.getRealName() != null && !user.getRealName().isBlank()
+                            ? user.getRealName()
+                            : user.getUsername());
         }
     }
 

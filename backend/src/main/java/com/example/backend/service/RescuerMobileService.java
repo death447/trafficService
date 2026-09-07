@@ -167,8 +167,23 @@ public class RescuerMobileService {
         if (vehicle == null) {
             throw new RuntimeException("车辆不存在");
         }
-        rescueVehicleMapper.clearDriverByUserId(userId);
+
+        RescueVehicle previous = rescueVehicleMapper.findByDriverUserId(userId);
+        if (previous != null && !previous.getId().equals(vehicleId)) {
+            previous.setDriverUserId(null);
+            if (!"BUSY".equals(previous.getStatus())) {
+                previous.setStatus("OFFLINE");
+            }
+            rescueVehicleMapper.update(previous);
+        } else {
+            rescueVehicleMapper.clearDriverByUserId(userId);
+        }
+
         vehicle.setDriverUserId(userId);
+        // 扫码绑定后上线：非忙碌车辆置为空闲
+        if (!"BUSY".equals(vehicle.getStatus())) {
+            vehicle.setStatus("IDLE");
+        }
         rescueVehicleMapper.update(vehicle);
         return vehicle;
     }
