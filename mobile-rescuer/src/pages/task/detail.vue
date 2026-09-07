@@ -28,6 +28,7 @@
 
     <view class="actions" v-if="order.status === 'ACCEPTED'">
       <view v-if="!order.checkedInAt" class="btn-primary" @click="onCheckin">签到</view>
+      <view v-if="!order.checkedInAt" class="btn-ghost" @click="promptManual">无法定位，手动签到</view>
       <view class="btn-ghost" @click="goScene">现场采集</view>
       <view class="btn-ghost" @click="goPark">入库登记</view>
       <view
@@ -37,6 +38,7 @@
       >
         完成工单
       </view>
+      <view v-if="!order.checkedInAt" class="btn-danger" @click="promptReject">退单</view>
     </view>
 
     <view class="mask" v-if="reasonPanel" @click.self="reasonPanel = null">
@@ -153,7 +155,7 @@ function onCheckin() {
         uni.showToast({ title: '签到成功', icon: 'success' })
         load()
       } catch (_) {
-        promptManual()
+        // Distance / API errors already toasted by request.js; do not open MANUAL
       }
     },
     fail: () => promptManual()

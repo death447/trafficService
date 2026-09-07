@@ -58,4 +58,4 @@ VITE_API_BASE=http://localhost:8080/api
 ## 说明
 
 - 使用 `uni.request` / `uni.setStorage` / `uni.getLocation` / `uni.chooseImage` / `uni.uploadFile` / `uni.scanCode`
-- H5 下定位与扫码受浏览器权限限制；签到失败可改手动签到，扫码失败可手输载荷
+- H5 下定位与扫码受浏览器权限限制；**仅无法获取定位时**可手动签到（距离超 500m 的自动签到失败不会改手动）；扫码失败可手输 `RV:{id}`
