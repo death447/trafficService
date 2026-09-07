@@ -72,6 +72,18 @@ const routes = [
     meta: { permissions: ['parking:manage'] }
   },
   {
+    path: '/detained-vehicles',
+    name: 'DetainedVehicleList',
+    component: () => import('../views/detain/DetainedVehicleList.vue'),
+    meta: { permissions: ['detain:manage'] }
+  },
+  {
+    path: '/detained-vehicles/:id/hangtag',
+    name: 'HangtagPrint',
+    component: () => import('../views/detain/HangtagPrint.vue'),
+    meta: { permissions: ['detain:print'] }
+  },
+  {
     path: '/schedules',
     name: 'ScheduleList',
     component: () => import('../views/schedule/ScheduleList.vue'),

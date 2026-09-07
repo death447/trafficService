@@ -56,6 +56,16 @@
       </router-link>
 
       <router-link
+        v-auth="'detain:manage'"
+        to="/detained-vehicles"
+        class="module-item"
+      >
+        <span class="module-tag">扣留</span>
+        <h3>扣留车辆</h3>
+        <p>办理扣留车入库、出库、清理，并打印吊牌二维码。</p>
+      </router-link>
+
+      <router-link
         v-auth="'schedule:manage'"
         to="/schedules"
         class="module-item"

@@ -1,5 +1,5 @@
 <template>
-  <div v-if="isLoginPage" class="auth-shell">
+  <div v-if="isBareShell" class="auth-shell">
     <router-view />
   </div>
 
@@ -60,6 +60,15 @@
         >
           <span class="nav-ico">场</span>
           停车场
+        </router-link>
+        <router-link
+          v-auth="'detain:manage'"
+          to="/detained-vehicles"
+          class="nav-item"
+          active-class="active"
+        >
+          <span class="nav-ico">扣</span>
+          扣留车辆
         </router-link>
         <router-link
           v-auth="'schedule:manage'"
@@ -139,12 +148,17 @@ const route = useRoute()
 const router = useRouter()
 const store = useUserStore()
 
-const isLoginPage = computed(() => route.path === '/login')
+const isBareShell = computed(
+  () =>
+    route.path === '/login' ||
+    /^\/detained-vehicles\/[^/]+\/hangtag$/.test(route.path)
+)
 
 const pageTitle = computed(() => {
   const path = route.path
   if (path === '/dispatches/new') return '新建工单'
   if (/^\/dispatches\/[^/]+$/.test(path) && path !== '/dispatches/new') return '工单详情'
+  if (/^\/detained-vehicles\/[^/]+\/hangtag$/.test(path)) return '吊牌打印'
   const map = {
     '/': '工作台概览',
     '/users': '用户管理',
@@ -154,6 +168,7 @@ const pageTitle = computed(() => {
     '/dispatches': '任务管理',
     '/districts': '片区管理',
     '/parkings': '停车场管理',
+    '/detained-vehicles': '扣留车辆',
     '/schedules': '排班管理',
     '/403': '访问受限'
   }
