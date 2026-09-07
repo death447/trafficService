@@ -6,6 +6,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -82,6 +83,22 @@ public final class GeoUtils {
         } catch (JsonProcessingException e) {
             throw new RuntimeException("围栏格式无效");
         }
+    }
+
+    public static double distanceMeters(BigDecimal lng1, BigDecimal lat1, BigDecimal lng2, BigDecimal lat2) {
+        if (lng1 == null || lat1 == null || lng2 == null || lat2 == null) {
+            throw new RuntimeException("坐标无效");
+        }
+        double lon1 = Math.toRadians(lng1.doubleValue());
+        double lat1r = Math.toRadians(lat1.doubleValue());
+        double lon2 = Math.toRadians(lng2.doubleValue());
+        double lat2r = Math.toRadians(lat2.doubleValue());
+        double dlon = lon2 - lon1;
+        double dlat = lat2r - lat1r;
+        double a = Math.sin(dlat / 2) * Math.sin(dlat / 2)
+                + Math.cos(lat1r) * Math.cos(lat2r) * Math.sin(dlon / 2) * Math.sin(dlon / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return 6371000.0 * c;
     }
 
     private static boolean onSegment(LngLat a, LngLat b, double lng, double lat) {

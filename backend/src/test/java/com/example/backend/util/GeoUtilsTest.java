@@ -3,6 +3,7 @@ package com.example.backend.util;
 import com.example.backend.dto.LngLat;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -52,5 +53,24 @@ class GeoUtilsTest {
     void parseRejectsMalformedElements() {
         RuntimeException ex = assertThrows(RuntimeException.class, () -> GeoUtils.parseFence("[\"bad\"]"));
         assertEquals("围栏格式无效", ex.getMessage());
+    }
+
+    @Test
+    void distanceMetersSamePointIsNearZero() {
+        BigDecimal lng = new BigDecimal("121.4737000");
+        BigDecimal lat = new BigDecimal("31.2304000");
+        double d = GeoUtils.distanceMeters(lng, lat, lng, lat);
+        assertTrue(d < 1.0, "same point should be ~0m, got " + d);
+    }
+
+    @Test
+    void distanceMetersKnownPointsAbout500m() {
+        // ~0.0045 deg lat ≈ 500m
+        BigDecimal lng1 = new BigDecimal("121.0000000");
+        BigDecimal lat1 = new BigDecimal("31.0000000");
+        BigDecimal lng2 = new BigDecimal("121.0000000");
+        BigDecimal lat2 = new BigDecimal("31.0045000");
+        double d = GeoUtils.distanceMeters(lng1, lat1, lng2, lat2);
+        assertTrue(Math.abs(d - 500.0) <= 20.0, "expected ~500m ±20m, got " + d);
     }
 }

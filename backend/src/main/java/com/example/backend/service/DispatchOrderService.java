@@ -7,10 +7,12 @@ import com.example.backend.entity.User;
 import com.example.backend.mapper.DispatchOrderMapper;
 import com.example.backend.mapper.RescueVehicleMapper;
 import com.example.backend.mapper.UserMapper;
+import com.example.backend.util.GeoUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -164,13 +166,89 @@ public class DispatchOrderService {
     }
 
     @Transactional
-    public void complete(Long orderId) {
-        DispatchOrder order = dispatchOrderMapper.findById(orderId);
-        if (order == null) {
-            throw new RuntimeException("工单不存在");
-        }
+    public void accept(Long orderId, Long rescuerId) {
+        DispatchOrder order = requireOrder(orderId);
+        assertRescuer(order, rescuerId);
         if (!"DISPATCHED".equals(order.getStatus())) {
-            throw new RuntimeException("仅已派单状态可完成");
+            throw new RuntimeException("仅已派单状态可接单");
+        }
+        order.setStatus("ACCEPTED");
+        order.setAcceptedAt(LocalDateTime.now());
+        dispatchOrderMapper.update(order);
+    }
+
+    @Transactional
+    public void reject(Long orderId, Long rescuerId, String reason) {
+        DispatchOrder order = requireOrder(orderId);
+        assertRescuer(order, rescuerId);
+        if (!"DISPATCHED".equals(order.getStatus()) && !"ACCEPTED".equals(order.getStatus())) {
+            throw new RuntimeException("当前状态不可退单");
+        }
+        if (order.getCheckedInAt() != null) {
+            throw new RuntimeException("已签到不可退单");
+        }
+        if (reason == null || reason.isBlank()) {
+            throw new RuntimeException("请填写退单原因");
+        }
+        Long vehicleId = order.getVehicleId();
+        order.setStatus("PENDING");
+        order.setRejectReason(reason.trim());
+        order.setVehicleId(null);
+        order.setRescuerId(null);
+        order.setDispatchedAt(null);
+        order.setAcceptedAt(null);
+        dispatchOrderMapper.update(order);
+        releaseVehicleIfUnused(vehicleId);
+    }
+
+    @Transactional
+    public void checkin(Long orderId, Long rescuerId, BigDecimal lng, BigDecimal lat, String mode, String remark) {
+        DispatchOrder order = requireOrder(orderId);
+        assertRescuer(order, rescuerId);
+        if (!"ACCEPTED".equals(order.getStatus())) {
+            throw new RuntimeException("仅已接单状态可签到");
+        }
+        if (order.getCheckedInAt() != null) {
+            throw new RuntimeException("已签到");
+        }
+        if ("AUTO".equals(mode)) {
+            if (order.getLongitude() == null || order.getLatitude() == null) {
+                throw new RuntimeException("工单缺少事故坐标，请使用手动签到");
+            }
+            if (lng == null || lat == null) {
+                throw new RuntimeException("自动签到需要定位坐标");
+            }
+            double meters = GeoUtils.distanceMeters(order.getLongitude(), order.getLatitude(), lng, lat);
+            if (meters > 500.0) {
+                throw new RuntimeException("距离事故点超过500米，无法自动签到");
+            }
+            order.setCheckinLng(lng);
+            order.setCheckinLat(lat);
+        } else if ("MANUAL".equals(mode)) {
+            if (remark == null || remark.isBlank()) {
+                throw new RuntimeException("手动签到须填写原因");
+            }
+            order.setCheckinRemark(remark.trim());
+            order.setCheckinLng(lng);
+            order.setCheckinLat(lat);
+        } else {
+            throw new RuntimeException("签到模式无效");
+        }
+        order.setCheckinMode(mode);
+        order.setCheckedInAt(LocalDateTime.now());
+        dispatchOrderMapper.update(order);
+    }
+
+    // complete: 允许 DISPATCHED（兼容旧 PC）或 ACCEPTED；若 ACCEPTED 则必须已签到
+    @Transactional
+    public void complete(Long orderId) {
+        DispatchOrder order = requireOrder(orderId);
+        if ("ACCEPTED".equals(order.getStatus())) {
+            if (order.getCheckedInAt() == null) {
+                throw new RuntimeException("请先签到再完成");
+            }
+        } else if (!"DISPATCHED".equals(order.getStatus())) {
+            throw new RuntimeException("当前状态不可完成");
         }
         Long vehicleId = order.getVehicleId();
         order.setStatus("COMPLETED");
@@ -181,20 +259,31 @@ public class DispatchOrderService {
 
     @Transactional
     public void abort(Long orderId, String abortReason) {
-        DispatchOrder order = dispatchOrderMapper.findById(orderId);
-        if (order == null) {
-            throw new RuntimeException("工单不存在");
-        }
-        if (!"PENDING".equals(order.getStatus()) && !"DISPATCHED".equals(order.getStatus())) {
+        DispatchOrder order = requireOrder(orderId);
+        String st = order.getStatus();
+        if (!"PENDING".equals(st) && !"DISPATCHED".equals(st) && !"ACCEPTED".equals(st)) {
             throw new RuntimeException("当前状态不可作废");
         }
         Long vehicleId = order.getVehicleId();
-        boolean wasDispatched = "DISPATCHED".equals(order.getStatus());
+        boolean occupied = "DISPATCHED".equals(st) || "ACCEPTED".equals(st);
         order.setStatus("ABORTED");
         order.setAbortReason(abortReason);
+        // 保留 rescuer_id / vehicle_id 历史信息供列表；释放占用
         dispatchOrderMapper.update(order);
-        if (wasDispatched) {
+        if (occupied) {
             releaseVehicleIfUnused(vehicleId);
+        }
+    }
+
+    private DispatchOrder requireOrder(Long id) {
+        DispatchOrder order = dispatchOrderMapper.findById(id);
+        if (order == null) throw new RuntimeException("工单不存在");
+        return order;
+    }
+
+    private void assertRescuer(DispatchOrder order, Long rescuerId) {
+        if (rescuerId == null || !rescuerId.equals(order.getRescuerId())) {
+            throw new RuntimeException("无权操作该工单");
         }
     }
 

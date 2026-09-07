@@ -12,6 +12,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -268,5 +269,80 @@ class DispatchOrderServiceTest {
 
         assertThrows(RuntimeException.class, () -> service.update(patch));
         verify(dispatchOrderMapper, never()).update(any());
+    }
+
+    @Test
+    void acceptMovesDispatchedToAccepted() {
+        DispatchOrder o = new DispatchOrder();
+        o.setId(1L); o.setStatus("DISPATCHED"); o.setRescuerId(3L);
+        when(dispatchOrderMapper.findById(1L)).thenReturn(o);
+        when(dispatchOrderMapper.update(any())).thenReturn(1);
+        service.accept(1L, 3L);
+        assertEquals("ACCEPTED", o.getStatus());
+        assertNotNull(o.getAcceptedAt());
+    }
+
+    @Test
+    void acceptRejectsWrongRescuer() {
+        DispatchOrder o = new DispatchOrder();
+        o.setId(1L); o.setStatus("DISPATCHED"); o.setRescuerId(9L);
+        when(dispatchOrderMapper.findById(1L)).thenReturn(o);
+        assertThrows(RuntimeException.class, () -> service.accept(1L, 3L));
+    }
+
+    @Test
+    void rejectClearsAssignmentAndReleasesVehicle() {
+        DispatchOrder o = new DispatchOrder();
+        o.setId(1L); o.setStatus("DISPATCHED"); o.setRescuerId(3L); o.setVehicleId(8L);
+        when(dispatchOrderMapper.findById(1L)).thenReturn(o);
+        when(dispatchOrderMapper.update(any())).thenReturn(1);
+        when(dispatchOrderMapper.countDispatchedByVehicleId(8L)).thenReturn(0);
+        service.reject(1L, 3L, "无法到达");
+        assertEquals("PENDING", o.getStatus());
+        assertNull(o.getVehicleId());
+        assertNull(o.getRescuerId());
+        verify(rescueVehicleService).markIdle(8L);
+    }
+
+    @Test
+    void rejectFailsAfterCheckin() {
+        DispatchOrder o = new DispatchOrder();
+        o.setId(1L); o.setStatus("ACCEPTED"); o.setRescuerId(3L);
+        o.setCheckedInAt(LocalDateTime.now());
+        when(dispatchOrderMapper.findById(1L)).thenReturn(o);
+        assertThrows(RuntimeException.class, () -> service.reject(1L, 3L, "x"));
+    }
+
+    @Test
+    void checkinAutoFailsWhenTooFar() {
+        DispatchOrder o = new DispatchOrder();
+        o.setId(1L); o.setStatus("ACCEPTED"); o.setRescuerId(3L);
+        o.setLongitude(new BigDecimal("121.0000000"));
+        o.setLatitude(new BigDecimal("31.0000000"));
+        when(dispatchOrderMapper.findById(1L)).thenReturn(o);
+        // ~0.01 deg lat ≈ 1.1km
+        assertThrows(RuntimeException.class, () ->
+            service.checkin(1L, 3L, new BigDecimal("121.0000000"), new BigDecimal("31.0100000"), "AUTO", null));
+    }
+
+    @Test
+    void completeAcceptedRequiresCheckin() {
+        DispatchOrder o = new DispatchOrder();
+        o.setId(1L); o.setStatus("ACCEPTED"); o.setRescuerId(3L); o.setVehicleId(8L);
+        when(dispatchOrderMapper.findById(1L)).thenReturn(o);
+        assertThrows(RuntimeException.class, () -> service.complete(1L));
+    }
+
+    @Test
+    void abortAcceptedReleasesVehicle() {
+        DispatchOrder o = new DispatchOrder();
+        o.setId(1L); o.setStatus("ACCEPTED"); o.setVehicleId(8L); o.setRescuerId(3L);
+        when(dispatchOrderMapper.findById(1L)).thenReturn(o);
+        when(dispatchOrderMapper.update(any())).thenReturn(1);
+        when(dispatchOrderMapper.countDispatchedByVehicleId(8L)).thenReturn(0);
+        service.abort(1L, "取消");
+        assertEquals("ABORTED", o.getStatus());
+        assertEquals(3L, o.getRescuerId()); // 保留以便 aborted 列表
+        verify(rescueVehicleService).markIdle(8L);
     }
 }
