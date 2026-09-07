@@ -66,13 +66,36 @@ class DetainedVehicleServiceTest {
         when(detainedVehicleMapper.findById(5L)).thenReturn(v);
         DetainUpdateRequest req = new DetainUpdateRequest();
         req.setPlateNo("粤B新");
-        req.setParkingLotId(1L);
-        ParkingLot lot = new ParkingLot();
-        lot.setId(1L);
-        lot.setStatus("ENABLED");
-        when(parkingLotService.requireEnabled(1L)).thenReturn(lot);
+        req.setParkingLotId(1L); // same lot → requireEnabled skipped
         when(detainedVehicleMapper.countInYardByPlateNoExcludingId("粤B新", 5L)).thenReturn(1);
         assertThrows(RuntimeException.class, () -> service.update(5L, req));
+        verify(parkingLotService, never()).requireEnabled(any());
+    }
+
+    @Test
+    void updateKeepsSameDisabledLotWithoutRequireEnabled() {
+        DetainedVehicle v = inYard(7L, "粤B停用场");
+        v.setParkingLotId(99L);
+        v.setVehicleType("小型车");
+        v.setDetainDept("交警一大队");
+        v.setRemark("原备注");
+        when(detainedVehicleMapper.findById(7L)).thenReturn(v);
+        when(detainedVehicleMapper.countInYardByPlateNoExcludingId("粤B停用场", 7L)).thenReturn(0);
+        when(detainedVehicleMapper.update(any())).thenReturn(1);
+
+        DetainUpdateRequest req = new DetainUpdateRequest();
+        req.setPlateNo("粤B停用场");
+        req.setParkingLotId(99L);
+        req.setVehicleType(null);
+        req.setDetainDept(null);
+        req.setRemark("新备注");
+
+        assertTrue(service.update(7L, req));
+        verify(parkingLotService, never()).requireEnabled(any());
+        assertNull(v.getVehicleType());
+        assertNull(v.getDetainDept());
+        assertEquals("新备注", v.getRemark());
+        assertEquals(99L, v.getParkingLotId());
     }
 
     private static DetainedVehicle inYard(Long id, String plate) {

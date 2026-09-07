@@ -146,11 +146,11 @@
           <select v-model="form.parkingLotId" required>
             <option value="" disabled>请选择启用停车场</option>
             <option
-              v-for="lot in enabledParkings"
+              v-for="lot in formParkingOptions"
               :key="lot.id"
               :value="String(lot.id)"
             >
-              {{ lot.name }}
+              {{ lot.name }}{{ lot.status === 'DISABLED' ? '（已停用）' : '' }}
             </option>
           </select>
         </label>
@@ -222,6 +222,20 @@ const statusLabels = {
 const enabledParkings = computed(() =>
   parkingLots.value.filter((lot) => lot.status === 'ENABLED')
 )
+
+/** Edit: include current lot even if DISABLED; create: ENABLED only. Reject other disabled lots. */
+const formParkingOptions = computed(() => {
+  const enabled = enabledParkings.value
+  if (!editingId.value || !form.parkingLotId) {
+    return enabled
+  }
+  const currentId = String(form.parkingLotId)
+  if (enabled.some((lot) => String(lot.id) === currentId)) {
+    return enabled
+  }
+  const current = parkingLots.value.find((lot) => String(lot.id) === currentId)
+  return current ? [current, ...enabled] : enabled
+})
 
 function statusLabel(status) {
   return statusLabels[status] || status || '—'

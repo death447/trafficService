@@ -123,7 +123,10 @@ public class DetainedVehicleService {
         if (req.getParkingLotId() == null) {
             throw new RuntimeException("停车场不能为空");
         }
-        parkingLotService.requireEnabled(req.getParkingLotId());
+        // Only require ENABLED when changing lot (换场); keep existing disabled-lot references
+        if (!req.getParkingLotId().equals(existing.getParkingLotId())) {
+            parkingLotService.requireEnabled(req.getParkingLotId());
+        }
         if (detainedVehicleMapper.countInYardByPlateNoExcludingId(plate, id) > 0) {
             throw new RuntimeException("该车牌已有在库扣留车辆");
         }
@@ -136,16 +139,10 @@ public class DetainedVehicleService {
 
         existing.setPlateNo(plate);
         existing.setParkingLotId(req.getParkingLotId());
-        if (req.getVehicleType() != null) {
-            existing.setVehicleType(req.getVehicleType());
-        }
+        existing.setVehicleType(req.getVehicleType());
         existing.setDispatchOrderId(req.getDispatchOrderId());
-        if (req.getDetainDept() != null) {
-            existing.setDetainDept(req.getDetainDept());
-        }
-        if (req.getRemark() != null) {
-            existing.setRemark(req.getRemark());
-        }
+        existing.setDetainDept(req.getDetainDept());
+        existing.setRemark(req.getRemark());
         return detainedVehicleMapper.update(existing) > 0;
     }
 
