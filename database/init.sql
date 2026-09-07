@@ -1,6 +1,8 @@
 CREATE DATABASE IF NOT EXISTS vue_springboot_system DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE vue_springboot_system;
 
+DROP TABLE IF EXISTS `detained_vehicle`;
+DROP TABLE IF EXISTS `parking_lot`;
 DROP TABLE IF EXISTS `duty_schedule`;
 DROP TABLE IF EXISTS `district`;
 DROP TABLE IF EXISTS `dispatch_order`;
@@ -152,6 +154,47 @@ CREATE TABLE `duty_schedule` (
   KEY `idx_start_end` (`start_time`, `end_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='值班排班';
 
+CREATE TABLE `parking_lot` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `name` VARCHAR(100) NOT NULL COMMENT '停车场名称',
+  `code` VARCHAR(50) NOT NULL COMMENT '编码，唯一',
+  `address` VARCHAR(255) DEFAULT NULL,
+  `contact_name` VARCHAR(50) DEFAULT NULL,
+  `contact_phone` VARCHAR(20) DEFAULT NULL,
+  `status` VARCHAR(20) NOT NULL DEFAULT 'ENABLED' COMMENT 'ENABLED/DISABLED',
+  `remark` VARCHAR(200) DEFAULT NULL,
+  `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_code` (`code`),
+  KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='停车场';
+
+CREATE TABLE `detained_vehicle` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `detain_no` VARCHAR(32) NOT NULL COMMENT '扣押编号，唯一',
+  `plate_no` VARCHAR(20) NOT NULL COMMENT '车牌',
+  `vehicle_type` VARCHAR(50) DEFAULT NULL COMMENT '车辆类型文本',
+  `parking_lot_id` BIGINT NOT NULL COMMENT '所属停车场',
+  `dispatch_order_id` BIGINT DEFAULT NULL COMMENT '可选关联救援工单',
+  `detain_dept` VARCHAR(100) DEFAULT NULL COMMENT '扣留部门',
+  `status` VARCHAR(20) NOT NULL DEFAULT 'IN_YARD' COMMENT 'IN_YARD/OUT/CLEARED',
+  `in_time` DATETIME NOT NULL COMMENT '入库时间',
+  `out_time` DATETIME DEFAULT NULL,
+  `cleared_at` DATETIME DEFAULT NULL,
+  `operator_in_id` BIGINT DEFAULT NULL COMMENT '入库操作人 user.id',
+  `operator_out_id` BIGINT DEFAULT NULL COMMENT '出库操作人 user.id',
+  `remark` VARCHAR(200) DEFAULT NULL,
+  `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_detain_no` (`detain_no`),
+  KEY `idx_plate_no` (`plate_no`),
+  KEY `idx_status` (`status`),
+  KEY `idx_parking_lot_id` (`parking_lot_id`),
+  KEY `idx_dispatch_order_id` (`dispatch_order_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='扣留车辆';
+
 INSERT INTO `role` (`role_name`, `role_code`, `description`) VALUES
 ('交警', 'TRAFFIC_POLICE', '负责事故处理'),
 ('调度员', 'DISPATCHER', '负责派单管理、资源调度、任务分配'),
@@ -200,12 +243,23 @@ INSERT INTO `permission` (`id`, `permission_name`, `permission_code`, `permissio
 (38, '排班查询', 'schedule:query', 'BUTTON', 37, 1),
 (39, '排班新增', 'schedule:add', 'BUTTON', 37, 2),
 (40, '排班编辑', 'schedule:edit', 'BUTTON', 37, 3),
-(41, '排班删除', 'schedule:delete', 'BUTTON', 37, 4);
+(41, '排班删除', 'schedule:delete', 'BUTTON', 37, 4),
+(42, '停车场查询', 'parking:query', 'BUTTON', 19, 1),
+(43, '停车场新增', 'parking:add', 'BUTTON', 19, 2),
+(44, '停车场编辑', 'parking:edit', 'BUTTON', 19, 3),
+(45, '停车场删除', 'parking:delete', 'BUTTON', 19, 4),
+(46, '扣留车辆', 'detain:manage', 'MODULE', 0, 11),
+(47, '扣留查询', 'detain:query', 'BUTTON', 46, 1),
+(48, '扣留入库', 'detain:add', 'BUTTON', 46, 2),
+(49, '扣留编辑', 'detain:edit', 'BUTTON', 46, 3),
+(50, '扣留出库', 'detain:out', 'BUTTON', 46, 4),
+(51, '扣留清理', 'detain:clear', 'BUTTON', 46, 5),
+(52, '吊牌打印', 'detain:print', 'BUTTON', 46, 6);
 
--- ADMIN: 1-15 + 派单 16,20-25 + 车辆 26-30 + 片区/排班 31-41
+-- ADMIN: 1-15 + 派单 16,19,20-52
 INSERT INTO `role_permission` (`role_id`, `permission_id`)
 SELECT 5, id FROM `permission` WHERE id BETWEEN 1 AND 15
-   OR id = 16 OR id BETWEEN 20 AND 41;
+   OR id = 16 OR id = 19 OR id BETWEEN 20 AND 52;
 
 -- DISPATCHER: user:query（排班选人）+ 派单 + 车辆 + 片区 + 排班（无 user:manage 菜单）
 INSERT INTO `role_permission` (`role_id`, `permission_id`)
@@ -217,8 +271,9 @@ INSERT INTO `role_permission` (`role_id`, `permission_id`) VALUES (1, 17);
 -- TOW_DRIVER 拥有救援执行
 INSERT INTO `role_permission` (`role_id`, `permission_id`) VALUES (3, 18);
 
--- PARKING_ADMIN 拥有停车场管理
-INSERT INTO `role_permission` (`role_id`, `permission_id`) VALUES (4, 19);
+-- PARKING_ADMIN 拥有停车场与扣留车辆管理
+INSERT INTO `role_permission` (`role_id`, `permission_id`)
+SELECT 4, id FROM `permission` WHERE id = 19 OR id BETWEEN 42 AND 52;
 
 -- admin 用户密码为 BCrypt(admin123)
 INSERT INTO `user` (`username`, `email`, `password`, `phone`, `real_name`, `status`) VALUES
@@ -261,3 +316,23 @@ INSERT INTO `duty_schedule`
  2, 'DISPATCHER', 1, NULL, '调度白班样例'),
 (CURDATE(), CONCAT(CURDATE(), ' 08:00:00'), CONCAT(CURDATE(), ' 18:00:00'),
  3, 'TOW_DRIVER', 1, 1, '施救白班样例');
+
+INSERT INTO `user` (`username`, `email`, `password`, `phone`, `real_name`, `status`) VALUES
+('parkingadmin', 'parking@example.com',
+ '$2a$10$tRbGvdiWK.72JRbBlUYmB.3K2h44sbb20U3qKWrAeggv0.lbqUhzW',
+ '13800000004', '停车场演示', 1);
+INSERT INTO `user_role` (`user_id`, `role_id`)
+SELECT id, 4 FROM `user` WHERE username = 'parkingadmin';
+
+INSERT INTO `parking_lot` (`name`, `code`, `address`, `contact_name`, `contact_phone`, `status`, `remark`) VALUES
+('福田扣留场', 'PK-FT-01', '深圳市福田区示例路1号', '张管', '13900000001', 'ENABLED', '主场'),
+('南山扣留场', 'PK-NS-01', '深圳市南山区示例路2号', '李管', '13900000002', 'ENABLED', NULL),
+('罗湖备用场', 'PK-LH-00', '深圳市罗湖区示例路3号', NULL, NULL, 'DISABLED', '禁用样例');
+
+INSERT INTO `detained_vehicle`
+(`detain_no`, `plate_no`, `vehicle_type`, `parking_lot_id`, `dispatch_order_id`, `detain_dept`, `status`,
+ `in_time`, `out_time`, `cleared_at`, `operator_in_id`, `operator_out_id`, `remark`) VALUES
+('DV202609070001', '粤B·扣留01', '小型车', 1, NULL, '福田交警大队', 'IN_YARD',
+ NOW(), NULL, NULL, 1, NULL, '在库样例'),
+('DV202609070002', '粤B·扣留02', '货车', 1, NULL, '南山交警大队', 'OUT',
+ DATE_SUB(NOW(), INTERVAL 2 DAY), DATE_SUB(NOW(), INTERVAL 1 DAY), NULL, 1, 1, '已出库样例');
