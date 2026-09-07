@@ -753,4 +753,3 @@ git commit -m "test: harden rescuer mobile regression"
 1. **Spec coverage:** 状态机、签到 500m、现场/入库不写扣留表、绑车 RV、PC QR、uni-app 页、权限 53–62、uploads — 均有 Task。
 2. **Placeholders:** 无 TBD；种子施救员用户名要求实现时读 `init.sql` 实际值。
 3. **Type consistency:** `ACCEPTED`、`AUTO`/`MANUAL`、`DAMAGE`/`PARK`、`RV:{id}` 全文一致；占车计数含 ACCEPTED。
-```
