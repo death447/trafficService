@@ -140,10 +140,15 @@
         </div>
       </template>
 
-      <!-- DISPATCHED: complete / abort -->
-      <div v-else-if="order.status === 'DISPATCHED'" class="panel action-panel">
+      <!-- DISPATCHED / ACCEPTED: complete / abort -->
+      <div
+        v-else-if="order.status === 'DISPATCHED' || order.status === 'ACCEPTED'"
+        class="panel action-panel"
+      >
         <h2 class="section-title">工单操作</h2>
-        <p class="muted">工单处理中，可标记完成或中止。</p>
+        <p class="muted">
+          {{ order.status === 'ACCEPTED' ? '工单已接单，可标记完成或中止。' : '工单已派单，可标记完成或中止。' }}
+        </p>
         <div class="action-buttons">
           <button
             v-auth="'dispatch:complete'"
@@ -270,7 +275,8 @@ const abortError = ref('')
 
 const statusLabels = {
   PENDING: '待派单',
-  DISPATCHED: '处理中',
+  DISPATCHED: '已派单',
+  ACCEPTED: '已接单',
   COMPLETED: '已完成',
   ABORTED: '已中止'
 }
@@ -293,7 +299,7 @@ function statusLabel(status) {
 }
 
 function statusBadgeClass(status) {
-  if (status === 'PENDING' || status === 'DISPATCHED') return 'badge-info'
+  if (status === 'PENDING' || status === 'DISPATCHED' || status === 'ACCEPTED') return 'badge-info'
   if (status === 'COMPLETED') return 'badge-success'
   return 'badge-muted'
 }

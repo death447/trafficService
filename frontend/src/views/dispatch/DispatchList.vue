@@ -18,7 +18,8 @@
         <select v-model="filters.status">
           <option value="">全部</option>
           <option value="PENDING">待派单</option>
-          <option value="DISPATCHED">处理中</option>
+          <option value="DISPATCHED">已派单</option>
+          <option value="ACCEPTED">已接单</option>
           <option value="COMPLETED">已完成</option>
           <option value="ABORTED">已中止</option>
         </select>
@@ -98,7 +99,8 @@ const filters = reactive({
 
 const statusLabels = {
   PENDING: '待派单',
-  DISPATCHED: '处理中',
+  DISPATCHED: '已派单',
+  ACCEPTED: '已接单',
   COMPLETED: '已完成',
   ABORTED: '已中止'
 }
@@ -109,7 +111,7 @@ function statusLabel(status) {
 
 function statusBadgeClass(status) {
   if (status === 'PENDING') return 'badge-info'
-  if (status === 'DISPATCHED') return 'badge-info'
+  if (status === 'DISPATCHED' || status === 'ACCEPTED') return 'badge-info'
   if (status === 'COMPLETED') return 'badge-success'
   return 'badge-muted'
 }

@@ -35,12 +35,30 @@
             <td>{{ vehicle.longitude ?? '—' }}</td>
             <td>{{ vehicle.latitude ?? '—' }}</td>
             <td class="actions">
+              <button type="button" class="secondary" @click="openQr(vehicle)">二维码</button>
               <button v-auth="'vehicle:edit'" type="button" @click="openEdit(vehicle)">编辑</button>
               <button v-auth="'vehicle:delete'" type="button" class="danger" @click="onDelete(vehicle)">删除</button>
             </td>
           </tr>
         </tbody>
       </table>
+    </div>
+
+    <div v-if="qrVisible" class="modal qr-modal" @click.self="qrVisible = false">
+      <div class="modal-card qr-card">
+        <h2>车辆二维码</h2>
+        <p v-if="qrVehicle" class="qr-plate">{{ qrVehicle.plateNo }}</p>
+        <p v-if="qrError" class="error">{{ qrError }}</p>
+        <div v-else-if="qrDataUrl" class="qr-print-area">
+          <img :src="qrDataUrl" alt="车辆二维码" class="qr-image" />
+          <p class="qr-payload">RV:{{ qrVehicle?.id }}</p>
+        </div>
+        <p v-else class="loading-text">生成中…</p>
+        <div class="modal-actions no-print">
+          <button type="button" class="secondary" @click="qrVisible = false">关闭</button>
+          <button type="button" :disabled="!qrDataUrl" @click="onPrintQr">打印</button>
+        </div>
+      </div>
     </div>
 
     <div v-if="formVisible" class="modal" @click.self="formVisible = false">
@@ -114,6 +132,7 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
+import QRCode from 'qrcode'
 import { listVehicles, createVehicle, updateVehicle, deleteVehicle } from '../../api/vehicle'
 import { listDistricts } from '../../api/district'
 
@@ -123,6 +142,10 @@ const allDistricts = ref([])
 const loading = ref(false)
 const error = ref('')
 const formVisible = ref(false)
+const qrVisible = ref(false)
+const qrVehicle = ref(null)
+const qrDataUrl = ref('')
+const qrError = ref('')
 const formError = ref('')
 const saving = ref(false)
 const editingId = ref(null)
@@ -294,6 +317,26 @@ async function onSubmit() {
   }
 }
 
+async function openQr(vehicle) {
+  qrVehicle.value = vehicle
+  qrDataUrl.value = ''
+  qrError.value = ''
+  qrVisible.value = true
+  try {
+    qrDataUrl.value = await QRCode.toDataURL(`RV:${vehicle.id}`, {
+      width: 240,
+      margin: 1,
+      errorCorrectionLevel: 'M'
+    })
+  } catch (e) {
+    qrError.value = e.message || '生成二维码失败'
+  }
+}
+
+function onPrintQr() {
+  window.print()
+}
+
 async function onDelete(vehicle) {
   if (!confirm(`确认删除车辆「${vehicle.plateNo}」？`)) return
   error.value = ''
@@ -314,3 +357,57 @@ onMounted(async () => {
   await loadVehicles()
 })
 </script>
+
+<style scoped>
+.qr-card {
+  text-align: center;
+  max-width: 320px;
+}
+
+.qr-plate {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.qr-print-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.qr-image {
+  width: 240px;
+  height: 240px;
+}
+
+.qr-payload {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  word-break: break-all;
+}
+
+@media print {
+  :global(.page-header),
+  :global(.panel),
+  :global(.modal:not(.qr-modal)),
+  .no-print {
+    display: none !important;
+  }
+
+  .qr-modal {
+    position: static;
+    background: transparent;
+    padding: 0;
+  }
+
+  .qr-card {
+    box-shadow: none;
+    border: none;
+    max-width: none;
+  }
+}
+</style>
