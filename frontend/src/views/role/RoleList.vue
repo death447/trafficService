@@ -197,7 +197,7 @@ function onSizeChange(s) {
 }
 
 async function loadPermissions() {
-  const res = await getPermissionList()
+  const res = await getPermissionList({ page: 1, size: 100 })
   permissions.value = res.data?.list || []
 }
 

@@ -453,7 +453,7 @@ async function loadNearby() {
     } else {
       nearbyHint.value = '工单无坐标，展示空闲车辆列表（无距离排序）。'
       matchedDistrict.value = null
-      const res = await listVehicles({ status: 'IDLE' })
+      const res = await listVehicles({ status: 'IDLE', page: 1, size: 100 })
       const list = res.data?.list || []
       nearby.value = list.slice(0, 20).map((vehicle) => ({
         vehicle,

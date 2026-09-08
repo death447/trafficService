@@ -14,7 +14,7 @@
         <input
           v-model.trim="filters.keyword"
           placeholder="名称 / 编码"
-          @keyup.enter="loadList"
+          @keyup.enter="onQuery"
         />
       </label>
       <label>

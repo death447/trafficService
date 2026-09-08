@@ -160,7 +160,7 @@ function goBack() {
 async function loadLookups() {
   lookupError.value = ''
   try {
-    const res = await listVehicles({ status: 'IDLE' })
+    const res = await listVehicles({ status: 'IDLE', page: 1, size: 100 })
     vehicles.value = res.data?.list || []
   } catch (e) {
     vehicles.value = []

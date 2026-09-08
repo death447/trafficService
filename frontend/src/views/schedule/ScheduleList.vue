@@ -347,8 +347,8 @@ function onSizeChange(s) {
 async function loadLookups() {
   const results = await Promise.allSettled([
     getUserList({ page: 1, size: 100 }),
-    listVehicles(),
-    listDistricts()
+    listVehicles({ page: 1, size: 100 }),
+    listDistricts({ page: 1, size: 100 })
   ])
   const [userResult, vehicleResult, districtResult] = results
   if (userResult.status === 'fulfilled') {

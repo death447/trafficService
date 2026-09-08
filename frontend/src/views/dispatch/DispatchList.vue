@@ -11,7 +11,7 @@
     <div class="panel filters">
       <label>
         单号
-        <input v-model.trim="filters.orderNo" placeholder="工单号" @keyup.enter="loadList" />
+        <input v-model.trim="filters.orderNo" placeholder="工单号" @keyup.enter="onQuery" />
       </label>
       <label>
         状态
@@ -29,7 +29,7 @@
         <input
           v-model.trim="filters.accidentAddress"
           placeholder="地址关键词"
-          @keyup.enter="loadList"
+          @keyup.enter="onQuery"
         />
       </label>
       <div class="filter-actions">

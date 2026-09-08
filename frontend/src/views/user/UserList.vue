@@ -171,7 +171,7 @@ function onSizeChange(s) {
 
 async function loadRoles() {
   try {
-    const res = await getRoleList()
+    const res = await getRoleList({ page: 1, size: 100 })
     roles.value = res.data?.list || []
   } catch {
     roles.value = []

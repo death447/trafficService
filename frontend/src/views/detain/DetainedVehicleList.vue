@@ -14,7 +14,7 @@
         <input
           v-model.trim="filters.plateNo"
           placeholder="车牌号"
-          @keyup.enter="loadList"
+          @keyup.enter="onQuery"
         />
       </label>
       <label>
@@ -22,7 +22,7 @@
         <input
           v-model.trim="filters.detainNo"
           placeholder="DV…"
-          @keyup.enter="loadList"
+          @keyup.enter="onQuery"
         />
       </label>
       <label>
@@ -48,7 +48,7 @@
         <input
           v-model.trim="filters.detainDept"
           placeholder="部门关键词"
-          @keyup.enter="loadList"
+          @keyup.enter="onQuery"
         />
       </label>
       <div class="filter-actions">

@@ -269,8 +269,8 @@ function resetForm() {
 
 async function loadDistricts() {
   const [enabledRes, allRes] = await Promise.all([
-    listDistricts({ status: 'ENABLED' }),
-    listDistricts()
+    listDistricts({ status: 'ENABLED', page: 1, size: 100 }),
+    listDistricts({ page: 1, size: 100 })
   ])
   enabledDistricts.value = enabledRes.data?.list || []
   allDistricts.value = allRes.data?.list || []
