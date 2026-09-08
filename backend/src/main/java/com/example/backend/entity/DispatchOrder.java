@@ -13,6 +13,9 @@ public class DispatchOrder {
     private BigDecimal longitude;
     private BigDecimal latitude;
     private String rescueReason;
+    private String plateNo;
+    private Long vehicleTypeId;
+    private String vehicleTypeName;
     private String status;
     private Long dispatcherId;
     private Long vehicleId;

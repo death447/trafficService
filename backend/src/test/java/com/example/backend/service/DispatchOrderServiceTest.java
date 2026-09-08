@@ -1,5 +1,6 @@
 package com.example.backend.service;
 
+import com.example.backend.entity.AccidentVehicleType;
 import com.example.backend.entity.DispatchOrder;
 import com.example.backend.entity.RescueVehicle;
 import com.example.backend.entity.Role;
@@ -23,6 +24,7 @@ class DispatchOrderServiceTest {
 
     @Mock DispatchOrderMapper dispatchOrderMapper;
     @Mock RescueVehicleService rescueVehicleService;
+    @Mock AccidentVehicleTypeService accidentVehicleTypeService;
     @Mock UserMapper userMapper;
     @InjectMocks DispatchOrderService service;
 
@@ -52,6 +54,54 @@ class DispatchOrderServiceTest {
         assertEquals(1L, order.getVehicleId());
         verify(rescueVehicleService, never()).markBusy(any());
         verify(dispatchOrderMapper).insert(order);
+    }
+
+    @Test
+    void createWritesVehicleTypeSnapshot() {
+        DispatchOrder order = new DispatchOrder();
+        order.setAccidentAddress("A");
+        order.setRescueReason("B");
+        order.setPlateNo(" 粤B12345 ");
+        order.setVehicleTypeId(6L);
+        Role d = new Role(); d.setRoleCode("DISPATCHER");
+        when(userMapper.findRolesByUserId(7L)).thenReturn(List.of(d));
+        AccidentVehicleType t = new AccidentVehicleType();
+        t.setId(6L); t.setName("厢式货车"); t.setStatus("ENABLED");
+        when(accidentVehicleTypeService.requireEnabled(6L)).thenReturn(t);
+        when(dispatchOrderMapper.insert(any())).thenReturn(1);
+
+        assertTrue(service.create(order, 7L));
+        assertEquals("粤B12345", order.getPlateNo());
+        assertEquals(6L, order.getVehicleTypeId());
+        assertEquals("厢式货车", order.getVehicleTypeName());
+    }
+
+    @Test
+    void createRejectsDisabledVehicleType() {
+        DispatchOrder order = new DispatchOrder();
+        order.setAccidentAddress("A");
+        order.setRescueReason("B");
+        order.setVehicleTypeId(99L);
+        Role d = new Role(); d.setRoleCode("DISPATCHER");
+        when(userMapper.findRolesByUserId(7L)).thenReturn(List.of(d));
+        when(accidentVehicleTypeService.requireEnabled(99L))
+                .thenThrow(new RuntimeException("车型不存在或已停用"));
+        assertThrows(RuntimeException.class, () -> service.create(order, 7L));
+    }
+
+    @Test
+    void createClearsTypeWhenIdNull() {
+        DispatchOrder order = new DispatchOrder();
+        order.setAccidentAddress("A");
+        order.setRescueReason("B");
+        order.setVehicleTypeId(null);
+        order.setVehicleTypeName("应被清空");
+        Role d = new Role(); d.setRoleCode("DISPATCHER");
+        when(userMapper.findRolesByUserId(7L)).thenReturn(List.of(d));
+        when(dispatchOrderMapper.insert(any())).thenReturn(1);
+        assertTrue(service.create(order, 7L));
+        assertNull(order.getVehicleTypeId());
+        assertNull(order.getVehicleTypeName());
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.example.backend.service;
 
+import com.example.backend.entity.AccidentVehicleType;
 import com.example.backend.entity.DispatchOrder;
 import com.example.backend.entity.RescueVehicle;
 import com.example.backend.entity.Role;
@@ -35,6 +36,9 @@ public class DispatchOrderService {
 
     @Autowired
     private UserMapper userMapper;
+
+    @Autowired
+    private AccidentVehicleTypeService accidentVehicleTypeService;
 
     public DispatchOrder findById(Long id) {
         DispatchOrder order = dispatchOrderMapper.findById(id);
@@ -83,6 +87,7 @@ public class DispatchOrderService {
         order.setOrderNo(generateOrderNo());
         order.setStatus("PENDING");
         applyDispatcherAndPrefill(order, currentUserId);
+        applyPlateAndVehicleType(order);
         order.setAbortReason(null);
         order.setDispatchedAt(null);
         order.setCompletedAt(null);
@@ -102,6 +107,9 @@ public class DispatchOrderService {
         existing.setLongitude(order.getLongitude());
         existing.setLatitude(order.getLatitude());
         existing.setRescueReason(order.getRescueReason());
+        existing.setPlateNo(order.getPlateNo());
+        existing.setVehicleTypeId(order.getVehicleTypeId());
+        applyPlateAndVehicleType(existing);
         Long previousDispatcherId = existing.getDispatcherId();
         existing.setDispatcherId(order.getDispatcherId());
         if (order.getRescuerId() != null) {
@@ -112,6 +120,23 @@ public class DispatchOrderService {
         }
         applyDispatcherAndPrefill(existing, previousDispatcherId);
         return dispatchOrderMapper.update(existing) > 0;
+    }
+
+    void applyPlateAndVehicleType(DispatchOrder order) {
+        String plate = order.getPlateNo();
+        if (plate != null) {
+            plate = plate.trim();
+            order.setPlateNo(plate.isEmpty() ? null : plate);
+        }
+        Long typeId = order.getVehicleTypeId();
+        if (typeId == null) {
+            order.setVehicleTypeId(null);
+            order.setVehicleTypeName(null);
+            return;
+        }
+        AccidentVehicleType type = accidentVehicleTypeService.requireEnabled(typeId);
+        order.setVehicleTypeId(type.getId());
+        order.setVehicleTypeName(type.getName());
     }
 
     void applyDispatcherAndPrefill(DispatchOrder order, Long currentUserId) {
