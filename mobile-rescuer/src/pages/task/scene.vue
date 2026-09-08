@@ -7,7 +7,9 @@
       </view>
       <view class="field">
         <view class="field-label">车辆类型</view>
-        <input class="field-input" v-model="form.vehicleType" placeholder="如轿车/货车" />
+        <picker mode="selector" :range="typeNames" @change="onTypePick">
+          <view class="field-input">{{ form.vehicleType || '请选择车型' }}</view>
+        </picker>
       </view>
       <view class="field">
         <view class="field-label">受损描述</view>
@@ -41,9 +43,10 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { getTask, saveScene, listMedia, uploadMedia } from '../../api/rescuer'
+import { listEnabledVehicleTypes } from '../../api/vehicleType'
 import { mediaUrl } from '../../utils/request'
 
 const id = ref(null)
@@ -54,6 +57,13 @@ const form = reactive({
   sceneRemark: ''
 })
 const medias = ref([])
+const vehicleTypes = ref([])
+const typeNames = computed(() => vehicleTypes.value.map((t) => t.name))
+
+function onTypePick(e) {
+  const i = Number(e.detail.value)
+  form.vehicleType = typeNames.value[i] || ''
+}
 
 onLoad(async (q) => {
   id.value = q.id
@@ -62,13 +72,24 @@ onLoad(async (q) => {
 
 async function load() {
   try {
-    const [detail, mediaRes] = await Promise.all([getTask(id.value), listMedia(id.value)])
+    const [detail, mediaRes, typeRes] = await Promise.all([
+      getTask(id.value),
+      listMedia(id.value),
+      listEnabledVehicleTypes().catch(() => ({ data: [] }))
+    ])
+    vehicleTypes.value = typeRes.data || []
     const fr = detail.data?.fieldRecord
-    if (fr) {
+    const order = detail.data?.order
+    if (fr && (fr.plateNo || fr.vehicleType || fr.damageDesc || fr.sceneRemark)) {
       form.plateNo = fr.plateNo || ''
       form.vehicleType = fr.vehicleType || ''
       form.damageDesc = fr.damageDesc || ''
       form.sceneRemark = fr.sceneRemark || ''
+    } else {
+      form.plateNo = order?.plateNo || ''
+      form.vehicleType = order?.vehicleTypeName || ''
+      form.damageDesc = fr?.damageDesc || ''
+      form.sceneRemark = fr?.sceneRemark || ''
     }
     medias.value = (mediaRes.data || []).filter((m) => m.bizType === 'DAMAGE')
   } catch (_) {}
