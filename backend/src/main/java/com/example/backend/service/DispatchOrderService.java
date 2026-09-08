@@ -107,9 +107,11 @@ public class DispatchOrderService {
         existing.setLongitude(order.getLongitude());
         existing.setLatitude(order.getLatitude());
         existing.setRescueReason(order.getRescueReason());
+        Long previousTypeId = existing.getVehicleTypeId();
+        String previousTypeName = existing.getVehicleTypeName();
         existing.setPlateNo(order.getPlateNo());
         existing.setVehicleTypeId(order.getVehicleTypeId());
-        applyPlateAndVehicleType(existing);
+        applyPlateAndVehicleType(existing, previousTypeId, previousTypeName);
         Long previousDispatcherId = existing.getDispatcherId();
         existing.setDispatcherId(order.getDispatcherId());
         if (order.getRescuerId() != null) {
@@ -123,6 +125,10 @@ public class DispatchOrderService {
     }
 
     void applyPlateAndVehicleType(DispatchOrder order) {
+        applyPlateAndVehicleType(order, null, null);
+    }
+
+    void applyPlateAndVehicleType(DispatchOrder order, Long previousTypeId, String previousTypeName) {
         String plate = order.getPlateNo();
         if (plate != null) {
             plate = plate.trim();
@@ -132,6 +138,11 @@ public class DispatchOrderService {
         if (typeId == null) {
             order.setVehicleTypeId(null);
             order.setVehicleTypeName(null);
+            return;
+        }
+        if (previousTypeId != null && previousTypeId.equals(typeId) && previousTypeName != null) {
+            order.setVehicleTypeId(previousTypeId);
+            order.setVehicleTypeName(previousTypeName);
             return;
         }
         AccidentVehicleType type = accidentVehicleTypeService.requireEnabled(typeId);

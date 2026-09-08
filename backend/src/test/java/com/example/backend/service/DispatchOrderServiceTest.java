@@ -329,6 +329,92 @@ class DispatchOrderServiceTest {
     }
 
     @Test
+    void updateKeepsSameDisabledVehicleTypeWithoutRequireEnabled() {
+        DispatchOrder existing = new DispatchOrder();
+        existing.setId(9L);
+        existing.setStatus("PENDING");
+        existing.setDispatcherId(1L);
+        existing.setVehicleTypeId(6L);
+        existing.setVehicleTypeName("已停用车型");
+        when(dispatchOrderMapper.findById(9L)).thenReturn(existing);
+        when(dispatchOrderMapper.update(any())).thenReturn(1);
+
+        Role d = new Role(); d.setRoleCode("DISPATCHER");
+        when(userMapper.findRolesByUserId(1L)).thenReturn(List.of(d));
+
+        DispatchOrder patch = new DispatchOrder();
+        patch.setId(9L);
+        patch.setAccidentAddress("地址");
+        patch.setRescueReason("原因");
+        patch.setPlateNo("粤B99999");
+        patch.setVehicleTypeId(6L);
+        patch.setDispatcherId(1L);
+
+        assertTrue(service.update(patch));
+        assertEquals("粤B99999", existing.getPlateNo());
+        assertEquals(6L, existing.getVehicleTypeId());
+        assertEquals("已停用车型", existing.getVehicleTypeName());
+        verify(accidentVehicleTypeService, never()).requireEnabled(any());
+        verify(dispatchOrderMapper).update(existing);
+    }
+
+    @Test
+    void updateChangingVehicleTypeRequiresEnabled() {
+        DispatchOrder existing = new DispatchOrder();
+        existing.setId(9L);
+        existing.setStatus("PENDING");
+        existing.setDispatcherId(1L);
+        existing.setVehicleTypeId(6L);
+        existing.setVehicleTypeName("旧车型");
+        when(dispatchOrderMapper.findById(9L)).thenReturn(existing);
+        when(dispatchOrderMapper.update(any())).thenReturn(1);
+
+        Role d = new Role(); d.setRoleCode("DISPATCHER");
+        when(userMapper.findRolesByUserId(1L)).thenReturn(List.of(d));
+        AccidentVehicleType t = new AccidentVehicleType();
+        t.setId(7L); t.setName("新车型"); t.setStatus("ENABLED");
+        when(accidentVehicleTypeService.requireEnabled(7L)).thenReturn(t);
+
+        DispatchOrder patch = new DispatchOrder();
+        patch.setId(9L);
+        patch.setAccidentAddress("地址");
+        patch.setRescueReason("原因");
+        patch.setVehicleTypeId(7L);
+        patch.setDispatcherId(1L);
+
+        assertTrue(service.update(patch));
+        assertEquals(7L, existing.getVehicleTypeId());
+        assertEquals("新车型", existing.getVehicleTypeName());
+        verify(accidentVehicleTypeService).requireEnabled(7L);
+        verify(accidentVehicleTypeService, never()).requireEnabled(6L);
+    }
+
+    @Test
+    void updateRejectsChangingToDisabledVehicleType() {
+        DispatchOrder existing = new DispatchOrder();
+        existing.setId(9L);
+        existing.setStatus("PENDING");
+        existing.setDispatcherId(1L);
+        existing.setVehicleTypeId(6L);
+        existing.setVehicleTypeName("旧车型");
+        when(dispatchOrderMapper.findById(9L)).thenReturn(existing);
+
+        when(accidentVehicleTypeService.requireEnabled(99L))
+                .thenThrow(new RuntimeException("车型不存在或已停用"));
+
+        DispatchOrder patch = new DispatchOrder();
+        patch.setId(9L);
+        patch.setAccidentAddress("地址");
+        patch.setRescueReason("原因");
+        patch.setVehicleTypeId(99L);
+        patch.setDispatcherId(1L);
+
+        assertThrows(RuntimeException.class, () -> service.update(patch));
+        verify(accidentVehicleTypeService).requireEnabled(99L);
+        verify(dispatchOrderMapper, never()).update(any());
+    }
+
+    @Test
     void updateRejectsNonPendingOrder() {
         DispatchOrder existing = new DispatchOrder();
         existing.setId(9L);

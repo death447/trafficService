@@ -88,7 +88,7 @@
               车型
               <select v-model="editForm.vehicleTypeId">
                 <option value="">不选择</option>
-                <option v-for="t in vehicleTypes" :key="t.id" :value="String(t.id)">
+                <option v-for="t in editVehicleTypeOptions" :key="t.id" :value="String(t.id)">
                   {{ t.name }}
                 </option>
               </select>
@@ -266,6 +266,20 @@ const nearbyHint = ref('')
 const selectedVehicleId = ref(null)
 
 const vehicleTypes = ref([])
+
+const editVehicleTypeOptions = computed(() => {
+  const enabled = vehicleTypes.value
+  const currentId = editForm.vehicleTypeId
+  if (!currentId || enabled.some((t) => String(t.id) === currentId)) {
+    return enabled
+  }
+  const o = order.value
+  if (o?.vehicleTypeId != null && String(o.vehicleTypeId) === currentId && o.vehicleTypeName) {
+    return [{ id: o.vehicleTypeId, name: `${o.vehicleTypeName}（已停用）` }, ...enabled]
+  }
+  return enabled
+})
+
 const editForm = reactive({
   plateNo: '',
   vehicleTypeId: ''
