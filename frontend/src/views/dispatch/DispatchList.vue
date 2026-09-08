@@ -41,15 +41,19 @@
     <p v-if="error" class="error">{{ error }}</p>
     <p v-if="loading" class="loading-text">加载中…</p>
     <div v-else class="panel">
-      <table class="data-table">
+      <div class="table-scroll">
+        <table class="data-table">
         <thead>
           <tr>
             <th>单号</th>
             <th>地点</th>
+            <th>派单时间</th>
+            <th>调度员</th>
+            <th>施救员</th>
+            <th>施救车辆</th>
             <th>车牌</th>
             <th>车型</th>
             <th>状态</th>
-            <th>调度员</th>
             <th>创建时间</th>
             <th>操作</th>
           </tr>
@@ -62,7 +66,16 @@
             @click="goDetail(row.id)"
           >
             <td>{{ row.orderNo }}</td>
-            <td>{{ row.accidentAddress || '—' }}</td>
+            <td
+              class="cell-address"
+              :title="row.accidentAddress || undefined"
+            >
+              {{ row.accidentAddress || '—' }}
+            </td>
+            <td>{{ formatTime(row.dispatchedAt) }}</td>
+            <td>{{ row.dispatcherName || row.dispatcherId || '—' }}</td>
+            <td>{{ row.rescuerName || row.rescuerId || '—' }}</td>
+            <td>{{ row.vehiclePlate || '—' }}</td>
             <td>{{ row.plateNo || '—' }}</td>
             <td>{{ row.vehicleTypeName || '—' }}</td>
             <td>
@@ -70,17 +83,37 @@
                 {{ statusLabel(row.status) }}
               </span>
             </td>
-            <td>{{ row.dispatcherName || row.dispatcherId || '—' }}</td>
             <td>{{ formatTime(row.createTime) }}</td>
             <td class="actions" @click.stop>
               <button type="button" class="secondary" @click="goDetail(row.id)">详情</button>
+              <button
+                v-if="canComplete(row.status)"
+                v-auth="'dispatch:complete'"
+                type="button"
+                :disabled="!!acting"
+                @click="onComplete(row)"
+              >
+                {{ acting === `complete-${row.id}` ? '提交中…' : '完成' }}
+              </button>
+              <button
+                v-if="canAbort(row.status)"
+                v-auth="'dispatch:abort'"
+                type="button"
+                class="danger"
+                :disabled="!!acting"
+                @click="openAbort(row)"
+              >
+                中止
+              </button>
             </td>
           </tr>
           <tr v-if="!orders.length">
-            <td colspan="8" class="empty-cell">暂无工单</td>
+            <td colspan="11" class="empty-cell">暂无工单</td>
           </tr>
         </tbody>
-      </table>
+        </table>
+      </div>
+      <p v-if="actionError" class="error action-error">{{ actionError }}</p>
     </div>
     <PaginationBar
       v-if="!loading"
@@ -90,13 +123,38 @@
       @update:page="onPageChange"
       @update:size="onSizeChange"
     />
+
+    <div v-if="abortVisible" class="modal" @click.self="abortVisible = false">
+      <form class="modal-card" @submit.prevent="onAbort">
+        <h2>中止工单</h2>
+        <p v-if="abortTarget" class="abort-target">
+          {{ abortTarget.orderNo }} · {{ abortTarget.accidentAddress || '无地点' }}
+        </p>
+        <label>
+          中止原因
+          <textarea
+            v-model.trim="abortReason"
+            rows="3"
+            required
+            placeholder="请填写中止原因"
+          />
+        </label>
+        <p v-if="abortError" class="error">{{ abortError }}</p>
+        <div class="modal-actions">
+          <button type="button" class="secondary" @click="abortVisible = false">取消</button>
+          <button type="submit" class="danger" :disabled="acting === 'abort'">
+            {{ acting === 'abort' ? '提交中…' : '确认中止' }}
+          </button>
+        </div>
+      </form>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { listDispatches } from '../../api/dispatch'
+import { listDispatches, completeDispatch, abortDispatch } from '../../api/dispatch'
 import PaginationBar from '../../components/PaginationBar.vue'
 
 const router = useRouter()
@@ -104,6 +162,13 @@ const orders = ref([])
 const pagination = reactive({ page: 1, size: 10, total: 0 })
 const loading = ref(false)
 const error = ref('')
+const actionError = ref('')
+const acting = ref('')
+
+const abortVisible = ref(false)
+const abortTarget = ref(null)
+const abortReason = ref('')
+const abortError = ref('')
 
 const filters = reactive({
   orderNo: '',
@@ -133,6 +198,14 @@ function statusBadgeClass(status) {
 function formatTime(value) {
   if (!value) return '—'
   return String(value).replace('T', ' ').slice(0, 19)
+}
+
+function canComplete(status) {
+  return status === 'DISPATCHED' || status === 'ACCEPTED'
+}
+
+function canAbort(status) {
+  return status === 'PENDING' || status === 'DISPATCHED' || status === 'ACCEPTED'
 }
 
 function resetFilters() {
@@ -185,6 +258,46 @@ function goCreate() {
 
 function goDetail(id) {
   router.push(`/dispatches/${id}`)
+}
+
+async function onComplete(row) {
+  acting.value = `complete-${row.id}`
+  actionError.value = ''
+  try {
+    await completeDispatch(row.id)
+    await loadList()
+  } catch (e) {
+    actionError.value = e.response?.data?.message || e.message || '完成失败'
+  } finally {
+    acting.value = ''
+  }
+}
+
+function openAbort(row) {
+  abortTarget.value = row
+  abortReason.value = ''
+  abortError.value = ''
+  abortVisible.value = true
+}
+
+async function onAbort() {
+  if (!abortReason.value.trim()) {
+    abortError.value = '请填写中止原因'
+    return
+  }
+  if (!abortTarget.value) return
+  acting.value = 'abort'
+  abortError.value = ''
+  try {
+    await abortDispatch(abortTarget.value.id, { abortReason: abortReason.value.trim() })
+    abortVisible.value = false
+    abortTarget.value = null
+    await loadList()
+  } catch (e) {
+    abortError.value = e.response?.data?.message || e.message || '中止失败'
+  } finally {
+    acting.value = ''
+  }
 }
 
 onMounted(() => {
@@ -240,5 +353,48 @@ onMounted(() => {
 .loading-text {
   color: var(--text-secondary);
   font-size: 0.875rem;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+
+.action-error {
+  margin: 0.75rem 1rem 0;
+}
+
+.abort-target {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.modal-card textarea {
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: 0.875rem;
+  color: var(--text);
+  resize: vertical;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.data-table th,
+.data-table td {
+  white-space: nowrap;
+}
+
+.cell-address {
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>
