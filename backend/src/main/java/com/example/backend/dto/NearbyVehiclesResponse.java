@@ -8,4 +8,5 @@ import java.util.List;
 public class NearbyVehiclesResponse {
     private MatchedDistrictVO matchedDistrict;
     private List<NearbyVehicleVO> vehicles;
+    private List<NearbyVehicleVO> staleVehicles;
 }

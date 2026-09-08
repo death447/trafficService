@@ -17,6 +17,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +26,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class RescueVehicleService {
+
+    public static final int LOCATION_STALE_SECONDS = 180;
 
     @Autowired
     private RescueVehicleMapper vehicleMapper;
@@ -128,29 +132,53 @@ public class RescueVehicleService {
 
         District matched = districtService.resolve(lng, lat);
         Long matchedId = matched == null ? null : matched.getId();
+        LocalDateTime freshAfter = LocalDateTime.now().minusSeconds(LOCATION_STALE_SECONDS);
 
-        List<NearbyVehicleVO> list = vehicleMapper.findByStatus("IDLE").stream()
-                .filter(v -> v.getLongitude() != null && v.getLatitude() != null)
-                .map(v -> {
-                    NearbyVehicleVO vo = new NearbyVehicleVO();
-                    vo.setVehicle(v);
-                    vo.setDistanceMeters(haversineMeters(
-                            originLng, originLat,
-                            v.getLongitude().doubleValue(),
-                            v.getLatitude().doubleValue()));
-                    vo.setInMatchedDistrict(matchedId != null && matchedId.equals(v.getDistrictId()));
-                    return vo;
-                })
-                .sorted(Comparator
-                        .comparing((NearbyVehicleVO x) -> !x.isInMatchedDistrict())
-                        .thenComparingDouble(NearbyVehicleVO::getDistanceMeters))
-                .limit(effectiveLimit)
-                .collect(Collectors.toList());
+        List<NearbyVehicleVO> fresh = new ArrayList<>();
+        List<NearbyVehicleVO> stale = new ArrayList<>();
+
+        for (RescueVehicle v : vehicleMapper.findByStatus("IDLE")) {
+            NearbyVehicleVO vo = toNearbyVo(v, originLng, originLat, matchedId, freshAfter);
+            if (vo.isLocationFresh()) {
+                fresh.add(vo);
+            } else {
+                stale.add(vo);
+            }
+        }
+
+        fresh.sort(Comparator.comparingDouble(x -> x.getDistanceMeters()));
+        if (fresh.size() > effectiveLimit) {
+            fresh = new ArrayList<>(fresh.subList(0, effectiveLimit));
+        }
 
         NearbyVehiclesResponse resp = new NearbyVehiclesResponse();
         resp.setMatchedDistrict(MatchedDistrictVO.from(matched));
-        resp.setVehicles(list);
+        resp.setVehicles(fresh);
+        resp.setStaleVehicles(stale);
         return resp;
+    }
+
+    private NearbyVehicleVO toNearbyVo(RescueVehicle v, double originLng, double originLat,
+                                       Long matchedId, LocalDateTime freshAfter) {
+        NearbyVehicleVO vo = new NearbyVehicleVO();
+        vo.setVehicle(v);
+        vo.setInMatchedDistrict(matchedId != null && matchedId.equals(v.getDistrictId()));
+        vo.setLocationUpdatedAt(v.getLocationUpdatedAt());
+
+        boolean hasCoords = v.getLongitude() != null && v.getLatitude() != null;
+        boolean fresh = hasCoords
+                && v.getLocationUpdatedAt() != null
+                && !v.getLocationUpdatedAt().isBefore(freshAfter);
+        vo.setLocationFresh(fresh);
+
+        if (hasCoords) {
+            vo.setDistanceMeters(haversineMeters(
+                    originLng, originLat,
+                    v.getLongitude().doubleValue(), v.getLatitude().doubleValue()));
+        } else {
+            vo.setDistanceMeters(null);
+        }
+        return vo;
     }
 
     public void markBusy(Long id) {

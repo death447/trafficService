@@ -1,5 +1,6 @@
 package com.example.backend.service;
 
+import com.example.backend.dto.NearbyVehicleVO;
 import com.example.backend.dto.NearbyVehiclesResponse;
 import com.example.backend.entity.District;
 import com.example.backend.entity.RescueVehicle;
@@ -87,7 +88,9 @@ class RescueVehicleServiceTest {
     @Test
     void nearbySortsIdleByDistanceAscending() {
         RescueVehicle near = vehicle(1L, "粤B1", "114.058", "22.543");
+        near.setLocationUpdatedAt(java.time.LocalDateTime.now());
         RescueVehicle far = vehicle(2L, "粤B2", "114.100", "22.600");
+        far.setLocationUpdatedAt(java.time.LocalDateTime.now());
         when(vehicleMapper.findByStatus("IDLE")).thenReturn(List.of(far, near));
         when(districtService.resolve(any(), any())).thenReturn(null);
 
@@ -102,7 +105,7 @@ class RescueVehicleServiceTest {
     }
 
     @Test
-    void nearbyPrefersMatchedDistrictThenDistance() {
+    void nearbySortsByDistanceOnlyIgnoringDistrict() {
         District matched = new District();
         matched.setId(1L);
         matched.setName("福田中心片区");
@@ -110,12 +113,9 @@ class RescueVehicleServiceTest {
         matched.setStatus("ENABLED");
         when(districtService.resolve(any(), any())).thenReturn(matched);
 
-        RescueVehicle inDistrictFar = vehicle(10L, "粤B远本区", "114.100", "22.600");
-        inDistrictFar.setDistrictId(1L);
-        RescueVehicle otherNear = vehicle(11L, "粤B近外区", "114.058", "22.543");
-        otherNear.setDistrictId(2L);
-        RescueVehicle inDistrictNear = vehicle(12L, "粤B近本区", "114.058", "22.544");
-        inDistrictNear.setDistrictId(1L);
+        RescueVehicle inDistrictFar = freshVehicle(10L, "粤B远本区", "114.100", "22.600", 1L);
+        RescueVehicle otherNear = freshVehicle(11L, "粤B近外区", "114.058", "22.543", 2L);
+        RescueVehicle inDistrictNear = freshVehicle(12L, "粤B近本区", "114.058", "22.544", 1L);
         when(vehicleMapper.findByStatus("IDLE"))
                 .thenReturn(List.of(inDistrictFar, otherNear, inDistrictNear));
 
@@ -123,19 +123,44 @@ class RescueVehicleServiceTest {
                 new BigDecimal("114.057868"), new BigDecimal("22.543099"), 10);
 
         assertEquals(1L, resp.getMatchedDistrict().getId());
-        assertEquals(List.of(12L, 10L, 11L),
+        assertEquals(List.of(11L, 12L, 10L),
                 resp.getVehicles().stream().map(v -> v.getVehicle().getId()).toList());
-        assertTrue(resp.getVehicles().get(0).isInMatchedDistrict());
-        assertTrue(resp.getVehicles().get(1).isInMatchedDistrict());
-        assertFalse(resp.getVehicles().get(2).isInMatchedDistrict());
+        assertTrue(resp.getVehicles().get(0).isLocationFresh());
+        assertTrue(resp.getStaleVehicles() == null || resp.getStaleVehicles().isEmpty());
+    }
+
+    @Test
+    void nearbySplitsFreshAndStaleByLocationUpdatedAt() {
+        when(districtService.resolve(any(), any())).thenReturn(null);
+        RescueVehicle fresh = freshVehicle(1L, "粤B新", "114.058", "22.543", null);
+        RescueVehicle stale = vehicle(2L, "粤B旧", "114.059", "22.544");
+        stale.setLocationUpdatedAt(java.time.LocalDateTime.now().minusMinutes(10));
+        RescueVehicle never = vehicle(3L, "粤B无", "114.060", "22.545");
+        never.setLocationUpdatedAt(null);
+        RescueVehicle noCoord = vehicle(4L, "粤B空", "114.061", "22.546");
+        noCoord.setLongitude(null);
+        noCoord.setLatitude(null);
+        noCoord.setLocationUpdatedAt(java.time.LocalDateTime.now());
+        when(vehicleMapper.findByStatus("IDLE"))
+                .thenReturn(List.of(fresh, stale, never, noCoord));
+
+        NearbyVehiclesResponse resp = service.findNearby(
+                new BigDecimal("114.057868"), new BigDecimal("22.543099"), 10);
+
+        assertEquals(1, resp.getVehicles().size());
+        assertEquals(1L, resp.getVehicles().get(0).getVehicle().getId());
+        assertEquals(3, resp.getStaleVehicles().size());
+        assertTrue(resp.getStaleVehicles().stream().noneMatch(NearbyVehicleVO::isLocationFresh));
     }
 
     @Test
     void nearbyUnmatchedMarksAllFalse() {
         RescueVehicle withDistrict = vehicle(1L, "粤B1", "114.058", "22.543");
         withDistrict.setDistrictId(5L);
+        withDistrict.setLocationUpdatedAt(java.time.LocalDateTime.now());
         RescueVehicle alsoWithDistrict = vehicle(2L, "粤B2", "114.100", "22.600");
         alsoWithDistrict.setDistrictId(5L);
+        alsoWithDistrict.setLocationUpdatedAt(java.time.LocalDateTime.now());
         when(vehicleMapper.findByStatus("IDLE"))
                 .thenReturn(List.of(withDistrict, alsoWithDistrict));
         when(districtService.resolve(any(), any())).thenReturn(null);
@@ -264,6 +289,13 @@ class RescueVehicleServiceTest {
         v.setStatus("IDLE");
         v.setLongitude(new BigDecimal(lng));
         v.setLatitude(new BigDecimal(lat));
+        return v;
+    }
+
+    private static RescueVehicle freshVehicle(Long id, String plate, String lng, String lat, Long districtId) {
+        RescueVehicle v = vehicle(id, plate, lng, lat);
+        v.setDistrictId(districtId);
+        v.setLocationUpdatedAt(java.time.LocalDateTime.now());
         return v;
     }
 }
