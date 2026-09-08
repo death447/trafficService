@@ -350,7 +350,7 @@ public interface AccidentVehicleTypeMapper {
 cd backend
 # PowerShell:
 $env:JAVA_HOME="C:\Program Files\Java\jdk-17"
-.\..\ .tools\apache-maven\bin\mvn.cmd -q -Dtest=AccidentVehicleTypeServiceTest test
+d:\cursorworkspace\.tools\apache-maven\bin\mvn.cmd -q -Dtest=AccidentVehicleTypeServiceTest test
 ```
 
 Expected: `BUILD SUCCESS`，测试通过。
