@@ -54,10 +54,15 @@ function onSizeChange(e) {
   justify-content: space-between;
   gap: 0.75rem 1rem;
   padding: 0.75rem 1rem;
-  margin-top: 0.75rem;
+  margin-top: auto;
+  flex-shrink: 0;
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  box-shadow: 0 -4px 12px rgba(15, 23, 42, 0.04);
   font-size: 0.875rem;
   color: var(--text-secondary);
 }
