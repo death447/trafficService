@@ -41,6 +41,14 @@
             <strong>{{ order.rescueReason || '—' }}</strong>
           </div>
           <div>
+            <span class="label">车牌号码</span>
+            <strong>{{ order.plateNo || '—' }}</strong>
+          </div>
+          <div>
+            <span class="label">车型</span>
+            <strong>{{ order.vehicleTypeName || '—' }}</strong>
+          </div>
+          <div>
             <span class="label">调度员</span>
             <strong>{{ order.dispatcherName || order.dispatcherId || '—' }}</strong>
           </div>
@@ -69,6 +77,29 @@
 
       <!-- PENDING: map + nearby vehicles + assign -->
       <template v-if="order.status === 'PENDING'">
+        <div class="panel edit-panel">
+          <h2 class="section-title">车牌与车型</h2>
+          <div class="edit-form">
+            <label>
+              车牌号码
+              <input v-model.trim="editForm.plateNo" placeholder="选填" maxlength="20" />
+            </label>
+            <label>
+              车型
+              <select v-model="editForm.vehicleTypeId">
+                <option value="">不选择</option>
+                <option v-for="t in vehicleTypes" :key="t.id" :value="String(t.id)">
+                  {{ t.name }}
+                </option>
+              </select>
+            </label>
+            <button type="button" :disabled="savingEdit" @click="onSaveEdit">
+              {{ savingEdit ? '保存中…' : '保存' }}
+            </button>
+          </div>
+          <p v-if="editError" class="error">{{ editError }}</p>
+        </div>
+
         <div class="assign-layout">
           <div class="panel map-panel">
             <h2 class="section-title">事故位置</h2>
@@ -204,15 +235,17 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import {
   getDispatch,
+  updateDispatch,
   assignDispatch,
   completeDispatch,
   abortDispatch
 } from '../../api/dispatch'
 import { nearbyVehicles, listVehicles } from '../../api/vehicle'
+import { listEnabledVehicleTypes } from '../../api/vehicleType'
 import { hasAmapKey, loadAmap } from '../../utils/amap'
 
 const route = useRoute()
@@ -231,6 +264,14 @@ const nearbyLoading = ref(false)
 const nearbyError = ref('')
 const nearbyHint = ref('')
 const selectedVehicleId = ref(null)
+
+const vehicleTypes = ref([])
+const editForm = reactive({
+  plateNo: '',
+  vehicleTypeId: ''
+})
+const savingEdit = ref(false)
+const editError = ref('')
 
 const nearbyInDistrict = computed(() =>
   nearby.value.filter((i) => i.inMatchedDistrict))
@@ -324,15 +365,56 @@ async function loadOrder() {
   loading.value = true
   error.value = ''
   actionError.value = ''
+  editError.value = ''
   try {
     const res = await getDispatch(id.value)
     order.value = res.data
+    syncEditForm()
   } catch (e) {
     error.value = e.response?.data?.message || e.message || '加载工单失败'
     order.value = null
   } finally {
     loading.value = false
   }
+}
+
+function syncEditForm() {
+  const o = order.value
+  if (!o) return
+  editForm.plateNo = o.plateNo || ''
+  editForm.vehicleTypeId = o.vehicleTypeId != null ? String(o.vehicleTypeId) : ''
+}
+
+async function onSaveEdit() {
+  if (!order.value) return
+  savingEdit.value = true
+  editError.value = ''
+  try {
+    await updateDispatch(order.value.id, {
+      accidentAddress: order.value.accidentAddress,
+      longitude: order.value.longitude,
+      latitude: order.value.latitude,
+      rescueReason: order.value.rescueReason,
+      dispatcherId: order.value.dispatcherId,
+      vehicleId: order.value.vehicleId,
+      rescuerId: order.value.rescuerId,
+      plateNo: editForm.plateNo || null,
+      vehicleTypeId: editForm.vehicleTypeId ? Number(editForm.vehicleTypeId) : null
+    })
+    const res = await getDispatch(id.value)
+    order.value = res.data
+    syncEditForm()
+  } catch (e) {
+    editError.value = e.response?.data?.message || e.message || '保存失败'
+  } finally {
+    savingEdit.value = false
+  }
+}
+
+function loadVehicleTypes() {
+  listEnabledVehicleTypes()
+    .then((res) => { vehicleTypes.value = res.data || [] })
+    .catch(() => { vehicleTypes.value = [] })
 }
 
 async function loadNearby() {
@@ -484,6 +566,7 @@ watch(
 )
 
 onMounted(async () => {
+  loadVehicleTypes()
   await loadOrder()
 })
 
@@ -554,8 +637,40 @@ onBeforeUnmount(() => {
 
 .map-panel,
 .vehicle-panel,
-.action-panel {
+.action-panel,
+.edit-panel {
   padding: 1.1rem 1.2rem;
+}
+
+.edit-panel {
+  margin-bottom: 1rem;
+}
+
+.edit-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: flex-end;
+}
+
+.edit-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  min-width: 160px;
+}
+
+.edit-form input,
+.edit-form select {
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: 0.875rem;
+  color: var(--text);
+  background: #fff;
 }
 
 .map-box {

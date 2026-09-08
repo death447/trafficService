@@ -18,6 +18,19 @@
         <textarea v-model.trim="form.rescueReason" rows="3" required placeholder="简要描述事故原因" />
       </label>
       <label>
+        车牌号码
+        <input v-model.trim="form.plateNo" placeholder="选填" maxlength="20" />
+      </label>
+      <label>
+        车型
+        <select v-model="form.vehicleTypeId">
+          <option value="">不选择</option>
+          <option v-for="t in vehicleTypes" :key="t.id" :value="String(t.id)">
+            {{ t.name }}
+          </option>
+        </select>
+      </label>
+      <label>
         事故地点
         <input
           ref="searchInput"
@@ -65,6 +78,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import { useRouter } from 'vue-router'
 import { createDispatch } from '../../api/dispatch'
 import { listVehicles } from '../../api/vehicle'
+import { listEnabledVehicleTypes } from '../../api/vehicleType'
 import { useUserStore } from '../../stores/user'
 import { createPickerMap, hasAmapKey } from '../../utils/amap'
 
@@ -78,6 +92,7 @@ const lookupError = ref('')
 const formError = ref('')
 const saving = ref(false)
 const vehicles = ref([])
+const vehicleTypes = ref([])
 let mapInstance = null
 
 const form = reactive({
@@ -86,7 +101,9 @@ const form = reactive({
   longitude: '',
   latitude: '',
   rescuerId: '',
-  vehicleId: ''
+  vehicleId: '',
+  plateNo: '',
+  vehicleTypeId: ''
 })
 
 const currentDispatcherLabel = computed(() => {
@@ -207,7 +224,9 @@ async function onSubmit() {
       latitude: lat,
       dispatcherId: userStore.userId,
       rescuerId: toNullableId(form.rescuerId),
-      vehicleId: toNullableId(form.vehicleId)
+      vehicleId: toNullableId(form.vehicleId),
+      plateNo: form.plateNo || null,
+      vehicleTypeId: form.vehicleTypeId ? Number(form.vehicleTypeId) : null
     })
     const id = res.data?.id
     if (id != null) {
@@ -224,6 +243,9 @@ async function onSubmit() {
 
 onMounted(async () => {
   await loadLookups()
+  listEnabledVehicleTypes()
+    .then((res) => { vehicleTypes.value = res.data || [] })
+    .catch(() => { vehicleTypes.value = [] })
   await nextTick()
   await initMap()
 })

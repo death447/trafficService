@@ -46,6 +46,8 @@
           <tr>
             <th>单号</th>
             <th>地点</th>
+            <th>车牌</th>
+            <th>车型</th>
             <th>状态</th>
             <th>调度员</th>
             <th>创建时间</th>
@@ -61,6 +63,8 @@
           >
             <td>{{ row.orderNo }}</td>
             <td>{{ row.accidentAddress || '—' }}</td>
+            <td>{{ row.plateNo || '—' }}</td>
+            <td>{{ row.vehicleTypeName || '—' }}</td>
             <td>
               <span :class="['badge', statusBadgeClass(row.status)]">
                 {{ statusLabel(row.status) }}
@@ -73,7 +77,7 @@
             </td>
           </tr>
           <tr v-if="!orders.length">
-            <td colspan="6" class="empty-cell">暂无工单</td>
+            <td colspan="8" class="empty-cell">暂无工单</td>
           </tr>
         </tbody>
       </table>
