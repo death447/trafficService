@@ -13,61 +13,67 @@
     <p v-if="lookupError" class="error">{{ lookupError }}</p>
 
     <form class="panel form-panel" @submit.prevent="onSubmit">
-      <label>
-        施救原因
-        <textarea v-model.trim="form.rescueReason" rows="3" required placeholder="简要描述事故原因" />
-      </label>
-      <label>
-        车牌号码
-        <input v-model.trim="form.plateNo" placeholder="选填" maxlength="20" />
-      </label>
-      <label>
-        车型
-        <select v-model="form.vehicleTypeId">
-          <option value="">不选择</option>
-          <option v-for="t in vehicleTypes" :key="t.id" :value="String(t.id)">
-            {{ t.name }}
-          </option>
-        </select>
-      </label>
-      <label>
-        事故地点
-        <input
-          ref="searchInput"
-          v-model.trim="form.accidentAddress"
-          required
-          placeholder="输入地点后回车定位，或从下拉选点 / 点击地图"
-          @keydown.enter.prevent="onAddressEnter"
-        />
-      </label>
+      <div class="create-layout">
+        <div class="form-col">
+          <label>
+            车牌号码
+            <input v-model.trim="form.plateNo" placeholder="选填" maxlength="20" />
+          </label>
+          <label>
+            车型
+            <select v-model="form.vehicleTypeId">
+              <option value="">不选择</option>
+              <option v-for="t in vehicleTypes" :key="t.id" :value="String(t.id)">
+                {{ t.name }}
+              </option>
+            </select>
+          </label>
+          <label>
+            事故地点
+            <input
+              ref="searchInput"
+              v-model.trim="form.accidentAddress"
+              required
+              placeholder="输入地点后回车定位，或从下拉选点 / 点击地图"
+              @keydown.enter.prevent="onAddressEnter"
+            />
+          </label>
+          <label>
+            调度员
+            <input type="text" :value="currentDispatcherLabel" readonly class="readonly-input" />
+          </label>
+          <label>
+            救援车辆
+            <select v-model="form.vehicleId">
+              <option value="">暂不指定</option>
+              <option v-for="v in idleVehicles" :key="v.id" :value="String(v.id)">
+                {{ vehicleDisplay(v) }}
+              </option>
+            </select>
+          </label>
+          <label>
+            施救员
+            <input type="text" :value="boundRescuerLabel" readonly class="readonly-input" />
+          </label>
+          <label>
+            施救原因
+            <textarea v-model.trim="form.rescueReason" rows="4" required placeholder="简要描述事故原因" />
+          </label>
 
-      <label>
-        调度员
-        <input type="text" :value="currentDispatcherLabel" readonly class="readonly-input" />
-      </label>
-      <label>
-        救援车辆
-        <select v-model="form.vehicleId">
-          <option value="">暂不指定</option>
-          <option v-for="v in idleVehicles" :key="v.id" :value="String(v.id)">
-            {{ vehicleDisplay(v) }}
-          </option>
-        </select>
-      </label>
-      <label>
-        施救员
-        <input type="text" :value="boundRescuerLabel" readonly class="readonly-input" />
-      </label>
+          <p v-if="formError" class="error">{{ formError }}</p>
+          <div class="form-actions">
+            <button type="button" class="secondary" @click="goBack">取消</button>
+            <button type="submit" :disabled="saving">{{ saving ? '提交中…' : '提交工单' }}</button>
+          </div>
+        </div>
 
-      <div v-if="amapReady" class="map-wrap">
-        <p class="map-hint">输入地址回车可跳转地图；也可下拉选点、点击或拖动标记</p>
-        <div ref="mapEl" class="map-box" />
-      </div>
-
-      <p v-if="formError" class="error">{{ formError }}</p>
-      <div class="form-actions">
-        <button type="button" class="secondary" @click="goBack">取消</button>
-        <button type="submit" :disabled="saving">{{ saving ? '提交中…' : '提交工单' }}</button>
+        <div class="map-col">
+          <div v-if="amapReady" class="map-wrap">
+            <p class="map-hint">输入地址回车可跳转地图；也可下拉选点、点击或拖动标记</p>
+            <div ref="mapEl" class="map-box" />
+          </div>
+          <p v-else class="map-placeholder">未配置 VITE_AMAP_KEY，地图不可用；仍可填写表单，但需配置 Key 后才能选点定位。</p>
+        </div>
       </div>
     </form>
   </div>
@@ -271,13 +277,24 @@ onBeforeUnmount(() => {
 
 .form-panel {
   padding: 1.25rem 1.35rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.9rem;
-  max-width: 720px;
+  max-width: none;
 }
 
-.form-panel label {
+.create-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 400px) minmax(0, 1fr);
+  gap: 1.25rem 1.5rem;
+  align-items: stretch;
+}
+
+.form-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.form-col label {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
@@ -285,9 +302,9 @@ onBeforeUnmount(() => {
   color: var(--text-secondary);
 }
 
-.form-panel input,
-.form-panel textarea,
-.form-panel select {
+.form-col input,
+.form-col textarea,
+.form-col select {
   padding: 0.5rem 0.65rem;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
@@ -303,10 +320,18 @@ onBeforeUnmount(() => {
   cursor: default;
 }
 
+.map-col {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .map-wrap {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
+  min-height: 0;
 }
 
 .map-hint {
@@ -315,11 +340,27 @@ onBeforeUnmount(() => {
 }
 
 .map-box {
-  height: 320px;
+  flex: 1;
+  min-height: 420px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
   background: var(--bg-muted);
+}
+
+.map-placeholder {
+  flex: 1;
+  min-height: 280px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  text-align: center;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  background: var(--bg-muted);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
 }
 
 .form-actions {
@@ -327,5 +368,15 @@ onBeforeUnmount(() => {
   gap: 0.5rem;
   justify-content: flex-end;
   margin-top: 0.35rem;
+}
+
+@media (max-width: 960px) {
+  .create-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .map-box {
+    min-height: 300px;
+  }
 }
 </style>
