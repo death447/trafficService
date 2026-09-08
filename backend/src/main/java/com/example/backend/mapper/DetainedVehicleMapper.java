@@ -14,6 +14,37 @@ public interface DetainedVehicleMapper {
     @Select("SELECT * FROM detained_vehicle")
     List<DetainedVehicle> findAll();
 
+    @Select("<script>" +
+            "SELECT COUNT(*) FROM detained_vehicle WHERE 1=1" +
+            "<if test='plateNo != null and plateNo != \"\"'> AND plate_no LIKE CONCAT('%', #{plateNo}, '%')</if>" +
+            "<if test='detainNo != null and detainNo != \"\"'> AND detain_no LIKE CONCAT('%', #{detainNo}, '%')</if>" +
+            "<if test='status != null and status != \"\"'> AND status = #{status}</if>" +
+            "<if test='parkingLotId != null'> AND parking_lot_id = #{parkingLotId}</if>" +
+            "<if test='detainDept != null and detainDept != \"\"'> AND detain_dept LIKE CONCAT('%', #{detainDept}, '%')</if>" +
+            "</script>")
+    long count(@Param("plateNo") String plateNo,
+               @Param("detainNo") String detainNo,
+               @Param("status") String status,
+               @Param("parkingLotId") Long parkingLotId,
+               @Param("detainDept") String detainDept);
+
+    @Select("<script>" +
+            "SELECT * FROM detained_vehicle WHERE 1=1" +
+            "<if test='plateNo != null and plateNo != \"\"'> AND plate_no LIKE CONCAT('%', #{plateNo}, '%')</if>" +
+            "<if test='detainNo != null and detainNo != \"\"'> AND detain_no LIKE CONCAT('%', #{detainNo}, '%')</if>" +
+            "<if test='status != null and status != \"\"'> AND status = #{status}</if>" +
+            "<if test='parkingLotId != null'> AND parking_lot_id = #{parkingLotId}</if>" +
+            "<if test='detainDept != null and detainDept != \"\"'> AND detain_dept LIKE CONCAT('%', #{detainDept}, '%')</if>" +
+            " ORDER BY id DESC LIMIT #{offset}, #{size}" +
+            "</script>")
+    List<DetainedVehicle> selectPage(@Param("plateNo") String plateNo,
+                                     @Param("detainNo") String detainNo,
+                                     @Param("status") String status,
+                                     @Param("parkingLotId") Long parkingLotId,
+                                     @Param("detainDept") String detainDept,
+                                     @Param("offset") int offset,
+                                     @Param("size") int size);
+
     @Select("SELECT * FROM detained_vehicle WHERE id = #{id}")
     DetainedVehicle findById(Long id);
 

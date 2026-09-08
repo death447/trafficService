@@ -1,5 +1,6 @@
 package com.example.backend.controller;
 
+import com.example.backend.common.PageParams;
 import com.example.backend.common.Result;
 import com.example.backend.entity.Role;
 import com.example.backend.entity.Permission;
@@ -8,7 +9,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -28,22 +28,8 @@ public class RoleController {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Integer status) {
 
-        List<Role> roles;
-        if (keyword != null && !keyword.isEmpty()) {
-            roles = roleService.findByKeyword(keyword);
-        } else if (status != null) {
-            roles = roleService.findByStatus(status);
-        } else {
-            roles = roleService.findAll();
-        }
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("list", roles);
-        result.put("total", roles.size());
-        result.put("page", page);
-        result.put("size", size);
-
-        return Result.success(result);
+        PageParams pp = PageParams.normalize(page, size);
+        return Result.success(roleService.list(keyword, status, pp));
     }
 
     @GetMapping("/{id}")

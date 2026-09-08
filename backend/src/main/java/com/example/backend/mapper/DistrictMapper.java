@@ -20,6 +20,28 @@ public interface DistrictMapper {
     @Select("SELECT * FROM district WHERE status = #{status}")
     List<District> findByStatus(String status);
 
+    @Select("<script>" +
+            "SELECT COUNT(*) FROM district WHERE 1=1" +
+            "<if test='keyword != null and keyword != \"\"'>" +
+            " AND (name LIKE CONCAT('%', #{keyword}, '%') OR code LIKE CONCAT('%', #{keyword}, '%'))" +
+            "</if>" +
+            "<if test='status != null and status != \"\"'> AND status = #{status}</if>" +
+            "</script>")
+    long count(@Param("keyword") String keyword, @Param("status") String status);
+
+    @Select("<script>" +
+            "SELECT * FROM district WHERE 1=1" +
+            "<if test='keyword != null and keyword != \"\"'>" +
+            " AND (name LIKE CONCAT('%', #{keyword}, '%') OR code LIKE CONCAT('%', #{keyword}, '%'))" +
+            "</if>" +
+            "<if test='status != null and status != \"\"'> AND status = #{status}</if>" +
+            " ORDER BY id DESC LIMIT #{offset}, #{size}" +
+            "</script>")
+    List<District> selectPage(@Param("keyword") String keyword,
+                              @Param("status") String status,
+                              @Param("offset") int offset,
+                              @Param("size") int size);
+
     @Insert("INSERT INTO district (name, code, fence_json, status, remark) " +
             "VALUES (#{name}, #{code}, #{fenceJson}, #{status}, #{remark})")
     @Options(useGeneratedKeys = true, keyProperty = "id")

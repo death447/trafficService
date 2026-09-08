@@ -22,6 +22,28 @@ public interface RoleMapper {
     @Select("SELECT * FROM role WHERE status = #{status}")
     List<Role> findByStatus(Integer status);
 
+    @Select("<script>" +
+            "SELECT COUNT(*) FROM role WHERE 1=1" +
+            "<if test='keyword != null and keyword != \"\"'>" +
+            " AND (role_name LIKE CONCAT('%', #{keyword}, '%') OR role_code LIKE CONCAT('%', #{keyword}, '%'))" +
+            "</if>" +
+            "<if test='status != null'> AND status = #{status}</if>" +
+            "</script>")
+    long count(@Param("keyword") String keyword, @Param("status") Integer status);
+
+    @Select("<script>" +
+            "SELECT * FROM role WHERE 1=1" +
+            "<if test='keyword != null and keyword != \"\"'>" +
+            " AND (role_name LIKE CONCAT('%', #{keyword}, '%') OR role_code LIKE CONCAT('%', #{keyword}, '%'))" +
+            "</if>" +
+            "<if test='status != null'> AND status = #{status}</if>" +
+            " ORDER BY id DESC LIMIT #{offset}, #{size}" +
+            "</script>")
+    List<Role> selectPage(@Param("keyword") String keyword,
+                          @Param("status") Integer status,
+                          @Param("offset") int offset,
+                          @Param("size") int size);
+
     @Insert("INSERT INTO role (role_name, role_code, description, status) VALUES (#{roleName}, #{roleCode}, #{description}, #{status})")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(Role role);

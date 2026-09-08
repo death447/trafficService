@@ -22,6 +22,28 @@ public interface UserMapper {
     @Select("SELECT * FROM user WHERE status = #{status}")
     List<User> findByStatus(Integer status);
 
+    @Select("<script>" +
+            "SELECT COUNT(*) FROM user WHERE 1=1" +
+            "<if test='keyword != null and keyword != \"\"'>" +
+            " AND (username LIKE CONCAT('%', #{keyword}, '%') OR email LIKE CONCAT('%', #{keyword}, '%') OR real_name LIKE CONCAT('%', #{keyword}, '%'))" +
+            "</if>" +
+            "<if test='status != null'> AND status = #{status}</if>" +
+            "</script>")
+    long count(@Param("keyword") String keyword, @Param("status") Integer status);
+
+    @Select("<script>" +
+            "SELECT * FROM user WHERE 1=1" +
+            "<if test='keyword != null and keyword != \"\"'>" +
+            " AND (username LIKE CONCAT('%', #{keyword}, '%') OR email LIKE CONCAT('%', #{keyword}, '%') OR real_name LIKE CONCAT('%', #{keyword}, '%'))" +
+            "</if>" +
+            "<if test='status != null'> AND status = #{status}</if>" +
+            " ORDER BY id DESC LIMIT #{offset}, #{size}" +
+            "</script>")
+    List<User> selectPage(@Param("keyword") String keyword,
+                          @Param("status") Integer status,
+                          @Param("offset") int offset,
+                          @Param("size") int size);
+
     @Insert("INSERT INTO user (username, email, password, phone, real_name, status) VALUES (#{username}, #{email}, #{password}, #{phone}, #{realName}, #{status})")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(User user);

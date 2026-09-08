@@ -28,6 +28,28 @@ public interface PermissionMapper {
     @Select("SELECT * FROM permission WHERE permission_name LIKE CONCAT('%', #{keyword}, '%') OR permission_code LIKE CONCAT('%', #{keyword}, '%')")
     List<Permission> findByKeyword(String keyword);
 
+    @Select("<script>" +
+            "SELECT COUNT(*) FROM permission WHERE 1=1" +
+            "<if test='keyword != null and keyword != \"\"'>" +
+            " AND (permission_name LIKE CONCAT('%', #{keyword}, '%') OR permission_code LIKE CONCAT('%', #{keyword}, '%'))" +
+            "</if>" +
+            "<if test='permissionType != null and permissionType != \"\"'> AND permission_type = #{permissionType}</if>" +
+            "</script>")
+    long count(@Param("keyword") String keyword, @Param("permissionType") String permissionType);
+
+    @Select("<script>" +
+            "SELECT * FROM permission WHERE 1=1" +
+            "<if test='keyword != null and keyword != \"\"'>" +
+            " AND (permission_name LIKE CONCAT('%', #{keyword}, '%') OR permission_code LIKE CONCAT('%', #{keyword}, '%'))" +
+            "</if>" +
+            "<if test='permissionType != null and permissionType != \"\"'> AND permission_type = #{permissionType}</if>" +
+            " ORDER BY id DESC LIMIT #{offset}, #{size}" +
+            "</script>")
+    List<Permission> selectPage(@Param("keyword") String keyword,
+                                @Param("permissionType") String permissionType,
+                                @Param("offset") int offset,
+                                @Param("size") int size);
+
     @Insert("INSERT INTO permission (permission_name, permission_code, permission_type, parent_id, description, sort_order) " +
             "VALUES (#{permissionName}, #{permissionCode}, #{permissionType}, #{parentId}, #{description}, #{sortOrder})")
     @Options(useGeneratedKeys = true, keyProperty = "id")

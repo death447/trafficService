@@ -1,5 +1,6 @@
 package com.example.backend.service;
 
+import com.example.backend.common.PageParams;
 import com.example.backend.entity.AccidentVehicleType;
 import com.example.backend.entity.DispatchOrder;
 import com.example.backend.entity.RescueVehicle;
@@ -19,6 +20,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -52,34 +54,13 @@ public class DispatchOrderService {
         return dispatchOrderMapper.findAll();
     }
 
-    public List<DispatchOrder> list(String orderNo, String status, String address, Long dispatcherId) {
-        return dispatchOrderMapper.findAll().stream()
-                .filter(o -> {
-                    if (orderNo != null && !orderNo.isEmpty()) {
-                        String no = o.getOrderNo() != null ? o.getOrderNo() : "";
-                        if (!no.contains(orderNo)) {
-                            return false;
-                        }
-                    }
-                    if (status != null && !status.isEmpty()) {
-                        if (!status.equals(o.getStatus())) {
-                            return false;
-                        }
-                    }
-                    if (address != null && !address.isEmpty()) {
-                        String addr = o.getAccidentAddress() != null ? o.getAccidentAddress() : "";
-                        if (!addr.contains(address)) {
-                            return false;
-                        }
-                    }
-                    if (dispatcherId != null) {
-                        if (!dispatcherId.equals(o.getDispatcherId())) {
-                            return false;
-                        }
-                    }
-                    return true;
-                })
-                .collect(Collectors.toList());
+    public Map<String, Object> list(String orderNo, String status, String address,
+                                    Long dispatcherId, PageParams pp) {
+        long total = dispatchOrderMapper.count(orderNo, status, address, dispatcherId);
+        List<DispatchOrder> orders = dispatchOrderMapper.selectPage(
+                orderNo, status, address, dispatcherId, pp.getOffset(), pp.getSize());
+        orders.forEach(this::enrich);
+        return pp.toResult(orders, total);
     }
 
     @Transactional

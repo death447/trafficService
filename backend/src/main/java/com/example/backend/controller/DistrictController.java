@@ -1,5 +1,6 @@
 package com.example.backend.controller;
 
+import com.example.backend.common.PageParams;
 import com.example.backend.common.Result;
 import com.example.backend.dto.DistrictRequest;
 import com.example.backend.entity.District;
@@ -9,8 +10,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -28,13 +27,8 @@ public class DistrictController {
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String status) {
-        List<District> districts = districtService.list(keyword, status);
-        Map<String, Object> result = new HashMap<>();
-        result.put("list", districts);
-        result.put("total", districts.size());
-        result.put("page", page);
-        result.put("size", size);
-        return Result.success(result);
+        PageParams pp = PageParams.normalize(page, size);
+        return Result.success(districtService.list(keyword, status, pp));
     }
 
     @GetMapping("/resolve")

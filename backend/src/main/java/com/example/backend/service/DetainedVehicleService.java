@@ -1,5 +1,6 @@
 package com.example.backend.service;
 
+import com.example.backend.common.PageParams;
 import com.example.backend.dto.DetainInRequest;
 import com.example.backend.dto.DetainUpdateRequest;
 import com.example.backend.entity.DetainedVehicle;
@@ -16,7 +17,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Map;
 
 @Service
 public class DetainedVehicleService {
@@ -33,42 +34,13 @@ public class DetainedVehicleService {
     @Autowired
     private DispatchOrderMapper dispatchOrderMapper;
 
-    public List<DetainedVehicle> list(String plateNo, String detainNo, String status,
-                                      Long parkingLotId, String detainDept) {
-        return detainedVehicleMapper.findAll().stream()
-                .filter(v -> {
-                    if (plateNo != null && !plateNo.isEmpty()) {
-                        String plate = v.getPlateNo() != null ? v.getPlateNo() : "";
-                        if (!plate.contains(plateNo)) {
-                            return false;
-                        }
-                    }
-                    if (detainNo != null && !detainNo.isEmpty()) {
-                        String no = v.getDetainNo() != null ? v.getDetainNo() : "";
-                        if (!no.contains(detainNo)) {
-                            return false;
-                        }
-                    }
-                    if (status != null && !status.isEmpty()) {
-                        if (!status.equals(v.getStatus())) {
-                            return false;
-                        }
-                    }
-                    if (parkingLotId != null) {
-                        if (v.getParkingLotId() == null || !parkingLotId.equals(v.getParkingLotId())) {
-                            return false;
-                        }
-                    }
-                    if (detainDept != null && !detainDept.isEmpty()) {
-                        String dept = v.getDetainDept() != null ? v.getDetainDept() : "";
-                        if (!dept.contains(detainDept)) {
-                            return false;
-                        }
-                    }
-                    return true;
-                })
-                .peek(this::enrich)
-                .collect(Collectors.toList());
+    public Map<String, Object> list(String plateNo, String detainNo, String status,
+                                  Long parkingLotId, String detainDept, PageParams pp) {
+        long total = detainedVehicleMapper.count(plateNo, detainNo, status, parkingLotId, detainDept);
+        List<DetainedVehicle> vehicles = detainedVehicleMapper.selectPage(
+                plateNo, detainNo, status, parkingLotId, detainDept, pp.getOffset(), pp.getSize());
+        vehicles.forEach(this::enrich);
+        return pp.toResult(vehicles, total);
     }
 
     public DetainedVehicle findById(Long id) {

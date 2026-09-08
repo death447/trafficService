@@ -1,5 +1,6 @@
 package com.example.backend.controller;
 
+import com.example.backend.common.PageParams;
 import com.example.backend.common.Result;
 import com.example.backend.dto.AbortDispatchRequest;
 import com.example.backend.dto.AssignDispatchRequest;
@@ -12,8 +13,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -34,14 +33,8 @@ public class DispatchController {
             @RequestParam(required = false) String address,
             @RequestParam(required = false) Long dispatcherId) {
 
-        List<DispatchOrder> orders = dispatchOrderService.list(orderNo, status, address, dispatcherId);
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("list", orders);
-        result.put("total", orders.size());
-        result.put("page", page);
-        result.put("size", size);
-        return Result.success(result);
+        PageParams pp = PageParams.normalize(page, size);
+        return Result.success(dispatchOrderService.list(orderNo, status, address, dispatcherId, pp));
     }
 
     @GetMapping("/{id}")

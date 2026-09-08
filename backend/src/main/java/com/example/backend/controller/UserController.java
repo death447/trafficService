@@ -1,5 +1,6 @@
 package com.example.backend.controller;
 
+import com.example.backend.common.PageParams;
 import com.example.backend.common.Result;
 import com.example.backend.dto.UserRequest;
 import com.example.backend.entity.User;
@@ -10,7 +11,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -30,27 +30,8 @@ public class UserController {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Integer status) {
 
-        List<User> users;
-        if (keyword != null && !keyword.isEmpty()) {
-            users = userService.findByKeyword(keyword);
-        } else if (status != null) {
-            users = userService.findByStatus(status);
-        } else {
-            users = userService.findAll();
-        }
-
-        for (User user : users) {
-            List<Role> roles = userService.getUserRoles(user.getId());
-            user.setRoles(roles);
-        }
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("list", users);
-        result.put("total", users.size());
-        result.put("page", page);
-        result.put("size", size);
-
-        return Result.success(result);
+        PageParams pp = PageParams.normalize(page, size);
+        return Result.success(userService.list(keyword, status, pp));
     }
 
     @GetMapping("/{id}")

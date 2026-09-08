@@ -1,5 +1,6 @@
 package com.example.backend.service;
 
+import com.example.backend.common.PageParams;
 import com.example.backend.dto.ParkingLotRequest;
 import com.example.backend.entity.ParkingLot;
 import com.example.backend.mapper.DetainedVehicleMapper;
@@ -9,7 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Map;
 
 @Service
 public class ParkingLotService {
@@ -25,24 +26,11 @@ public class ParkingLotService {
     @Autowired
     private DetainedVehicleMapper detainedVehicleMapper;
 
-    public List<ParkingLot> list(String keyword, String status) {
-        return parkingLotMapper.findAll().stream()
-                .filter(lot -> {
-                    if (keyword != null && !keyword.isEmpty()) {
-                        String name = lot.getName() != null ? lot.getName() : "";
-                        String code = lot.getCode() != null ? lot.getCode() : "";
-                        if (!name.contains(keyword) && !code.contains(keyword)) {
-                            return false;
-                        }
-                    }
-                    if (status != null && !status.isEmpty()) {
-                        if (!status.equals(lot.getStatus())) {
-                            return false;
-                        }
-                    }
-                    return true;
-                })
-                .collect(Collectors.toList());
+    public Map<String, Object> list(String keyword, String status, PageParams pp) {
+        long total = parkingLotMapper.count(keyword, status);
+        List<ParkingLot> lots = parkingLotMapper.selectPage(
+                keyword, status, pp.getOffset(), pp.getSize());
+        return pp.toResult(lots, total);
     }
 
     public ParkingLot findById(Long id) {

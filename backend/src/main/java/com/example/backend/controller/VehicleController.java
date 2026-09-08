@@ -1,5 +1,6 @@
 package com.example.backend.controller;
 
+import com.example.backend.common.PageParams;
 import com.example.backend.common.Result;
 import com.example.backend.dto.NearbyVehiclesResponse;
 import com.example.backend.entity.RescueVehicle;
@@ -9,8 +10,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -30,15 +29,8 @@ public class VehicleController {
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String vehicleType) {
 
-        List<RescueVehicle> vehicles = rescueVehicleService.list(keyword, status, vehicleType);
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("list", vehicles);
-        result.put("total", vehicles.size());
-        result.put("page", page);
-        result.put("size", size);
-
-        return Result.success(result);
+        PageParams pp = PageParams.normalize(page, size);
+        return Result.success(rescueVehicleService.list(keyword, status, vehicleType, pp));
     }
 
     @GetMapping("/nearby")

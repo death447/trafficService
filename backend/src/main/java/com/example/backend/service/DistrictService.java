@@ -1,5 +1,6 @@
 package com.example.backend.service;
 
+import com.example.backend.common.PageParams;
 import com.example.backend.dto.DistrictRequest;
 import com.example.backend.dto.LngLat;
 import com.example.backend.entity.District;
@@ -12,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -23,24 +25,11 @@ public class DistrictService {
     @Autowired
     private DistrictMapper districtMapper;
 
-    public List<District> list(String keyword, String status) {
-        return districtMapper.findAll().stream()
-                .filter(d -> {
-                    if (keyword != null && !keyword.isEmpty()) {
-                        String name = d.getName() != null ? d.getName() : "";
-                        String code = d.getCode() != null ? d.getCode() : "";
-                        if (!name.contains(keyword) && !code.contains(keyword)) {
-                            return false;
-                        }
-                    }
-                    if (status != null && !status.isEmpty()) {
-                        if (!status.equals(d.getStatus())) {
-                            return false;
-                        }
-                    }
-                    return true;
-                })
-                .collect(Collectors.toList());
+    public Map<String, Object> list(String keyword, String status, PageParams pp) {
+        long total = districtMapper.count(keyword, status);
+        List<District> districts = districtMapper.selectPage(
+                keyword, status, pp.getOffset(), pp.getSize());
+        return pp.toResult(districts, total);
     }
 
     public District findById(Long id) {

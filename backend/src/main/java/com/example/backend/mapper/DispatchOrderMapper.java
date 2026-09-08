@@ -17,6 +17,33 @@ public interface DispatchOrderMapper {
     @Select("SELECT * FROM dispatch_order")
     List<DispatchOrder> findAll();
 
+    @Select("<script>" +
+            "SELECT COUNT(*) FROM dispatch_order WHERE 1=1" +
+            "<if test='orderNo != null and orderNo != \"\"'> AND order_no LIKE CONCAT('%', #{orderNo}, '%')</if>" +
+            "<if test='status != null and status != \"\"'> AND status = #{status}</if>" +
+            "<if test='address != null and address != \"\"'> AND accident_address LIKE CONCAT('%', #{address}, '%')</if>" +
+            "<if test='dispatcherId != null'> AND dispatcher_id = #{dispatcherId}</if>" +
+            "</script>")
+    long count(@Param("orderNo") String orderNo,
+               @Param("status") String status,
+               @Param("address") String address,
+               @Param("dispatcherId") Long dispatcherId);
+
+    @Select("<script>" +
+            "SELECT * FROM dispatch_order WHERE 1=1" +
+            "<if test='orderNo != null and orderNo != \"\"'> AND order_no LIKE CONCAT('%', #{orderNo}, '%')</if>" +
+            "<if test='status != null and status != \"\"'> AND status = #{status}</if>" +
+            "<if test='address != null and address != \"\"'> AND accident_address LIKE CONCAT('%', #{address}, '%')</if>" +
+            "<if test='dispatcherId != null'> AND dispatcher_id = #{dispatcherId}</if>" +
+            " ORDER BY id DESC LIMIT #{offset}, #{size}" +
+            "</script>")
+    List<DispatchOrder> selectPage(@Param("orderNo") String orderNo,
+                                   @Param("status") String status,
+                                   @Param("address") String address,
+                                   @Param("dispatcherId") Long dispatcherId,
+                                   @Param("offset") int offset,
+                                   @Param("size") int size);
+
     @Insert("INSERT INTO dispatch_order (order_no, accident_address, longitude, latitude, rescue_reason, plate_no, vehicle_type_id, vehicle_type_name, status, " +
             "dispatcher_id, vehicle_id, rescuer_id, abort_reason, dispatched_at, completed_at, accepted_at, " +
             "checked_in_at, checkin_lng, checkin_lat, checkin_mode, checkin_remark, reject_reason) " +

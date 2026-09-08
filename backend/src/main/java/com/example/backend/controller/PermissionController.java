@@ -1,5 +1,6 @@
 package com.example.backend.controller;
 
+import com.example.backend.common.PageParams;
 import com.example.backend.common.Result;
 import com.example.backend.entity.Permission;
 import com.example.backend.service.PermissionService;
@@ -7,7 +8,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -27,22 +27,8 @@ public class PermissionController {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String permissionType) {
 
-        List<Permission> permissions;
-        if (keyword != null && !keyword.isEmpty()) {
-            permissions = permissionService.findByKeyword(keyword);
-        } else if (permissionType != null && !permissionType.isEmpty()) {
-            permissions = permissionService.findByPermissionType(permissionType);
-        } else {
-            permissions = permissionService.findAll();
-        }
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("list", permissions);
-        result.put("total", permissions.size());
-        result.put("page", page);
-        result.put("size", size);
-
-        return Result.success(result);
+        PageParams pp = PageParams.normalize(page, size);
+        return Result.success(permissionService.list(keyword, permissionType, pp));
     }
 
     @GetMapping("/tree")

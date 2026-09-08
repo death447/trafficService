@@ -1,5 +1,6 @@
 package com.example.backend.service;
 
+import com.example.backend.common.PageParams;
 import com.example.backend.dto.VehicleTypeRequest;
 import com.example.backend.entity.AccidentVehicleType;
 import com.example.backend.mapper.AccidentVehicleTypeMapper;
@@ -9,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -19,15 +21,10 @@ public class AccidentVehicleTypeService {
     @Autowired
     private AccidentVehicleTypeMapper mapper;
 
-    public List<AccidentVehicleType> list(String status) {
-        return mapper.findAll().stream()
-                .filter(row -> {
-                    if (status != null && !status.isEmpty()) {
-                        return status.equals(row.getStatus());
-                    }
-                    return true;
-                })
-                .collect(Collectors.toList());
+    public Map<String, Object> list(String status, PageParams pp) {
+        long total = mapper.count(status);
+        List<AccidentVehicleType> types = mapper.selectPage(status, pp.getOffset(), pp.getSize());
+        return pp.toResult(types, total);
     }
 
     public List<AccidentVehicleType> listEnabled() {

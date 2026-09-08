@@ -1,5 +1,6 @@
 package com.example.backend.service;
 
+import com.example.backend.common.PageParams;
 import com.example.backend.entity.User;
 import com.example.backend.mapper.UserMapper;
 import com.example.backend.mapper.UserRoleMapper;
@@ -9,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class UserService {
@@ -40,6 +42,15 @@ public class UserService {
 
     public List<User> findByStatus(Integer status) {
         return userMapper.findByStatus(status);
+    }
+
+    public Map<String, Object> list(String keyword, Integer status, PageParams pp) {
+        long total = userMapper.count(keyword, status);
+        List<User> users = userMapper.selectPage(keyword, status, pp.getOffset(), pp.getSize());
+        for (User user : users) {
+            user.setRoles(userMapper.findRolesByUserId(user.getId()));
+        }
+        return pp.toResult(users, total);
     }
 
     @Transactional

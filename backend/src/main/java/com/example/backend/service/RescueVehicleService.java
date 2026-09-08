@@ -1,5 +1,6 @@
 package com.example.backend.service;
 
+import com.example.backend.common.PageParams;
 import com.example.backend.dto.MatchedDistrictVO;
 import com.example.backend.dto.NearbyVehicleVO;
 import com.example.backend.dto.NearbyVehiclesResponse;
@@ -18,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -64,28 +66,12 @@ public class RescueVehicleService {
                 .collect(Collectors.toList());
     }
 
-    public List<RescueVehicle> list(String keyword, String status, String vehicleType) {
-        return findAll().stream()
-                .filter(v -> {
-                    if (keyword != null && !keyword.isEmpty()) {
-                        String plate = v.getPlateNo() != null ? v.getPlateNo() : "";
-                        if (!plate.contains(keyword)) {
-                            return false;
-                        }
-                    }
-                    if (status != null && !status.isEmpty()) {
-                        if (!status.equals(v.getStatus())) {
-                            return false;
-                        }
-                    }
-                    if (vehicleType != null && !vehicleType.isEmpty()) {
-                        if (!vehicleType.equals(v.getVehicleType())) {
-                            return false;
-                        }
-                    }
-                    return true;
-                })
-                .collect(Collectors.toList());
+    public Map<String, Object> list(String keyword, String status, String vehicleType, PageParams pp) {
+        long total = vehicleMapper.count(keyword, status, vehicleType);
+        List<RescueVehicle> vehicles = vehicleMapper.selectPage(
+                keyword, status, vehicleType, pp.getOffset(), pp.getSize());
+        vehicles.forEach(this::enrichDriver);
+        return pp.toResult(vehicles, total);
     }
 
     @Transactional

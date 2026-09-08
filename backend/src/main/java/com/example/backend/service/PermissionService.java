@@ -1,5 +1,6 @@
 package com.example.backend.service;
 
+import com.example.backend.common.PageParams;
 import com.example.backend.entity.Permission;
 import com.example.backend.mapper.PermissionMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -7,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class PermissionService {
@@ -40,6 +42,13 @@ public class PermissionService {
 
     public List<Permission> findByKeyword(String keyword) {
         return permissionMapper.findByKeyword(keyword);
+    }
+
+    public Map<String, Object> list(String keyword, String permissionType, PageParams pp) {
+        long total = permissionMapper.count(keyword, permissionType);
+        List<Permission> permissions = permissionMapper.selectPage(
+                keyword, permissionType, pp.getOffset(), pp.getSize());
+        return pp.toResult(permissions, total);
     }
 
     public List<Permission> getMenuTree() {

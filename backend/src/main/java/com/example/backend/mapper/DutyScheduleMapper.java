@@ -25,6 +25,37 @@ public interface DutyScheduleMapper {
                                 @Param("districtId") Long districtId,
                                 @Param("userId") Long userId);
 
+    @Select("<script>" +
+            "SELECT COUNT(*) FROM duty_schedule WHERE 1=1" +
+            "<if test='from != null'> AND duty_date &gt;= #{from}</if>" +
+            "<if test='to != null'> AND duty_date &lt;= #{to}</if>" +
+            "<if test='roleType != null and roleType != \"\"'> AND role_type = #{roleType}</if>" +
+            "<if test='districtId != null'> AND district_id = #{districtId}</if>" +
+            "<if test='userId != null'> AND user_id = #{userId}</if>" +
+            "</script>")
+    long count(@Param("from") LocalDate from,
+               @Param("to") LocalDate to,
+               @Param("roleType") String roleType,
+               @Param("districtId") Long districtId,
+               @Param("userId") Long userId);
+
+    @Select("<script>" +
+            "SELECT * FROM duty_schedule WHERE 1=1" +
+            "<if test='from != null'> AND duty_date &gt;= #{from}</if>" +
+            "<if test='to != null'> AND duty_date &lt;= #{to}</if>" +
+            "<if test='roleType != null and roleType != \"\"'> AND role_type = #{roleType}</if>" +
+            "<if test='districtId != null'> AND district_id = #{districtId}</if>" +
+            "<if test='userId != null'> AND user_id = #{userId}</if>" +
+            " ORDER BY start_time DESC, id DESC LIMIT #{offset}, #{size}" +
+            "</script>")
+    List<DutySchedule> selectPage(@Param("from") LocalDate from,
+                                  @Param("to") LocalDate to,
+                                  @Param("roleType") String roleType,
+                                  @Param("districtId") Long districtId,
+                                  @Param("userId") Long userId,
+                                  @Param("offset") int offset,
+                                  @Param("size") int size);
+
     @Select("SELECT * FROM duty_schedule WHERE id = #{id}")
     DutySchedule findById(Long id);
 

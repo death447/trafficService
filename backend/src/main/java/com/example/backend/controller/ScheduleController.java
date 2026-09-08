@@ -1,5 +1,6 @@
 package com.example.backend.controller;
 
+import com.example.backend.common.PageParams;
 import com.example.backend.common.Result;
 import com.example.backend.dto.ScheduleRequest;
 import com.example.backend.entity.DutySchedule;
@@ -9,8 +10,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -31,13 +30,8 @@ public class ScheduleController {
             @RequestParam(required = false) String roleType,
             @RequestParam(required = false) Long districtId,
             @RequestParam(required = false) Long userId) {
-        List<DutySchedule> schedules = dutyScheduleService.list(from, to, roleType, districtId, userId);
-        Map<String, Object> result = new HashMap<>();
-        result.put("list", schedules);
-        result.put("total", schedules.size());
-        result.put("page", page);
-        result.put("size", size);
-        return Result.success(result);
+        PageParams pp = PageParams.normalize(page, size);
+        return Result.success(dutyScheduleService.list(from, to, roleType, districtId, userId, pp));
     }
 
     @GetMapping("/{id}")

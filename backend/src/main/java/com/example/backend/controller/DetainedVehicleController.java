@@ -1,5 +1,6 @@
 package com.example.backend.controller;
 
+import com.example.backend.common.PageParams;
 import com.example.backend.common.Result;
 import com.example.backend.dto.DetainInRequest;
 import com.example.backend.dto.DetainUpdateRequest;
@@ -11,8 +12,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -33,14 +32,9 @@ public class DetainedVehicleController {
             @RequestParam(required = false) String status,
             @RequestParam(required = false) Long parkingLotId,
             @RequestParam(required = false) String detainDept) {
-        List<DetainedVehicle> vehicles = detainedVehicleService.list(
-                plateNo, detainNo, status, parkingLotId, detainDept);
-        Map<String, Object> result = new HashMap<>();
-        result.put("list", vehicles);
-        result.put("total", vehicles.size());
-        result.put("page", page);
-        result.put("size", size);
-        return Result.success(result);
+        PageParams pp = PageParams.normalize(page, size);
+        return Result.success(detainedVehicleService.list(
+                plateNo, detainNo, status, parkingLotId, detainDept, pp));
     }
 
     @GetMapping("/{id}")

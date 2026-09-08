@@ -14,6 +14,29 @@ public interface RescueVehicleMapper {
     @Select("SELECT * FROM rescue_vehicle")
     List<RescueVehicle> findAll();
 
+    @Select("<script>" +
+            "SELECT COUNT(*) FROM rescue_vehicle WHERE 1=1" +
+            "<if test='keyword != null and keyword != \"\"'> AND plate_no LIKE CONCAT('%', #{keyword}, '%')</if>" +
+            "<if test='status != null and status != \"\"'> AND status = #{status}</if>" +
+            "<if test='vehicleType != null and vehicleType != \"\"'> AND vehicle_type = #{vehicleType}</if>" +
+            "</script>")
+    long count(@Param("keyword") String keyword,
+               @Param("status") String status,
+               @Param("vehicleType") String vehicleType);
+
+    @Select("<script>" +
+            "SELECT * FROM rescue_vehicle WHERE 1=1" +
+            "<if test='keyword != null and keyword != \"\"'> AND plate_no LIKE CONCAT('%', #{keyword}, '%')</if>" +
+            "<if test='status != null and status != \"\"'> AND status = #{status}</if>" +
+            "<if test='vehicleType != null and vehicleType != \"\"'> AND vehicle_type = #{vehicleType}</if>" +
+            " ORDER BY id DESC LIMIT #{offset}, #{size}" +
+            "</script>")
+    List<RescueVehicle> selectPage(@Param("keyword") String keyword,
+                                   @Param("status") String status,
+                                   @Param("vehicleType") String vehicleType,
+                                   @Param("offset") int offset,
+                                   @Param("size") int size);
+
     @Select("SELECT * FROM rescue_vehicle WHERE status = #{status}")
     List<RescueVehicle> findByStatus(String status);
 

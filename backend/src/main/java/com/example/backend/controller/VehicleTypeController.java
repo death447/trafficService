@@ -1,5 +1,6 @@
 package com.example.backend.controller;
 
+import com.example.backend.common.PageParams;
 import com.example.backend.common.Result;
 import com.example.backend.dto.VehicleTypeRequest;
 import com.example.backend.entity.AccidentVehicleType;
@@ -8,7 +9,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -26,13 +26,8 @@ public class VehicleTypeController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) String status) {
-        List<AccidentVehicleType> types = vehicleTypeService.list(status);
-        Map<String, Object> result = new HashMap<>();
-        result.put("list", types);
-        result.put("total", types.size());
-        result.put("page", page);
-        result.put("size", size);
-        return Result.success(result);
+        PageParams pp = PageParams.normalize(page, size);
+        return Result.success(vehicleTypeService.list(status, pp));
     }
 
     @GetMapping("/enabled")

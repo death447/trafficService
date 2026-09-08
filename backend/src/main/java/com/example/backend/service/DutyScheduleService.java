@@ -1,5 +1,6 @@
 package com.example.backend.service;
 
+import com.example.backend.common.PageParams;
 import com.example.backend.dto.ScheduleRequest;
 import com.example.backend.entity.District;
 import com.example.backend.entity.DutySchedule;
@@ -17,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class DutyScheduleService {
@@ -33,8 +35,12 @@ public class DutyScheduleService {
     @Autowired
     private DistrictMapper districtMapper;
 
-    public List<DutySchedule> list(LocalDate from, LocalDate to, String roleType, Long districtId, Long userId) {
-        return dutyScheduleMapper.findList(from, to, roleType, districtId, userId);
+    public Map<String, Object> list(LocalDate from, LocalDate to, String roleType,
+                                    Long districtId, Long userId, PageParams pp) {
+        long total = dutyScheduleMapper.count(from, to, roleType, districtId, userId);
+        List<DutySchedule> schedules = dutyScheduleMapper.selectPage(
+                from, to, roleType, districtId, userId, pp.getOffset(), pp.getSize());
+        return pp.toResult(schedules, total);
     }
 
     public DutySchedule findById(Long id) {
