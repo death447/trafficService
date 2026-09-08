@@ -7,6 +7,7 @@ DROP TABLE IF EXISTS `duty_schedule`;
 DROP TABLE IF EXISTS `district`;
 DROP TABLE IF EXISTS `dispatch_media`;
 DROP TABLE IF EXISTS `dispatch_field_record`;
+DROP TABLE IF EXISTS `accident_vehicle_type`;
 DROP TABLE IF EXISTS `dispatch_order`;
 DROP TABLE IF EXISTS `rescue_vehicle`;
 DROP TABLE IF EXISTS `role_permission`;
@@ -106,6 +107,9 @@ CREATE TABLE `dispatch_order` (
   `longitude` DECIMAL(10,7) DEFAULT NULL,
   `latitude` DECIMAL(10,7) DEFAULT NULL,
   `rescue_reason` VARCHAR(500) DEFAULT NULL,
+  `plate_no` VARCHAR(20) DEFAULT NULL COMMENT '事故车辆车牌',
+  `vehicle_type_id` BIGINT DEFAULT NULL COMMENT '事故车型字典 id',
+  `vehicle_type_name` VARCHAR(50) DEFAULT NULL COMMENT '车型名称快照',
   `status` VARCHAR(20) NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING/DISPATCHED/ACCEPTED/COMPLETED/ABORTED',
   `dispatcher_id` BIGINT NOT NULL COMMENT '创建调度员 user.id',
   `vehicle_id` BIGINT DEFAULT NULL,
@@ -128,6 +132,19 @@ CREATE TABLE `dispatch_order` (
   KEY `idx_dispatcher_id` (`dispatcher_id`),
   KEY `idx_vehicle_id` (`vehicle_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='救援工单';
+
+CREATE TABLE `accident_vehicle_type` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `name` VARCHAR(50) NOT NULL COMMENT '车型名称',
+  `sort_order` INT NOT NULL DEFAULT 0 COMMENT '排序，越小越靠前',
+  `status` VARCHAR(20) NOT NULL DEFAULT 'ENABLED' COMMENT 'ENABLED/DISABLED',
+  `remark` VARCHAR(200) DEFAULT NULL,
+  `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_name` (`name`),
+  KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='事故车型字典';
 
 CREATE TABLE `dispatch_field_record` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
@@ -302,12 +319,35 @@ INSERT INTO `permission` (`id`, `permission_name`, `permission_code`, `permissio
 (59, '施救签到', 'rescuer:checkin', 'BUTTON', 53, 6),
 (60, '现场采集', 'rescuer:scene', 'BUTTON', 53, 7),
 (61, '入库登记', 'rescuer:park', 'BUTTON', 53, 8),
-(62, '施救完成', 'rescuer:complete', 'BUTTON', 53, 9);
+(62, '施救完成', 'rescuer:complete', 'BUTTON', 53, 9),
+(63, '车型管理', 'vehicle-type:manage', 'MODULE', 0, 13),
+(64, '车型查询', 'vehicle-type:query', 'BUTTON', 63, 1),
+(65, '车型新增', 'vehicle-type:add', 'BUTTON', 63, 2),
+(66, '车型编辑', 'vehicle-type:edit', 'BUTTON', 63, 3);
 
--- ADMIN: 1-15 + 派单 16,19,20-62
+INSERT INTO `accident_vehicle_type` (`name`, `sort_order`, `status`) VALUES
+('轿车', 1, 'ENABLED'),
+('大客车', 2, 'ENABLED'),
+('半挂货车', 3, 'ENABLED'),
+('黄牌大货车', 4, 'ENABLED'),
+('蓝牌大货车', 5, 'ENABLED'),
+('厢式货车', 6, 'ENABLED'),
+('面包车', 7, 'ENABLED'),
+('房车', 8, 'ENABLED'),
+('越野车', 9, 'ENABLED'),
+('三轮机动车', 10, 'ENABLED'),
+('三轮电动车', 11, 'ENABLED'),
+('人力三轮车', 12, 'ENABLED'),
+('二轮摩托车', 13, 'ENABLED'),
+('二轮电动车', 14, 'ENABLED'),
+('自行车', 15, 'ENABLED'),
+('残疾车', 16, 'ENABLED'),
+('其他', 17, 'ENABLED');
+
+-- ADMIN: 1-15 + 派单 16,19,20-66
 INSERT INTO `role_permission` (`role_id`, `permission_id`)
 SELECT 5, id FROM `permission` WHERE id BETWEEN 1 AND 15
-   OR id = 16 OR id = 19 OR id BETWEEN 20 AND 62;
+   OR id = 16 OR id = 19 OR id BETWEEN 20 AND 66;
 
 -- DISPATCHER: user:query（排班选人）+ 派单 + 车辆 + 片区 + 排班（无 user:manage 菜单）
 INSERT INTO `role_permission` (`role_id`, `permission_id`)
