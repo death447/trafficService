@@ -3,6 +3,8 @@ package com.example.backend.mapper;
 import com.example.backend.entity.RescueVehicle;
 import org.apache.ibatis.annotations.*;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Mapper
@@ -64,4 +66,11 @@ public interface RescueVehicleMapper {
 
     @Update("UPDATE rescue_vehicle SET driver_user_id = NULL WHERE driver_user_id = #{driverUserId}")
     int clearDriverByUserId(Long driverUserId);
+
+    @Update("UPDATE rescue_vehicle SET longitude = #{longitude}, latitude = #{latitude}, " +
+            "location_updated_at = #{locationUpdatedAt} WHERE id = #{id}")
+    int updateLocation(@Param("id") Long id,
+                       @Param("longitude") BigDecimal longitude,
+                       @Param("latitude") BigDecimal latitude,
+                       @Param("locationUpdatedAt") LocalDateTime locationUpdatedAt);
 }

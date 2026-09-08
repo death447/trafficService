@@ -14,6 +14,7 @@ public class RescueVehicle {
     private String equipment;
     private BigDecimal longitude;
     private BigDecimal latitude;
+    private LocalDateTime locationUpdatedAt;
     private String status;
     private Long districtId;
     private Long driverUserId;
