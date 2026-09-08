@@ -1,4 +1,6 @@
 <script>
+import { startLocationReporter, stopLocationReporter } from './utils/locationReporter'
+
 export default {
   onLaunch() {
     const token = uni.getStorageSync('token')
@@ -7,6 +9,12 @@ export default {
     if (!token && route !== 'pages/login/index') {
       uni.reLaunch({ url: '/pages/login/index' })
     }
+  },
+  onShow() {
+    startLocationReporter()
+  },
+  onHide() {
+    stopLocationReporter()
   }
 }
 </script>

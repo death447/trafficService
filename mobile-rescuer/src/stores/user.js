@@ -1,3 +1,5 @@
+import { stopLocationReporter } from '../utils/locationReporter'
+
 const KEYS = ['token', 'userId', 'username', 'permissions', 'roles']
 
 function readPermissions() {
@@ -50,6 +52,7 @@ export function hasRescuerAccess(permissions = readPermissions()) {
 }
 
 export function logout() {
+  stopLocationReporter()
   clearSession()
   uni.reLaunch({ url: '/pages/login/index' })
 }

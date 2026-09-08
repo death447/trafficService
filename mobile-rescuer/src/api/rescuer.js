@@ -18,6 +18,12 @@ export function getBoundVehicle() {
   return request({ url: `${PREFIX}/vehicle` })
 }
 
+export function reportLocation(lng, lat, accuracy) {
+  const data = { lng, lat }
+  if (accuracy != null) data.accuracy = accuracy
+  return request({ url: `${PREFIX}/location`, method: 'POST', data })
+}
+
 export function listTasks(tab = 'todo') {
   return request({ url: `${PREFIX}/tasks`, data: { tab } })
 }
