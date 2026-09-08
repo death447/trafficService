@@ -184,7 +184,7 @@
           <button
             v-auth="'dispatch:complete'"
             type="button"
-            :disabled="acting"
+            :disabled="!!acting"
             @click="onComplete"
           >
             {{ acting === 'complete' ? '提交中…' : '完成' }}
@@ -193,7 +193,7 @@
             v-auth="'dispatch:abort'"
             type="button"
             class="danger"
-            :disabled="acting"
+            :disabled="!!acting"
             @click="openAbort"
           >
             中止
