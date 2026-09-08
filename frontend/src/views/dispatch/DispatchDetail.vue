@@ -118,6 +118,7 @@
             </p>
             <p v-else-if="hasCoords && !nearbyLoading" class="hint-inline">未匹配到片区</p>
             <p v-if="nearbyHint" class="hint-inline">{{ nearbyHint }}</p>
+            <p v-if="nearbyPollHint" class="hint-inline">{{ nearbyPollHint }}</p>
             <p v-if="nearbyError" class="error">{{ nearbyError }}</p>
             <p v-if="nearbyLoading" class="loading-text">加载附近车辆…</p>
             <template v-else>
@@ -126,8 +127,21 @@
                 :key="section.key"
                 class="vehicle-section"
               >
-                <h3 class="subsection-title">{{ section.title }}</h3>
-                <ul class="vehicle-list">
+                <div class="subsection-header">
+                  <h3 class="subsection-title">{{ section.title }}</h3>
+                  <button
+                    v-if="section.collapsible"
+                    type="button"
+                    class="secondary toggle-stale"
+                    @click="staleExpanded = !staleExpanded"
+                  >
+                    {{ staleExpanded ? '收起' : '展开' }}
+                  </button>
+                </div>
+                <ul
+                  v-if="!section.collapsible || staleExpanded"
+                  class="vehicle-list"
+                >
                   <li
                     v-for="item in section.items"
                     :key="item.vehicle.id"
@@ -259,10 +273,13 @@ const assigning = ref(false)
 const acting = ref('')
 
 const nearby = ref([])
+const staleNearby = ref([])
+const staleExpanded = ref(false)
 const matchedDistrict = ref(null)
 const nearbyLoading = ref(false)
 const nearbyError = ref('')
 const nearbyHint = ref('')
+const nearbyPollHint = ref('')
 const selectedVehicleId = ref(null)
 
 const vehicleTypes = ref([])
@@ -287,42 +304,29 @@ const editForm = reactive({
 const savingEdit = ref(false)
 const editError = ref('')
 
-const nearbyInDistrict = computed(() =>
-  nearby.value.filter((i) => i.inMatchedDistrict))
-const nearbyOthers = computed(() =>
-  nearby.value.filter((i) => !i.inMatchedDistrict))
-
-const vehicleSections = computed(() => {
-  if (matchedDistrict.value) {
-    return [
-      {
-        key: 'in-district',
-        title: '本片区推荐',
-        items: nearbyInDistrict.value,
-        emptyText: '本片区暂无空闲车辆'
-      },
-      {
-        key: 'others',
-        title: '其它车辆',
-        items: nearbyOthers.value,
-        emptyText: '暂无空闲车辆'
-      }
-    ]
+const vehicleSections = computed(() => [
+  {
+    key: 'fresh',
+    title: '附近空闲（实时）',
+    items: nearby.value,
+    emptyText: '暂无实时定位的空闲车辆',
+    collapsible: false
+  },
+  {
+    key: 'stale',
+    title: '位置未知 / 过期',
+    items: staleNearby.value,
+    emptyText: '无',
+    collapsible: true
   }
-  return [
-    {
-      key: 'others',
-      title: '其它车辆',
-      items: nearby.value,
-      emptyText: '暂无空闲车辆'
-    }
-  ]
-})
+])
 
 const mapEl = ref(null)
 const amapReady = hasAmapKey()
 const mapError = ref('')
 let mapInstance = null
+let nearbyPollTimer = null
+let vehicleMarkers = []
 
 const abortVisible = ref(false)
 const abortReason = ref('')
@@ -369,7 +373,7 @@ function formatTime(value) {
 }
 
 function formatDistance(meters) {
-  if (meters == null || Number.isNaN(Number(meters))) return '—'
+  if (meters == null || Number.isNaN(Number(meters))) return '距离未知'
   const m = Number(meters)
   if (m < 1000) return `${Math.round(m)} m`
   return `${(m / 1000).toFixed(1)} km`
@@ -431,13 +435,20 @@ function loadVehicleTypes() {
     .catch(() => { vehicleTypes.value = [] })
 }
 
-async function loadNearby() {
-  nearbyLoading.value = true
+async function loadNearby(opts = {}) {
+  const { preserveSelection = false, silent = false } = opts
+  if (!silent) {
+    nearbyLoading.value = true
+    nearby.value = []
+    staleNearby.value = []
+    matchedDistrict.value = null
+    nearbyPollHint.value = ''
+  }
   nearbyError.value = ''
   nearbyHint.value = ''
-  selectedVehicleId.value = null
-  nearby.value = []
-  matchedDistrict.value = null
+  if (!preserveSelection) {
+    selectedVehicleId.value = null
+  }
   try {
     if (hasCoords.value) {
       const res = await nearbyVehicles({
@@ -447,6 +458,7 @@ async function loadNearby() {
       })
       matchedDistrict.value = res.data?.matchedDistrict ?? null
       nearby.value = res.data?.vehicles || []
+      staleNearby.value = res.data?.staleVehicles || []
       if (!amapReady) {
         nearbyHint.value = '未配置地图 Key，已按距离排序展示附近空闲车辆。'
       }
@@ -455,25 +467,96 @@ async function loadNearby() {
       matchedDistrict.value = null
       const res = await listVehicles({ status: 'IDLE', page: 1, size: 100 })
       const list = res.data?.list || []
-      nearby.value = list.slice(0, 20).map((vehicle) => ({
+      nearby.value = []
+      staleNearby.value = list.slice(0, 20).map((vehicle) => ({
         vehicle,
         distanceMeters: null,
-        inMatchedDistrict: false
+        inMatchedDistrict: false,
+        locationFresh: false
       }))
     }
-    const pref = order.value?.vehicleId
-    if (pref != null) {
-      const hit = nearby.value.find((i) => i.vehicle.id === pref)
-      if (hit) selectedVehicleId.value = pref
-      else {
-        nearbyHint.value =
-          (nearbyHint.value ? nearbyHint.value + ' ' : '') + '预填车辆当前不可派，请另选'
+
+    const allItems = [...nearby.value, ...staleNearby.value]
+    if (preserveSelection) {
+      if (
+        selectedVehicleId.value != null &&
+        !allItems.some((i) => i.vehicle.id === selectedVehicleId.value)
+      ) {
+        selectedVehicleId.value = null
+      }
+    } else {
+      const pref = order.value?.vehicleId
+      if (pref != null) {
+        const hit = allItems.find((i) => i.vehicle.id === pref)
+        if (hit) selectedVehicleId.value = pref
+        else {
+          nearbyHint.value =
+            (nearbyHint.value ? nearbyHint.value + ' ' : '') + '预填车辆当前不可派，请另选'
+        }
       }
     }
+
+    if (canShowMap.value) {
+      syncVehicleMarkers()
+    }
+    if (silent) {
+      nearbyPollHint.value = ''
+    }
   } catch (e) {
-    nearbyError.value = e.response?.data?.message || e.message || '加载附近车辆失败'
+    if (silent) {
+      nearbyPollHint.value = e.response?.data?.message || e.message || '刷新附近车辆失败'
+    } else {
+      nearbyError.value = e.response?.data?.message || e.message || '加载附近车辆失败'
+    }
   } finally {
-    nearbyLoading.value = false
+    if (!silent) {
+      nearbyLoading.value = false
+    }
+  }
+}
+
+function clearVehicleMarkers() {
+  vehicleMarkers.forEach((m) => {
+    if (m && typeof m.setMap === 'function') m.setMap(null)
+  })
+  vehicleMarkers = []
+}
+
+function syncVehicleMarkers() {
+  if (!mapInstance || !window.AMap) return
+  clearVehicleMarkers()
+  const AMap = window.AMap
+  nearby.value.forEach((item) => {
+    const v = item.vehicle
+    if (v?.longitude == null || v?.latitude == null) return
+    const marker = new AMap.Marker({
+      position: [Number(v.longitude), Number(v.latitude)],
+      map: mapInstance,
+      title: v.plateNo || '',
+      label: {
+        content: `${v.plateNo || ''} ${formatDistance(item.distanceMeters)}`,
+        direction: 'top'
+      }
+    })
+    marker.on('click', () => {
+      selectedVehicleId.value = v.id
+    })
+    vehicleMarkers.push(marker)
+  })
+}
+
+function startNearbyPoll() {
+  stopNearbyPoll()
+  if (!hasCoords.value || order.value?.status !== 'PENDING') return
+  nearbyPollTimer = setInterval(() => {
+    loadNearby({ preserveSelection: true, silent: true })
+  }, 20000)
+}
+
+function stopNearbyPoll() {
+  if (nearbyPollTimer) {
+    clearInterval(nearbyPollTimer)
+    nearbyPollTimer = null
   }
 }
 
@@ -490,12 +573,14 @@ async function initMap() {
       center: [lng, lat]
     })
     new AMap.Marker({ position: [lng, lat], map: mapInstance })
+    syncVehicleMarkers()
   } catch (e) {
     mapError.value = e.message || '地图加载失败'
   }
 }
 
 function destroyMap() {
+  clearVehicleMarkers()
   if (mapInstance && typeof mapInstance.destroy === 'function') {
     mapInstance.destroy()
   }
@@ -560,10 +645,12 @@ watch(
   () => order.value?.status,
   async (status) => {
     destroyMap()
+    stopNearbyPoll()
     if (status === 'PENDING') {
       await loadNearby()
       await nextTick()
       await initMap()
+      startNearbyPoll()
     }
   }
 )
@@ -572,9 +659,12 @@ watch(
   () => route.params.id,
   async () => {
     destroyMap()
+    stopNearbyPoll()
     nearby.value = []
+    staleNearby.value = []
     matchedDistrict.value = null
     selectedVehicleId.value = null
+    nearbyPollHint.value = ''
     await loadOrder()
   }
 )
@@ -585,6 +675,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  stopNearbyPoll()
   destroyMap()
 })
 </script>
@@ -634,15 +725,28 @@ onBeforeUnmount(() => {
   margin-bottom: 0.75rem;
 }
 
+.subsection-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0.75rem 0 0.5rem;
+}
+
 .subsection-title {
   font-size: 0.85rem;
   font-weight: 600;
-  margin: 0.75rem 0 0.5rem;
+  margin: 0;
   color: var(--text);
 }
 
-.vehicle-section:first-of-type .subsection-title {
+.vehicle-section:first-of-type .subsection-header {
   margin-top: 0;
+}
+
+.toggle-stale {
+  padding: 0.2rem 0.55rem;
+  font-size: 0.75rem;
 }
 
 .vehicle-section + .vehicle-section {
