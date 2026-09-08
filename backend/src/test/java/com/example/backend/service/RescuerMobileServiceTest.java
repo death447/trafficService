@@ -1,6 +1,8 @@
 package com.example.backend.service;
 
 import com.example.backend.dto.BindVehicleRequest;
+import com.example.backend.dto.LocationReportRequest;
+import com.example.backend.dto.LocationReportResponse;
 import com.example.backend.dto.SceneRequest;
 import com.example.backend.entity.DispatchOrder;
 import com.example.backend.entity.RescueVehicle;
@@ -16,6 +18,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
+
+import java.math.BigDecimal;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -83,5 +87,35 @@ class RescuerMobileServiceTest {
         assertTrue(ex.getMessage().contains("bizType") || ex.getMessage().contains("类型"));
         verifyNoInteractions(fileStorageService);
         verify(mediaMapper, never()).insert(any());
+    }
+
+    @Test
+    void reportLocationFailsWhenNotBound() {
+        when(rescueVehicleMapper.findByDriverUserId(9L)).thenReturn(null);
+        LocationReportRequest req = new LocationReportRequest();
+        req.setLng(new BigDecimal("114.05"));
+        req.setLat(new BigDecimal("22.54"));
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> service.reportLocation(9L, req));
+        assertTrue(ex.getMessage().contains("绑定"));
+        verify(rescueVehicleMapper, never()).updateLocation(any(), any(), any(), any());
+    }
+
+    @Test
+    void reportLocationUpdatesBoundVehicle() {
+        RescueVehicle bound = new RescueVehicle();
+        bound.setId(7L);
+        when(rescueVehicleMapper.findByDriverUserId(9L)).thenReturn(bound);
+        when(rescueVehicleMapper.updateLocation(eq(7L), any(), any(), any())).thenReturn(1);
+
+        LocationReportRequest req = new LocationReportRequest();
+        req.setLng(new BigDecimal("114.057868"));
+        req.setLat(new BigDecimal("22.543099"));
+        LocationReportResponse resp = service.reportLocation(9L, req);
+
+        assertEquals(7L, resp.getVehicleId());
+        assertNotNull(resp.getLocationUpdatedAt());
+        verify(rescueVehicleMapper).updateLocation(eq(7L),
+                eq(req.getLng()), eq(req.getLat()), any());
     }
 }

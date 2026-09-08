@@ -3,6 +3,8 @@ package com.example.backend.controller;
 import com.example.backend.common.Result;
 import com.example.backend.dto.BindVehicleRequest;
 import com.example.backend.dto.CheckinRequest;
+import com.example.backend.dto.LocationReportRequest;
+import com.example.backend.dto.LocationReportResponse;
 import com.example.backend.dto.ParkRequest;
 import com.example.backend.dto.RejectRequest;
 import com.example.backend.dto.RescuerProfileUpdateRequest;
@@ -74,6 +76,16 @@ public class RescuerMobileController {
     @PreAuthorize("hasAuthority('rescuer:bind-vehicle')")
     public Result<RescueVehicle> getBoundVehicle() {
         return Result.success(rescuerMobileService.getBoundVehicle(currentUserId()));
+    }
+
+    @PostMapping("/location")
+    @PreAuthorize("hasAuthority('rescuer:location')")
+    public Result<LocationReportResponse> reportLocation(@RequestBody LocationReportRequest request) {
+        try {
+            return Result.success(rescuerMobileService.reportLocation(currentUserId(), request));
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
     }
 
     @GetMapping("/tasks")

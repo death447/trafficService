@@ -1,6 +1,8 @@
 package com.example.backend.service;
 
 import com.example.backend.dto.BindVehicleRequest;
+import com.example.backend.dto.LocationReportRequest;
+import com.example.backend.dto.LocationReportResponse;
 import com.example.backend.dto.ParkRequest;
 import com.example.backend.dto.RescuerProfileUpdateRequest;
 import com.example.backend.dto.RescuerTaskDetail;
@@ -190,6 +192,28 @@ public class RescuerMobileService {
 
     public RescueVehicle getBoundVehicle(Long userId) {
         return rescueVehicleMapper.findByDriverUserId(userId);
+    }
+
+    @Transactional
+    public LocationReportResponse reportLocation(Long userId, LocationReportRequest request) {
+        if (request == null || request.getLng() == null || request.getLat() == null) {
+            throw new RuntimeException("经纬度不能为空");
+        }
+        double lng = request.getLng().doubleValue();
+        double lat = request.getLat().doubleValue();
+        if (lng < -180 || lng > 180 || lat < -90 || lat > 90) {
+            throw new RuntimeException("经纬度无效");
+        }
+        RescueVehicle vehicle = rescueVehicleMapper.findByDriverUserId(userId);
+        if (vehicle == null) {
+            throw new RuntimeException("请先绑定车辆");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        rescueVehicleMapper.updateLocation(vehicle.getId(), request.getLng(), request.getLat(), now);
+        LocationReportResponse resp = new LocationReportResponse();
+        resp.setVehicleId(vehicle.getId());
+        resp.setLocationUpdatedAt(now);
+        return resp;
     }
 
     private DispatchOrder requireOwned(Long orderId, Long userId) {
