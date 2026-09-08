@@ -23,7 +23,7 @@ async function tick() {
     return
   }
   try {
-    const bound = await getBoundVehicle()
+    const bound = await getBoundVehicle({ showError: false })
     if (!bound?.data?.id) {
       if (!unboundNotified) {
         unboundNotified = true
@@ -45,12 +45,16 @@ async function tick() {
 }
 
 export function startLocationReporter() {
-  if (running) return
   const { token } = getUserState()
   if (!token) return
+  // Restart-safe: no-op when already running with an active timer;
+  // if a prior early-return left running=false, start works; if running without timer, ensure one.
+  if (running && timer) return
   running = true
   tick()
-  timer = setInterval(tick, INTERVAL_MS)
+  if (!timer) {
+    timer = setInterval(tick, INTERVAL_MS)
+  }
 }
 
 export function stopLocationReporter() {

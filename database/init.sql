@@ -358,7 +358,7 @@ SELECT 2, id FROM `permission` WHERE id = 2 OR id = 16 OR id BETWEEN 20 AND 41;
 -- TRAFFIC_POLICE 拥有事故处理
 INSERT INTO `role_permission` (`role_id`, `permission_id`) VALUES (1, 17);
 
--- TOW_DRIVER 拥有救援执行 + 施救员移动端 53-62
+-- TOW_DRIVER 拥有救援执行 + 施救员移动端 53-62 + 位置上报 67 (rescuer:location)
 INSERT INTO `role_permission` (`role_id`, `permission_id`) VALUES (3, 18);
 INSERT INTO `role_permission` (`role_id`, `permission_id`)
 SELECT 3, id FROM `permission` WHERE id BETWEEN 53 AND 62 OR id = 67;

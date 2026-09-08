@@ -443,9 +443,9 @@ async function loadNearby(opts = {}) {
     staleNearby.value = []
     matchedDistrict.value = null
     nearbyPollHint.value = ''
+    nearbyHint.value = ''
   }
   nearbyError.value = ''
-  nearbyHint.value = ''
   if (!preserveSelection) {
     selectedVehicleId.value = null
   }
@@ -666,6 +666,13 @@ watch(
     selectedVehicleId.value = null
     nearbyPollHint.value = ''
     await loadOrder()
+    // Status watcher may not re-fire when both orders are PENDING
+    if (order.value?.status === 'PENDING') {
+      await loadNearby()
+      await nextTick()
+      await initMap()
+      startNearbyPoll()
+    }
   }
 )
 

@@ -1,4 +1,4 @@
-import { stopLocationReporter } from '../utils/locationReporter'
+import { startLocationReporter, stopLocationReporter } from '../utils/locationReporter'
 
 const KEYS = ['token', 'userId', 'username', 'permissions', 'roles']
 
@@ -38,6 +38,8 @@ export function setSession(data) {
   uni.setStorageSync('username', data.username || '')
   uni.setStorageSync('permissions', JSON.stringify(data.permissions || []))
   uni.setStorageSync('roles', JSON.stringify(data.roles || []))
+  // Login switchTab does not re-fire App onShow; start reporter after token is written.
+  startLocationReporter()
 }
 
 export function clearSession() {

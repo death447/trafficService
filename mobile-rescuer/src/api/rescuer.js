@@ -14,14 +14,14 @@ export function bindVehicle(qrPayload) {
   return request({ url: `${PREFIX}/bind-vehicle`, method: 'POST', data: { qrPayload } })
 }
 
-export function getBoundVehicle() {
-  return request({ url: `${PREFIX}/vehicle` })
+export function getBoundVehicle({ showError = true } = {}) {
+  return request({ url: `${PREFIX}/vehicle`, showError })
 }
 
 export function reportLocation(lng, lat, accuracy) {
   const data = { lng, lat }
   if (accuracy != null) data.accuracy = accuracy
-  return request({ url: `${PREFIX}/location`, method: 'POST', data })
+  return request({ url: `${PREFIX}/location`, method: 'POST', data, showError: false })
 }
 
 export function listTasks(tab = 'todo') {
