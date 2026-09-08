@@ -33,7 +33,7 @@
         />
       </label>
       <div class="filter-actions">
-        <button type="button" @click="loadList">查询</button>
+        <button type="button" @click="onQuery">查询</button>
         <button type="button" class="secondary" @click="resetFilters">重置</button>
       </div>
     </div>
@@ -82,6 +82,14 @@
         </tbody>
       </table>
     </div>
+    <PaginationBar
+      v-if="!loading"
+      :page="pagination.page"
+      :size="pagination.size"
+      :total="pagination.total"
+      @update:page="onPageChange"
+      @update:size="onSizeChange"
+    />
   </div>
 </template>
 
@@ -89,9 +97,11 @@
 import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { listDispatches } from '../../api/dispatch'
+import PaginationBar from '../../components/PaginationBar.vue'
 
 const router = useRouter()
 const orders = ref([])
+const pagination = reactive({ page: 1, size: 10, total: 0 })
 const loading = ref(false)
 const error = ref('')
 
@@ -129,6 +139,23 @@ function resetFilters() {
   filters.orderNo = ''
   filters.status = ''
   filters.accidentAddress = ''
+  pagination.page = 1
+  loadList()
+}
+
+function onQuery() {
+  pagination.page = 1
+  loadList()
+}
+
+function onPageChange(p) {
+  pagination.page = p
+  loadList()
+}
+
+function onSizeChange(s) {
+  pagination.size = s
+  pagination.page = 1
   loadList()
 }
 
@@ -136,12 +163,15 @@ async function loadList() {
   loading.value = true
   error.value = ''
   try {
-    const params = {}
+    const params = { page: pagination.page, size: pagination.size }
     if (filters.orderNo) params.orderNo = filters.orderNo
     if (filters.status) params.status = filters.status
     if (filters.accidentAddress) params.address = filters.accidentAddress
     const res = await listDispatches(params)
     orders.value = res.data?.list || []
+    pagination.total = res.data?.total ?? 0
+    if (res.data?.page) pagination.page = res.data.page
+    if (res.data?.size) pagination.size = res.data.size
   } catch (e) {
     error.value = e.response?.data?.message || e.message || '加载工单失败'
   } finally {

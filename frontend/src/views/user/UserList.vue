@@ -45,6 +45,14 @@
       </tbody>
     </table>
     </div>
+    <PaginationBar
+      v-if="!loading"
+      :page="pagination.page"
+      :size="pagination.size"
+      :total="pagination.total"
+      @update:page="onPageChange"
+      @update:size="onSizeChange"
+    />
 
     <div v-if="formVisible" class="modal" @click.self="formVisible = false">
       <form class="modal-card" @submit.prevent="onSubmit">
@@ -97,8 +105,10 @@
 import { onMounted, reactive, ref } from 'vue'
 import { getUserList, createUser, updateUser, deleteUser, getUserRoles } from '../../api/user'
 import { getRoleList } from '../../api/role'
+import PaginationBar from '../../components/PaginationBar.vue'
 
 const users = ref([])
+const pagination = reactive({ page: 1, size: 10, total: 0 })
 const roles = ref([])
 const loading = ref(false)
 const error = ref('')
@@ -136,13 +146,27 @@ async function loadUsers() {
   loading.value = true
   error.value = ''
   try {
-    const res = await getUserList()
+    const res = await getUserList({ page: pagination.page, size: pagination.size })
     users.value = res.data?.list || []
+    pagination.total = res.data?.total ?? 0
+    if (res.data?.page) pagination.page = res.data.page
+    if (res.data?.size) pagination.size = res.data.size
   } catch (e) {
     error.value = e.response?.data?.message || e.message || '加载用户失败'
   } finally {
     loading.value = false
   }
+}
+
+function onPageChange(p) {
+  pagination.page = p
+  loadUsers()
+}
+
+function onSizeChange(s) {
+  pagination.size = s
+  pagination.page = 1
+  loadUsers()
 }
 
 async function loadRoles() {

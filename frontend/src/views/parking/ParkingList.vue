@@ -26,7 +26,7 @@
         </select>
       </label>
       <div class="filter-actions">
-        <button type="button" @click="loadList">查询</button>
+        <button type="button" @click="onQuery">查询</button>
         <button type="button" class="secondary" @click="resetFilters">重置</button>
       </div>
     </div>
@@ -76,6 +76,14 @@
         </tbody>
       </table>
     </div>
+    <PaginationBar
+      v-if="!loading"
+      :page="pagination.page"
+      :size="pagination.size"
+      :total="pagination.total"
+      @update:page="onPageChange"
+      @update:size="onSizeChange"
+    />
 
     <div v-if="formVisible" class="modal" @click.self="formVisible = false">
       <form class="modal-card" @submit.prevent="onSubmit">
@@ -129,8 +137,10 @@ import {
   updateParking,
   deleteParking
 } from '../../api/parking'
+import PaginationBar from '../../components/PaginationBar.vue'
 
 const parkings = ref([])
+const pagination = reactive({ page: 1, size: 10, total: 0 })
 const loading = ref(false)
 const error = ref('')
 const formVisible = ref(false)
@@ -181,6 +191,23 @@ function resetForm() {
 function resetFilters() {
   filters.keyword = ''
   filters.status = ''
+  pagination.page = 1
+  loadList()
+}
+
+function onQuery() {
+  pagination.page = 1
+  loadList()
+}
+
+function onPageChange(p) {
+  pagination.page = p
+  loadList()
+}
+
+function onSizeChange(s) {
+  pagination.size = s
+  pagination.page = 1
   loadList()
 }
 
@@ -188,11 +215,14 @@ async function loadList() {
   loading.value = true
   error.value = ''
   try {
-    const params = {}
+    const params = { page: pagination.page, size: pagination.size }
     if (filters.keyword) params.keyword = filters.keyword
     if (filters.status) params.status = filters.status
     const res = await listParkings(params)
     parkings.value = res.data?.list || []
+    pagination.total = res.data?.total ?? 0
+    if (res.data?.page) pagination.page = res.data.page
+    if (res.data?.size) pagination.size = res.data.size
   } catch (e) {
     error.value = e.response?.data?.message || e.message || '加载停车场失败'
   } finally {

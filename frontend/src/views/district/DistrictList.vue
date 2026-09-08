@@ -43,6 +43,14 @@
         </tbody>
       </table>
     </div>
+    <PaginationBar
+      v-if="!loading"
+      :page="pagination.page"
+      :size="pagination.size"
+      :total="pagination.total"
+      @update:page="onPageChange"
+      @update:size="onSizeChange"
+    />
 
     <div v-if="formVisible" class="modal" @click.self="closeForm">
       <form class="modal-card modal-wide" @submit.prevent="onSubmit">
@@ -114,8 +122,10 @@ import {
   deleteDistrict
 } from '../../api/district'
 import { createPolygonEditor, hasAmapKey } from '../../utils/amap'
+import PaginationBar from '../../components/PaginationBar.vue'
 
 const districts = ref([])
+const pagination = reactive({ page: 1, size: 10, total: 0 })
 const loading = ref(false)
 const error = ref('')
 const formVisible = ref(false)
@@ -201,13 +211,27 @@ async function loadDistricts() {
   loading.value = true
   error.value = ''
   try {
-    const res = await listDistricts()
+    const res = await listDistricts({ page: pagination.page, size: pagination.size })
     districts.value = res.data?.list || []
+    pagination.total = res.data?.total ?? 0
+    if (res.data?.page) pagination.page = res.data.page
+    if (res.data?.size) pagination.size = res.data.size
   } catch (e) {
     error.value = e.response?.data?.message || e.message || '加载片区失败'
   } finally {
     loading.value = false
   }
+}
+
+function onPageChange(p) {
+  pagination.page = p
+  loadDistricts()
+}
+
+function onSizeChange(s) {
+  pagination.size = s
+  pagination.page = 1
+  loadDistricts()
 }
 
 async function openCreate() {

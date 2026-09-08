@@ -45,6 +45,14 @@
         </tbody>
       </table>
     </div>
+    <PaginationBar
+      v-if="!loading"
+      :page="pagination.page"
+      :size="pagination.size"
+      :total="pagination.total"
+      @update:page="onPageChange"
+      @update:size="onSizeChange"
+    />
 
     <div v-if="qrVisible" class="modal qr-modal" @click.self="qrVisible = false">
       <div class="modal-card qr-card">
@@ -147,8 +155,10 @@ import QRCode from 'qrcode'
 import { listVehicles, createVehicle, updateVehicle, deleteVehicle } from '../../api/vehicle'
 import { listDistricts } from '../../api/district'
 import { getUserList } from '../../api/user'
+import PaginationBar from '../../components/PaginationBar.vue'
 
 const vehicles = ref([])
+const pagination = reactive({ page: 1, size: 10, total: 0 })
 const enabledDistricts = ref([])
 const allDistricts = ref([])
 const users = ref([])
@@ -268,7 +278,7 @@ async function loadDistricts() {
 
 async function loadUsers() {
   try {
-    const res = await getUserList({ size: 500 })
+    const res = await getUserList({ page: 1, size: 100 })
     users.value = res.data?.list || []
   } catch (_) {
     users.value = []
@@ -279,13 +289,27 @@ async function loadVehicles() {
   loading.value = true
   error.value = ''
   try {
-    const res = await listVehicles()
+    const res = await listVehicles({ page: pagination.page, size: pagination.size })
     vehicles.value = res.data?.list || []
+    pagination.total = res.data?.total ?? 0
+    if (res.data?.page) pagination.page = res.data.page
+    if (res.data?.size) pagination.size = res.data.size
   } catch (e) {
     error.value = e.response?.data?.message || e.message || '加载车辆失败'
   } finally {
     loading.value = false
   }
+}
+
+function onPageChange(p) {
+  pagination.page = p
+  loadVehicles()
+}
+
+function onSizeChange(s) {
+  pagination.size = s
+  pagination.page = 1
+  loadVehicles()
 }
 
 function openCreate() {
