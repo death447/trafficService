@@ -88,6 +88,7 @@ CREATE TABLE `rescue_vehicle` (
   `equipment` VARCHAR(200) DEFAULT NULL COMMENT '配备装备',
   `longitude` DECIMAL(10,7) DEFAULT NULL,
   `latitude` DECIMAL(10,7) DEFAULT NULL,
+  `location_updated_at` DATETIME DEFAULT NULL COMMENT '最近一次移动端 GPS 上报时间',
   `status` VARCHAR(20) NOT NULL DEFAULT 'IDLE' COMMENT 'IDLE/BUSY/OFFLINE',
   `district_id` BIGINT DEFAULT NULL COMMENT '预留片区',
   `driver_user_id` BIGINT DEFAULT NULL COMMENT '绑定施救员 user.id',
@@ -323,7 +324,8 @@ INSERT INTO `permission` (`id`, `permission_name`, `permission_code`, `permissio
 (63, '车型管理', 'vehicle-type:manage', 'MODULE', 0, 13),
 (64, '车型查询', 'vehicle-type:query', 'BUTTON', 63, 1),
 (65, '车型新增', 'vehicle-type:add', 'BUTTON', 63, 2),
-(66, '车型编辑', 'vehicle-type:edit', 'BUTTON', 63, 3);
+(66, '车型编辑', 'vehicle-type:edit', 'BUTTON', 63, 3),
+(67, '位置上报', 'rescuer:location', 'BUTTON', 53, 10);
 
 INSERT INTO `accident_vehicle_type` (`name`, `sort_order`, `status`) VALUES
 ('轿车', 1, 'ENABLED'),
@@ -359,7 +361,7 @@ INSERT INTO `role_permission` (`role_id`, `permission_id`) VALUES (1, 17);
 -- TOW_DRIVER 拥有救援执行 + 施救员移动端 53-62
 INSERT INTO `role_permission` (`role_id`, `permission_id`) VALUES (3, 18);
 INSERT INTO `role_permission` (`role_id`, `permission_id`)
-SELECT 3, id FROM `permission` WHERE id BETWEEN 53 AND 62;
+SELECT 3, id FROM `permission` WHERE id BETWEEN 53 AND 62 OR id = 67;
 
 -- PARKING_ADMIN 拥有停车场与扣留车辆管理
 INSERT INTO `role_permission` (`role_id`, `permission_id`)
