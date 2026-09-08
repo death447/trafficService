@@ -108,6 +108,15 @@
           <span class="nav-ico">权</span>
           权限管理
         </router-link>
+        <router-link
+          v-auth="'vehicle-type:manage'"
+          to="/vehicle-types"
+          class="nav-item"
+          active-class="active"
+        >
+          <span class="nav-ico">型</span>
+          车型管理
+        </router-link>
       </nav>
 
       <div class="sidebar-foot">
@@ -170,6 +179,7 @@ const pageTitle = computed(() => {
     '/parkings': '停车场管理',
     '/detained-vehicles': '扣留车辆',
     '/schedules': '排班管理',
+    '/vehicle-types': '车型管理',
     '/403': '访问受限'
   }
   return map[path] || '救援派单系统'

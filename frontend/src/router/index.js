@@ -88,6 +88,12 @@ const routes = [
     name: 'ScheduleList',
     component: () => import('../views/schedule/ScheduleList.vue'),
     meta: { permissions: ['schedule:manage'] }
+  },
+  {
+    path: '/vehicle-types',
+    name: 'VehicleTypeList',
+    component: () => import('../views/vehicleType/VehicleTypeList.vue'),
+    meta: { permissions: ['vehicle-type:manage'] }
   }
 ]
 

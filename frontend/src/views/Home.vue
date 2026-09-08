@@ -104,6 +104,16 @@
         <h3>权限管理</h3>
         <p>维护功能模块与操作权限，支持动态授权调整。</p>
       </router-link>
+
+      <router-link
+        v-auth="'vehicle-type:manage'"
+        to="/vehicle-types"
+        class="module-item"
+      >
+        <span class="module-tag">系统</span>
+        <h3>车型管理</h3>
+        <p>维护事故车辆车型字典，支持启用与停用。</p>
+      </router-link>
     </section>
   </div>
 </template>
