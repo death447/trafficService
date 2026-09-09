@@ -7,6 +7,8 @@
       </view>
       <view class="line">事故地址：{{ order.accidentAddress || '-' }}</view>
       <view class="line">救援事由：{{ order.rescueReason || '-' }}</view>
+      <view class="line">事故当事人：{{ order.partyName || '-' }}</view>
+      <view class="line">联系方式：{{ order.partyPhone || '-' }}</view>
       <view class="line muted" v-if="order.checkedInAt">
         已签到（{{ order.checkinMode }}）{{ order.checkedInAt }}
       </view>
