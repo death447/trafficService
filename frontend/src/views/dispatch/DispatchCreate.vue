@@ -29,6 +29,14 @@
             </select>
           </label>
           <label>
+            事故当事人
+            <input v-model.trim="form.partyName" placeholder="选填" maxlength="50" />
+          </label>
+          <label>
+            手机号码
+            <input v-model.trim="form.partyPhone" placeholder="选填" maxlength="20" />
+          </label>
+          <label>
             事故地点
             <input
               ref="searchInput"
@@ -116,7 +124,9 @@ const form = reactive({
   rescuerId: '',
   vehicleId: '',
   plateNo: '',
-  vehicleTypeId: ''
+  vehicleTypeId: '',
+  partyName: '',
+  partyPhone: ''
 })
 
 const currentDispatcherLabel = computed(() => {
@@ -347,7 +357,9 @@ async function onSubmit() {
       rescuerId: toNullableId(form.rescuerId),
       vehicleId: toNullableId(form.vehicleId),
       plateNo: form.plateNo || null,
-      vehicleTypeId: form.vehicleTypeId ? Number(form.vehicleTypeId) : null
+      vehicleTypeId: form.vehicleTypeId ? Number(form.vehicleTypeId) : null,
+      partyName: form.partyName || null,
+      partyPhone: form.partyPhone || null
     })
     const id = res.data?.id
     if (id != null) {

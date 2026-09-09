@@ -51,6 +51,8 @@
             <th>调度员</th>
             <th>施救员</th>
             <th>施救车辆</th>
+            <th>事故当事人</th>
+            <th>联系方式</th>
             <th>车牌</th>
             <th>车型</th>
             <th>状态</th>
@@ -76,6 +78,8 @@
             <td>{{ row.dispatcherName || row.dispatcherId || '—' }}</td>
             <td>{{ row.rescuerName || row.rescuerId || '—' }}</td>
             <td>{{ row.vehiclePlate || '—' }}</td>
+            <td>{{ row.partyName || '—' }}</td>
+            <td>{{ row.partyPhone || '—' }}</td>
             <td>{{ row.plateNo || '—' }}</td>
             <td>{{ row.vehicleTypeName || '—' }}</td>
             <td>
@@ -108,7 +112,7 @@
             </td>
           </tr>
           <tr v-if="!orders.length">
-            <td colspan="11" class="empty-cell">暂无工单</td>
+            <td colspan="13" class="empty-cell">暂无工单</td>
           </tr>
         </tbody>
         </table>

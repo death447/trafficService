@@ -49,6 +49,14 @@
             <strong>{{ order.vehicleTypeName || '—' }}</strong>
           </div>
           <div>
+            <span class="label">当事人</span>
+            <strong>{{ order.partyName || '—' }}</strong>
+          </div>
+          <div>
+            <span class="label">联系方式</span>
+            <strong>{{ order.partyPhone || '—' }}</strong>
+          </div>
+          <div>
             <span class="label">调度员</span>
             <strong>{{ order.dispatcherName || order.dispatcherId || '—' }}</strong>
           </div>
@@ -92,6 +100,14 @@
                   {{ t.name }}
                 </option>
               </select>
+            </label>
+            <label>
+              事故当事人
+              <input v-model.trim="editForm.partyName" placeholder="选填" maxlength="50" />
+            </label>
+            <label>
+              手机号码
+              <input v-model.trim="editForm.partyPhone" placeholder="选填" maxlength="20" />
             </label>
             <button type="button" :disabled="savingEdit" @click="onSaveEdit">
               {{ savingEdit ? '保存中…' : '保存' }}
@@ -299,7 +315,9 @@ const editVehicleTypeOptions = computed(() => {
 
 const editForm = reactive({
   plateNo: '',
-  vehicleTypeId: ''
+  vehicleTypeId: '',
+  partyName: '',
+  partyPhone: ''
 })
 const savingEdit = ref(false)
 const editError = ref('')
@@ -401,6 +419,8 @@ function syncEditForm() {
   if (!o) return
   editForm.plateNo = o.plateNo || ''
   editForm.vehicleTypeId = o.vehicleTypeId != null ? String(o.vehicleTypeId) : ''
+  editForm.partyName = o.partyName || ''
+  editForm.partyPhone = o.partyPhone || ''
 }
 
 async function onSaveEdit() {
@@ -417,7 +437,9 @@ async function onSaveEdit() {
       vehicleId: order.value.vehicleId,
       rescuerId: order.value.rescuerId,
       plateNo: editForm.plateNo || null,
-      vehicleTypeId: editForm.vehicleTypeId ? Number(editForm.vehicleTypeId) : null
+      vehicleTypeId: editForm.vehicleTypeId ? Number(editForm.vehicleTypeId) : null,
+      partyName: editForm.partyName || null,
+      partyPhone: editForm.partyPhone || null
     })
     const res = await getDispatch(id.value)
     order.value = res.data
