@@ -1,5 +1,6 @@
 package com.example.backend.service;
 
+import com.example.backend.dto.AssignedVehicleSnapshot;
 import com.example.backend.dto.BindVehicleRequest;
 import com.example.backend.dto.LocationReportRequest;
 import com.example.backend.dto.LocationReportResponse;
@@ -76,6 +77,18 @@ public class RescuerMobileService {
         RescuerTaskDetail detail = new RescuerTaskDetail();
         detail.setOrder(order);
         detail.setFieldRecord(fieldRecordMapper.findByOrderId(orderId));
+        if (order.getVehicleId() != null) {
+            RescueVehicle vehicle = rescueVehicleMapper.findById(order.getVehicleId());
+            if (vehicle != null) {
+                AssignedVehicleSnapshot snap = new AssignedVehicleSnapshot();
+                snap.setId(vehicle.getId());
+                snap.setPlateNo(vehicle.getPlateNo());
+                snap.setLongitude(vehicle.getLongitude());
+                snap.setLatitude(vehicle.getLatitude());
+                snap.setLocationUpdatedAt(vehicle.getLocationUpdatedAt());
+                detail.setAssignedVehicle(snap);
+            }
+        }
         return detail;
     }
 

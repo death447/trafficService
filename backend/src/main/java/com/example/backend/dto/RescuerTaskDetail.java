@@ -8,4 +8,5 @@ import lombok.Data;
 public class RescuerTaskDetail {
     private DispatchOrder order;
     private DispatchFieldRecord fieldRecord;
+    private AssignedVehicleSnapshot assignedVehicle;
 }

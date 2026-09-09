@@ -102,6 +102,66 @@ class RescuerMobileServiceTest {
     }
 
     @Test
+    void getTaskFillsAssignedVehicleWhenOrderHasVehicleId() {
+        DispatchOrder order = new DispatchOrder();
+        order.setId(1L);
+        order.setRescuerId(9L);
+        order.setStatus("DISPATCHED");
+        order.setVehicleId(7L);
+        when(dispatchOrderMapper.findById(1L)).thenReturn(order);
+        when(fieldRecordMapper.findByOrderId(1L)).thenReturn(null);
+
+        RescueVehicle vehicle = new RescueVehicle();
+        vehicle.setId(7L);
+        vehicle.setPlateNo("粤B救援1");
+        vehicle.setLongitude(new BigDecimal("114.05"));
+        vehicle.setLatitude(new BigDecimal("22.54"));
+        vehicle.setLocationUpdatedAt(java.time.LocalDateTime.of(2026, 9, 9, 10, 0));
+        when(rescueVehicleMapper.findById(7L)).thenReturn(vehicle);
+
+        var detail = service.getTask(9L, 1L);
+
+        assertNotNull(detail.getAssignedVehicle());
+        assertEquals(7L, detail.getAssignedVehicle().getId());
+        assertEquals("粤B救援1", detail.getAssignedVehicle().getPlateNo());
+        assertEquals(0, new BigDecimal("114.05").compareTo(detail.getAssignedVehicle().getLongitude()));
+        assertEquals(0, new BigDecimal("22.54").compareTo(detail.getAssignedVehicle().getLatitude()));
+        assertNotNull(detail.getAssignedVehicle().getLocationUpdatedAt());
+    }
+
+    @Test
+    void getTaskAssignedVehicleNullWhenNoVehicleId() {
+        DispatchOrder order = new DispatchOrder();
+        order.setId(1L);
+        order.setRescuerId(9L);
+        order.setStatus("DISPATCHED");
+        order.setVehicleId(null);
+        when(dispatchOrderMapper.findById(1L)).thenReturn(order);
+        when(fieldRecordMapper.findByOrderId(1L)).thenReturn(null);
+
+        var detail = service.getTask(9L, 1L);
+
+        assertNull(detail.getAssignedVehicle());
+        verify(rescueVehicleMapper, never()).findById(any());
+    }
+
+    @Test
+    void getTaskAssignedVehicleNullWhenVehicleMissing() {
+        DispatchOrder order = new DispatchOrder();
+        order.setId(1L);
+        order.setRescuerId(9L);
+        order.setStatus("ACCEPTED");
+        order.setVehicleId(99L);
+        when(dispatchOrderMapper.findById(1L)).thenReturn(order);
+        when(fieldRecordMapper.findByOrderId(1L)).thenReturn(null);
+        when(rescueVehicleMapper.findById(99L)).thenReturn(null);
+
+        var detail = service.getTask(9L, 1L);
+
+        assertNull(detail.getAssignedVehicle());
+    }
+
+    @Test
     void reportLocationUpdatesBoundVehicle() {
         RescueVehicle bound = new RescueVehicle();
         bound.setId(7L);
