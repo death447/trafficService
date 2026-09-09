@@ -69,6 +69,7 @@ public class DispatchOrderService {
         order.setStatus("PENDING");
         applyDispatcherAndPrefill(order, currentUserId);
         applyPlateAndVehicleType(order);
+        normalizePartyContact(order);
         order.setAbortReason(null);
         order.setDispatchedAt(null);
         order.setCompletedAt(null);
@@ -93,6 +94,9 @@ public class DispatchOrderService {
         existing.setPlateNo(order.getPlateNo());
         existing.setVehicleTypeId(order.getVehicleTypeId());
         applyPlateAndVehicleType(existing, previousTypeId, previousTypeName);
+        existing.setPartyName(order.getPartyName());
+        existing.setPartyPhone(order.getPartyPhone());
+        normalizePartyContact(existing);
         Long previousDispatcherId = existing.getDispatcherId();
         existing.setDispatcherId(order.getDispatcherId());
         if (order.getRescuerId() != null) {
@@ -103,6 +107,17 @@ public class DispatchOrderService {
         }
         applyDispatcherAndPrefill(existing, previousDispatcherId);
         return dispatchOrderMapper.update(existing) > 0;
+    }
+
+    void normalizePartyContact(DispatchOrder order) {
+        if (order.getPartyName() != null) {
+            String n = order.getPartyName().trim();
+            order.setPartyName(n.isEmpty() ? null : n);
+        }
+        if (order.getPartyPhone() != null) {
+            String p = order.getPartyPhone().trim();
+            order.setPartyPhone(p.isEmpty() ? null : p);
+        }
     }
 
     void applyPlateAndVehicleType(DispatchOrder order) {

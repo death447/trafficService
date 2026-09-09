@@ -44,10 +44,10 @@ public interface DispatchOrderMapper {
                                    @Param("offset") int offset,
                                    @Param("size") int size);
 
-    @Insert("INSERT INTO dispatch_order (order_no, accident_address, longitude, latitude, rescue_reason, plate_no, vehicle_type_id, vehicle_type_name, status, " +
+    @Insert("INSERT INTO dispatch_order (order_no, accident_address, longitude, latitude, rescue_reason, plate_no, vehicle_type_id, vehicle_type_name, party_name, party_phone, status, " +
             "dispatcher_id, vehicle_id, rescuer_id, abort_reason, dispatched_at, completed_at, accepted_at, " +
             "checked_in_at, checkin_lng, checkin_lat, checkin_mode, checkin_remark, reject_reason) " +
-            "VALUES (#{orderNo}, #{accidentAddress}, #{longitude}, #{latitude}, #{rescueReason}, #{plateNo}, #{vehicleTypeId}, #{vehicleTypeName}, #{status}, " +
+            "VALUES (#{orderNo}, #{accidentAddress}, #{longitude}, #{latitude}, #{rescueReason}, #{plateNo}, #{vehicleTypeId}, #{vehicleTypeName}, #{partyName}, #{partyPhone}, #{status}, " +
             "#{dispatcherId}, #{vehicleId}, #{rescuerId}, #{abortReason}, #{dispatchedAt}, #{completedAt}, " +
             "#{acceptedAt}, #{checkedInAt}, #{checkinLng}, #{checkinLat}, #{checkinMode}, #{checkinRemark}, #{rejectReason})")
     @Options(useGeneratedKeys = true, keyProperty = "id")
@@ -56,6 +56,7 @@ public interface DispatchOrderMapper {
     @Update("UPDATE dispatch_order SET order_no = #{orderNo}, accident_address = #{accidentAddress}, " +
             "longitude = #{longitude}, latitude = #{latitude}, rescue_reason = #{rescueReason}, " +
             "plate_no = #{plateNo}, vehicle_type_id = #{vehicleTypeId}, vehicle_type_name = #{vehicleTypeName}, " +
+            "party_name = #{partyName}, party_phone = #{partyPhone}, " +
             "status = #{status}, " +
             "dispatcher_id = #{dispatcherId}, vehicle_id = #{vehicleId}, rescuer_id = #{rescuerId}, " +
             "abort_reason = #{abortReason}, dispatched_at = #{dispatchedAt}, completed_at = #{completedAt}, " +

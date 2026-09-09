@@ -77,6 +77,66 @@ class DispatchOrderServiceTest {
     }
 
     @Test
+    void createNormalizesBlankPartyFieldsToNull() {
+        DispatchOrder order = new DispatchOrder();
+        order.setAccidentAddress("A");
+        order.setRescueReason("B");
+        order.setPartyName("  ");
+        order.setPartyPhone("");
+        Role d = new Role(); d.setRoleCode("DISPATCHER");
+        when(userMapper.findRolesByUserId(7L)).thenReturn(List.of(d));
+        when(dispatchOrderMapper.insert(any())).thenReturn(1);
+
+        assertTrue(service.create(order, 7L));
+        assertNull(order.getPartyName());
+        assertNull(order.getPartyPhone());
+        verify(dispatchOrderMapper).insert(order);
+    }
+
+    @Test
+    void createPersistsTrimmedPartyFields() {
+        DispatchOrder order = new DispatchOrder();
+        order.setAccidentAddress("A");
+        order.setRescueReason("B");
+        order.setPartyName(" 张三 ");
+        order.setPartyPhone(" 13800138000 ");
+        Role d = new Role(); d.setRoleCode("DISPATCHER");
+        when(userMapper.findRolesByUserId(7L)).thenReturn(List.of(d));
+        when(dispatchOrderMapper.insert(any())).thenReturn(1);
+
+        assertTrue(service.create(order, 7L));
+        assertEquals("张三", order.getPartyName());
+        assertEquals("13800138000", order.getPartyPhone());
+        verify(dispatchOrderMapper).insert(order);
+    }
+
+    @Test
+    void updateCopiesPartyFieldsWhenPending() {
+        DispatchOrder existing = new DispatchOrder();
+        existing.setId(9L);
+        existing.setStatus("PENDING");
+        existing.setDispatcherId(1L);
+        when(dispatchOrderMapper.findById(9L)).thenReturn(existing);
+        when(dispatchOrderMapper.update(any())).thenReturn(1);
+
+        Role d = new Role(); d.setRoleCode("DISPATCHER");
+        when(userMapper.findRolesByUserId(1L)).thenReturn(List.of(d));
+
+        DispatchOrder patch = new DispatchOrder();
+        patch.setId(9L);
+        patch.setAccidentAddress("地址");
+        patch.setRescueReason("原因");
+        patch.setDispatcherId(1L);
+        patch.setPartyName(" 李四 ");
+        patch.setPartyPhone(" 13900139000 ");
+
+        assertTrue(service.update(patch));
+        assertEquals("李四", existing.getPartyName());
+        assertEquals("13900139000", existing.getPartyPhone());
+        verify(dispatchOrderMapper).update(existing);
+    }
+
+    @Test
     void createRejectsDisabledVehicleType() {
         DispatchOrder order = new DispatchOrder();
         order.setAccidentAddress("A");

@@ -16,6 +16,8 @@ public class DispatchOrder {
     private String plateNo;
     private Long vehicleTypeId;
     private String vehicleTypeName;
+    private String partyName;
+    private String partyPhone;
     private String status;
     private Long dispatcherId;
     private Long vehicleId;
