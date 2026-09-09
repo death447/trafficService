@@ -39,7 +39,7 @@ On the rescuer mobile **task detail** page, show photos already uploaded via 现
 3. Display URLs via existing `mediaUrl(filePath)` from `utils/request.js`
 4. Media fetch failure on full load:
    - Do not clear order / fieldRecord
-   - Set both media lists to `[]` (or keep last successful lists if preferred during implementation; default: `[]` on failure so UI does not show stale URLs after auth/path errors)
+   - Set both media lists to `[]` so the UI does not show stale URLs after auth/path errors
 
 APIs already available:
 
