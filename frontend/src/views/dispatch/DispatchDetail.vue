@@ -12,172 +12,203 @@
     <p v-if="loading" class="loading-text">加载中…</p>
 
     <template v-else-if="order">
-      <div class="panel info-panel">
-        <div class="info-grid">
-          <div>
-            <span class="label">单号</span>
-            <strong>{{ order.orderNo }}</strong>
-          </div>
-          <div>
-            <span class="label">状态</span>
-            <span :class="['badge', statusBadgeClass(order.status)]">
-              {{ statusLabel(order.status) }}
-            </span>
-          </div>
-          <div class="span-2">
-            <span class="label">事故地点</span>
-            <strong>{{ order.accidentAddress || '—' }}</strong>
-          </div>
-          <div>
-            <span class="label">经度</span>
-            <strong>{{ order.longitude ?? '—' }}</strong>
-          </div>
-          <div>
-            <span class="label">纬度</span>
-            <strong>{{ order.latitude ?? '—' }}</strong>
-          </div>
-          <div class="span-2">
-            <span class="label">施救原因</span>
-            <strong>{{ order.rescueReason || '—' }}</strong>
-          </div>
-          <div>
-            <span class="label">车牌号码</span>
-            <strong>{{ order.plateNo || '—' }}</strong>
-          </div>
-          <div>
-            <span class="label">车型</span>
-            <strong>{{ order.vehicleTypeName || '—' }}</strong>
-          </div>
-          <div>
-            <span class="label">当事人</span>
-            <strong>{{ order.partyName || '—' }}</strong>
-          </div>
-          <div>
-            <span class="label">联系方式</span>
-            <strong>{{ order.partyPhone || '—' }}</strong>
-          </div>
-          <div>
-            <span class="label">调度员</span>
-            <strong>{{ order.dispatcherName || order.dispatcherId || '—' }}</strong>
-          </div>
-          <div>
-            <span class="label">施救员</span>
-            <strong>{{ order.rescuerName || order.rescuerId || '—' }}</strong>
-          </div>
-          <div>
-            <span class="label">车辆</span>
-            <strong>{{ order.vehiclePlate || order.vehicleId || '—' }}</strong>
-          </div>
-          <div v-if="order.abortReason" class="span-2">
-            <span class="label">中止原因</span>
-            <strong>{{ order.abortReason }}</strong>
-          </div>
-          <div>
-            <span class="label">创建时间</span>
-            <strong>{{ formatTime(order.createTime) }}</strong>
-          </div>
-          <div>
-            <span class="label">派单时间</span>
-            <strong>{{ formatTime(order.dispatchedAt) }}</strong>
-          </div>
-        </div>
-      </div>
-
-      <!-- PENDING: map + nearby vehicles + assign -->
-      <template v-if="order.status === 'PENDING'">
-        <div class="panel edit-panel">
-          <h2 class="section-title">车牌、车型与当事人</h2>
-          <div class="edit-form">
-            <label>
-              车牌号码
-              <input v-model.trim="editForm.plateNo" placeholder="选填" maxlength="20" />
-            </label>
-            <label>
-              车型
-              <select v-model="editForm.vehicleTypeId">
-                <option value="">不选择</option>
-                <option v-for="t in editVehicleTypeOptions" :key="t.id" :value="String(t.id)">
-                  {{ t.name }}
-                </option>
-              </select>
-            </label>
-            <label>
-              事故当事人
-              <input v-model.trim="editForm.partyName" placeholder="选填" maxlength="50" />
-            </label>
-            <label>
-              手机号码
-              <input v-model.trim="editForm.partyPhone" placeholder="选填" maxlength="20" />
-            </label>
-            <button type="button" :disabled="savingEdit" @click="onSaveEdit">
-              {{ savingEdit ? '保存中…' : '保存' }}
-            </button>
-          </div>
-          <p v-if="editError" class="error">{{ editError }}</p>
-        </div>
-
-        <div class="assign-layout">
-          <div class="panel map-panel">
-            <h2 class="section-title">事故位置</h2>
-            <div v-if="canShowMap" ref="mapEl" class="map-box" />
-            <div v-else class="map-placeholder">
-              <p v-if="!hasCoords">工单缺少坐标，无法在地图上展示事故点。</p>
-              <p v-else-if="!amapReady">未配置 VITE_AMAP_KEY，地图不可用；请从下方列表派单。</p>
-            </div>
-            <p v-if="mapError" class="error">{{ mapError }}</p>
-          </div>
-
-          <div class="panel vehicle-panel">
-            <h2 class="section-title">附近空闲车辆</h2>
-            <p v-if="matchedDistrict" class="hint-inline">
-              所属片区：{{ matchedDistrict.name }}（{{ matchedDistrict.code }}）
-            </p>
-            <p v-else-if="hasCoords && !nearbyLoading" class="hint-inline">未匹配到片区</p>
-            <p v-if="nearbyHint" class="hint-inline">{{ nearbyHint }}</p>
-            <p v-if="nearbyPollHint" class="hint-inline">{{ nearbyPollHint }}</p>
-            <p v-if="nearbyError" class="error">{{ nearbyError }}</p>
-            <p v-if="nearbyLoading" class="loading-text">加载附近车辆…</p>
-            <template v-else>
-              <div
-                v-for="section in vehicleSections"
-                :key="section.key"
-                class="vehicle-section"
-              >
-                <div class="subsection-header">
-                  <h3 class="subsection-title">{{ section.title }}</h3>
-                  <button
-                    v-if="section.collapsible"
-                    type="button"
-                    class="secondary toggle-stale"
-                    @click="staleExpanded = !staleExpanded"
-                  >
-                    {{ staleExpanded ? '收起' : '展开' }}
-                  </button>
-                </div>
-                <ul
-                  v-if="!section.collapsible || staleExpanded"
-                  class="vehicle-list"
-                >
-                  <li
-                    v-for="item in section.items"
-                    :key="item.vehicle.id"
-                    :class="['vehicle-item', { selected: selectedVehicleId === item.vehicle.id }]"
-                    @click="selectedVehicleId = item.vehicle.id"
-                  >
-                    <div class="vehicle-main">
-                      <strong>{{ item.vehicle.plateNo }}</strong>
-                      <span class="muted">{{ vehicleTypeLabel(item.vehicle.vehicleType) }}</span>
-                    </div>
-                    <div class="vehicle-meta">
-                      <span :class="['badge', 'badge-success']">空闲</span>
-                      <span class="distance">{{ formatDistance(item.distanceMeters) }}</span>
-                    </div>
-                  </li>
-                  <li v-if="!section.items.length" class="empty-item">{{ section.emptyText }}</li>
-                </ul>
+      <div class="detail-layout">
+        <div class="detail-left">
+          <div class="panel info-panel">
+            <div class="info-grid">
+              <div>
+                <span class="label">单号</span>
+                <strong>{{ order.orderNo }}</strong>
               </div>
-            </template>
-            <div class="assign-actions">
+              <div>
+                <span class="label">状态</span>
+                <span :class="['badge', statusBadgeClass(order.status)]">
+                  {{ statusLabel(order.status) }}
+                </span>
+              </div>
+              <div class="span-2">
+                <span class="label">事故地点</span>
+                <strong>{{ order.accidentAddress || '—' }}</strong>
+              </div>
+              <div>
+                <span class="label">经度</span>
+                <strong>{{ order.longitude ?? '—' }}</strong>
+              </div>
+              <div>
+                <span class="label">纬度</span>
+                <strong>{{ order.latitude ?? '—' }}</strong>
+              </div>
+              <div class="span-2">
+                <span class="label">施救原因</span>
+                <strong>{{ order.rescueReason || '—' }}</strong>
+              </div>
+              <div>
+                <span class="label">车牌号码</span>
+                <strong>{{ order.plateNo || '—' }}</strong>
+              </div>
+              <div>
+                <span class="label">车型</span>
+                <strong>{{ order.vehicleTypeName || '—' }}</strong>
+              </div>
+              <div>
+                <span class="label">当事人</span>
+                <strong>{{ order.partyName || '—' }}</strong>
+              </div>
+              <div>
+                <span class="label">联系方式</span>
+                <strong>{{ order.partyPhone || '—' }}</strong>
+              </div>
+              <div>
+                <span class="label">调度员</span>
+                <strong>{{ order.dispatcherName || order.dispatcherId || '—' }}</strong>
+              </div>
+              <div>
+                <span class="label">施救员</span>
+                <strong>{{ order.rescuerName || order.rescuerId || '—' }}</strong>
+              </div>
+              <div>
+                <span class="label">车辆</span>
+                <strong>{{ order.vehiclePlate || order.vehicleId || '—' }}</strong>
+              </div>
+              <div v-if="order.abortReason" class="span-2">
+                <span class="label">中止原因</span>
+                <strong>{{ order.abortReason }}</strong>
+              </div>
+              <div>
+                <span class="label">创建时间</span>
+                <strong>{{ formatTime(order.createTime) }}</strong>
+              </div>
+              <div>
+                <span class="label">派单时间</span>
+                <strong>{{ formatTime(order.dispatchedAt) }}</strong>
+              </div>
+            </div>
+          </div>
+
+          <!-- PENDING: edit + nearby vehicles + assign -->
+          <template v-if="order.status === 'PENDING'">
+            <div class="panel edit-panel">
+              <h2 class="section-title">车牌、车型与当事人</h2>
+              <div class="edit-form">
+                <label>
+                  车牌号码
+                  <input v-model.trim="editForm.plateNo" placeholder="选填" maxlength="20" />
+                </label>
+                <label>
+                  车型
+                  <select v-model="editForm.vehicleTypeId">
+                    <option value="">不选择</option>
+                    <option v-for="t in editVehicleTypeOptions" :key="t.id" :value="String(t.id)">
+                      {{ t.name }}
+                    </option>
+                  </select>
+                </label>
+                <label>
+                  事故当事人
+                  <input v-model.trim="editForm.partyName" placeholder="选填" maxlength="50" />
+                </label>
+                <label>
+                  手机号码
+                  <input v-model.trim="editForm.partyPhone" placeholder="选填" maxlength="20" />
+                </label>
+                <button type="button" :disabled="savingEdit" @click="onSaveEdit">
+                  {{ savingEdit ? '保存中…' : '保存' }}
+                </button>
+              </div>
+              <p v-if="editError" class="error">{{ editError }}</p>
+            </div>
+
+            <div class="panel vehicle-panel">
+              <h2 class="section-title">附近空闲车辆</h2>
+              <p v-if="matchedDistrict" class="hint-inline">
+                所属片区：{{ matchedDistrict.name }}（{{ matchedDistrict.code }}）
+              </p>
+              <p v-else-if="hasCoords && !nearbyLoading" class="hint-inline">未匹配到片区</p>
+              <p v-if="nearbyHint" class="hint-inline">{{ nearbyHint }}</p>
+              <p v-if="nearbyPollHint" class="hint-inline">{{ nearbyPollHint }}</p>
+              <p v-if="nearbyError" class="error">{{ nearbyError }}</p>
+              <p v-if="nearbyLoading" class="loading-text">加载附近车辆…</p>
+              <template v-else>
+                <div
+                  v-for="section in vehicleSections"
+                  :key="section.key"
+                  class="vehicle-section"
+                >
+                  <div class="subsection-header">
+                    <h3 class="subsection-title">{{ section.title }}</h3>
+                    <button
+                      v-if="section.collapsible"
+                      type="button"
+                      class="secondary toggle-stale"
+                      @click="staleExpanded = !staleExpanded"
+                    >
+                      {{ staleExpanded ? '收起' : '展开' }}
+                    </button>
+                  </div>
+                  <ul
+                    v-if="!section.collapsible || staleExpanded"
+                    class="vehicle-list"
+                  >
+                    <li
+                      v-for="item in section.items"
+                      :key="item.vehicle.id"
+                      :class="['vehicle-item', { selected: selectedVehicleId === item.vehicle.id }]"
+                      @click="selectedVehicleId = item.vehicle.id"
+                    >
+                      <div class="vehicle-main">
+                        <strong>{{ item.vehicle.plateNo }}</strong>
+                        <span class="muted">{{ vehicleTypeLabel(item.vehicle.vehicleType) }}</span>
+                      </div>
+                      <div class="vehicle-meta">
+                        <span :class="['badge', 'badge-success']">空闲</span>
+                        <span class="distance">{{ formatDistance(item.distanceMeters) }}</span>
+                      </div>
+                    </li>
+                    <li v-if="!section.items.length" class="empty-item">{{ section.emptyText }}</li>
+                  </ul>
+                </div>
+              </template>
+              <div class="assign-actions">
+                <button
+                  v-auth="'dispatch:abort'"
+                  type="button"
+                  class="danger"
+                  :disabled="!!acting"
+                  @click="openAbort"
+                >
+                  中止工单
+                </button>
+                <button
+                  v-auth="'dispatch:dispatch'"
+                  type="button"
+                  :disabled="!selectedVehicleId || assigning"
+                  @click="onAssign"
+                >
+                  {{ assigning ? '派单中…' : '确认派单' }}
+                </button>
+              </div>
+              <p v-if="actionError" class="error">{{ actionError }}</p>
+            </div>
+          </template>
+
+          <!-- DISPATCHED / ACCEPTED: complete / abort -->
+          <div
+            v-if="order.status === 'DISPATCHED' || order.status === 'ACCEPTED'"
+            class="panel action-panel"
+          >
+            <h2 class="section-title">工单操作</h2>
+            <p class="muted">
+              {{ order.status === 'ACCEPTED' ? '工单已接单，可标记完成或中止。' : '工单已派单，可标记完成或中止。' }}
+            </p>
+            <div class="action-buttons">
+              <button
+                v-auth="'dispatch:complete'"
+                type="button"
+                :disabled="!!acting"
+                @click="onComplete"
+              >
+                {{ acting === 'complete' ? '提交中…' : '完成' }}
+              </button>
               <button
                 v-auth="'dispatch:abort'"
                 type="button"
@@ -185,77 +216,48 @@
                 :disabled="!!acting"
                 @click="openAbort"
               >
-                中止工单
-              </button>
-              <button
-                v-auth="'dispatch:dispatch'"
-                type="button"
-                :disabled="!selectedVehicleId || assigning"
-                @click="onAssign"
-              >
-                {{ assigning ? '派单中…' : '确认派单' }}
+                中止
               </button>
             </div>
             <p v-if="actionError" class="error">{{ actionError }}</p>
           </div>
-        </div>
-      </template>
 
-      <!-- Non-PENDING: location tracking map -->
-      <div
-        v-if="order.status !== 'PENDING'"
-        class="panel map-panel track-map-panel"
-      >
-        <h2 class="section-title">位置跟踪</h2>
-        <div v-if="canShowMap" ref="trackMapEl" class="map-box" />
-        <div v-else class="map-placeholder">
-          <p v-if="!hasCoords">工单缺少坐标，无法在地图上展示。</p>
-          <p v-else-if="!amapReady">未配置 VITE_AMAP_KEY，地图不可用。</p>
-        </div>
-        <p v-if="trackHint" class="hint-inline">{{ trackHint }}</p>
-        <p v-if="trackPollHint" class="hint-inline">{{ trackPollHint }}</p>
-        <p v-if="mapError" class="error">{{ mapError }}</p>
-      </div>
-
-      <!-- DISPATCHED / ACCEPTED: complete / abort -->
-      <div
-        v-if="order.status === 'DISPATCHED' || order.status === 'ACCEPTED'"
-        class="panel action-panel"
-      >
-        <h2 class="section-title">工单操作</h2>
-        <p class="muted">
-          {{ order.status === 'ACCEPTED' ? '工单已接单，可标记完成或中止。' : '工单已派单，可标记完成或中止。' }}
-        </p>
-        <div class="action-buttons">
-          <button
-            v-auth="'dispatch:complete'"
-            type="button"
-            :disabled="!!acting"
-            @click="onComplete"
+          <!-- COMPLETED / ABORTED: read-only -->
+          <div
+            v-else-if="order.status === 'COMPLETED' || order.status === 'ABORTED'"
+            class="panel action-panel"
           >
-            {{ acting === 'complete' ? '提交中…' : '完成' }}
-          </button>
-          <button
-            v-auth="'dispatch:abort'"
-            type="button"
-            class="danger"
-            :disabled="!!acting"
-            @click="openAbort"
-          >
-            中止
-          </button>
+            <p class="muted readonly-note">
+              工单已{{ order.status === 'COMPLETED' ? '完成' : '中止' }}，仅可查看。
+            </p>
+          </div>
         </div>
-        <p v-if="actionError" class="error">{{ actionError }}</p>
-      </div>
 
-      <!-- COMPLETED / ABORTED: read-only -->
-      <div
-        v-else-if="order.status === 'COMPLETED' || order.status === 'ABORTED'"
-        class="panel action-panel"
-      >
-        <p class="muted readonly-note">
-          工单已{{ order.status === 'COMPLETED' ? '完成' : '中止' }}，仅可查看。
-        </p>
+        <div class="detail-right">
+          <!-- PENDING: accident + nearby map -->
+          <div v-if="order.status === 'PENDING'" class="panel map-panel">
+            <h2 class="section-title">事故位置</h2>
+            <div v-if="canShowMap" ref="mapEl" class="map-box" />
+            <div v-else class="map-placeholder">
+              <p v-if="!hasCoords">工单缺少坐标，无法在地图上展示事故点。</p>
+              <p v-else-if="!amapReady">未配置 VITE_AMAP_KEY，地图不可用；请从左侧列表派单。</p>
+            </div>
+            <p v-if="mapError" class="error">{{ mapError }}</p>
+          </div>
+
+          <!-- Non-PENDING: location tracking map -->
+          <div v-else class="panel map-panel track-map-panel">
+            <h2 class="section-title">位置跟踪</h2>
+            <div v-if="canShowMap" ref="trackMapEl" class="map-box" />
+            <div v-else class="map-placeholder">
+              <p v-if="!hasCoords">工单缺少坐标，无法在地图上展示。</p>
+              <p v-else-if="!amapReady">未配置 VITE_AMAP_KEY，地图不可用。</p>
+            </div>
+            <p v-if="trackHint" class="hint-inline">{{ trackHint }}</p>
+            <p v-if="trackPollHint" class="hint-inline">{{ trackPollHint }}</p>
+            <p v-if="mapError" class="error">{{ mapError }}</p>
+          </div>
+        </div>
       </div>
     </template>
 
@@ -864,9 +866,29 @@ onBeforeUnmount(() => {
   font-size: 0.875rem;
 }
 
+.detail-layout {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 1rem;
+  align-items: start;
+}
+
+.detail-left,
+.detail-right {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.detail-right {
+  position: sticky;
+  top: 1rem;
+}
+
 .info-panel {
   padding: 1.15rem 1.25rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0;
 }
 
 .info-grid {
@@ -889,12 +911,6 @@ onBeforeUnmount(() => {
 .info-grid strong {
   font-size: 0.9rem;
   font-weight: 600;
-}
-
-.assign-layout {
-  display: grid;
-  grid-template-columns: 1.1fr 1fr;
-  gap: 1rem;
 }
 
 .section-title {
@@ -938,12 +954,12 @@ onBeforeUnmount(() => {
   padding: 1.1rem 1.2rem;
 }
 
-.track-map-panel {
-  margin-bottom: 1rem;
-}
-
-.edit-panel {
-  margin-bottom: 1rem;
+.track-map-panel,
+.edit-panel,
+.map-panel,
+.vehicle-panel,
+.action-panel {
+  margin-bottom: 0;
 }
 
 .edit-form {
@@ -974,7 +990,8 @@ onBeforeUnmount(() => {
 }
 
 .map-box {
-  height: 360px;
+  height: min(70vh, 640px);
+  min-height: 480px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
@@ -982,7 +999,7 @@ onBeforeUnmount(() => {
 }
 
 .map-placeholder {
-  min-height: 180px;
+  min-height: 480px;
   padding: 1.25rem;
   border: 1px dashed var(--border-strong);
   border-radius: var(--radius);
@@ -1092,9 +1109,24 @@ onBeforeUnmount(() => {
   resize: vertical;
 }
 
-@media (max-width: 900px) {
-  .assign-layout {
+@media (max-width: 960px) {
+  .detail-layout {
     grid-template-columns: 1fr;
+  }
+
+  .detail-right {
+    position: static;
+    order: 2;
+  }
+
+  .detail-left {
+    order: 1;
+  }
+
+  .map-box,
+  .map-placeholder {
+    min-height: 320px;
+    height: 360px;
   }
 
   .info-grid {
