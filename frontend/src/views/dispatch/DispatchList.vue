@@ -48,7 +48,6 @@
             <th>单号</th>
             <th>地点</th>
             <th>派单时间</th>
-            <th>调度员</th>
             <th>施救员</th>
             <th>施救车辆</th>
             <th>事故当事人</th>
@@ -75,7 +74,6 @@
               {{ row.accidentAddress || '—' }}
             </td>
             <td>{{ formatTime(row.dispatchedAt) }}</td>
-            <td>{{ row.dispatcherName || row.dispatcherId || '—' }}</td>
             <td>{{ row.rescuerName || row.rescuerId || '—' }}</td>
             <td>{{ row.vehiclePlate || '—' }}</td>
             <td>{{ row.partyName || '—' }}</td>

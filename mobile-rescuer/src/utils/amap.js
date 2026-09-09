@@ -17,7 +17,22 @@ export function loadAmap() {
   loading = new Promise((resolve, reject) => {
     const script = document.createElement('script')
     script.src = `https://webapi.amap.com/maps?v=2.0&key=${KEY}`
-    script.onload = () => resolve(window.AMap)
+    script.onload = () => {
+      // AMap 2.0 may attach slightly after onload
+      const tryResolve = (left) => {
+        if (window.AMap) {
+          resolve(window.AMap)
+          return
+        }
+        if (left <= 0) {
+          loading = undefined
+          reject(new Error('高德地图对象未就绪'))
+          return
+        }
+        setTimeout(() => tryResolve(left - 1), 50)
+      }
+      tryResolve(40)
+    }
     script.onerror = () => {
       loading = undefined
       reject(new Error('高德地图加载失败'))

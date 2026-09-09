@@ -7,7 +7,8 @@
       </view>
       <view class="line">事故地址：{{ order.accidentAddress || '-' }}</view>
       <view class="line">救援事由：{{ order.rescueReason || '-' }}</view>
-      <view class="line">事故当事人：{{ order.partyName || '-' }}</view>
+      <view class="line">事故车牌：{{ order.plateNo || '-' }}</view>
+      <view class="line">事故联系人：{{ order.partyName || '-' }}</view>
       <view class="line">联系方式：{{ order.partyPhone || '-' }}</view>
       <view class="line muted" v-if="order.checkedInAt">
         已签到（{{ order.checkinMode }}）{{ order.checkedInAt }}
@@ -17,7 +18,8 @@
 
     <view class="card map-card">
       <view class="section-title">位置</view>
-      <view v-if="canShowMap" class="map-box" id="task-detail-map" />
+      <!-- H5: AMap requires a native HTMLElement (div), not uni-view -->
+      <div v-if="canShowMap" id="task-detail-map" class="map-box"></div>
       <view v-else class="map-placeholder">
         <text v-if="!hasAccidentCoords">暂无事故坐标，无法展示地图</text>
         <text v-else-if="!amapReady">未配置地图 Key</text>
@@ -178,11 +180,20 @@ async function ensureMap() {
     destroyMap()
     return
   }
-  const el = document.getElementById('task-detail-map')
-  if (!el) return
+  // Wait for v-if div to mount
+  await nextTick()
+  await new Promise((r) => setTimeout(r, 50))
+  let el = typeof document !== 'undefined' ? document.getElementById('task-detail-map') : null
+  if (!el) {
+    await nextTick()
+    el = document.getElementById('task-detail-map')
+  }
+  if (!el) {
+    mapError.value = '地图容器未就绪'
+    return
+  }
   try {
     const AMap = await loadAmap()
-    // Container remounted (e.g. after v-if cycle) — drop stale instance
     if (
       mapInstance &&
       typeof mapInstance.getContainer === 'function' &&
@@ -193,8 +204,22 @@ async function ensureMap() {
     if (!mapInstance) {
       const lng = Number(order.value.longitude)
       const lat = Number(order.value.latitude)
-      mapInstance = new AMap.Map(el, { zoom: 14, center: [lng, lat] })
+      if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+        mapError.value = '事故坐标无效'
+        return
+      }
+      mapInstance = new AMap.Map(el, {
+        zoom: 14,
+        center: [lng, lat],
+        resizeEnable: true
+      })
       new AMap.Marker({ position: [lng, lat], map: mapInstance })
+      // Force layout after flex/card paint
+      setTimeout(() => {
+        if (mapInstance && typeof mapInstance.resize === 'function') {
+          mapInstance.resize()
+        }
+      }, 100)
     }
   } catch (e) {
     mapError.value = e.message || '地图加载失败'
@@ -216,7 +241,12 @@ function syncVehicleMarker() {
     map: mapInstance,
     icon,
     offset: new AMap.Pixel(-22, -18),
-    title: v.plateNo || ''
+    title: v.plateNo || '',
+    label: {
+      content: v.plateNo || '救援车',
+      direction: 'top',
+      offset: new AMap.Pixel(0, -4)
+    }
   })
   const accident = [Number(order.value.longitude), Number(order.value.latitude)]
   mapInstance.setFitView(
@@ -387,10 +417,12 @@ async function onComplete() {
 }
 .map-box {
   width: 100%;
-  height: 360rpx;
+  height: 240px;
+  min-height: 240px;
   margin-top: 16rpx;
   border-radius: 12rpx;
   overflow: hidden;
+  background: #e8eef5;
 }
 .map-placeholder {
   margin-top: 16rpx;

@@ -21,6 +21,9 @@
           <text class="status">{{ statusText(item.status) }}</text>
         </view>
         <view class="addr">{{ item.accidentAddress || '未填写地址' }}</view>
+        <view class="line">事故车牌：{{ item.plateNo || '-' }}</view>
+        <view class="line">事故联系人：{{ item.partyName || '-' }}</view>
+        <view class="line">联系方式：{{ item.partyPhone || '-' }}</view>
         <view class="muted">{{ item.rescueReason || '' }}</view>
       </view>
     </view>
@@ -117,6 +120,12 @@ function goDetail(id) {
 .addr {
   margin: 16rpx 0 8rpx;
   font-size: 28rpx;
+}
+.line {
+  margin-top: 8rpx;
+  font-size: 26rpx;
+  color: #333;
+  line-height: 1.4;
 }
 .center {
   text-align: center;
