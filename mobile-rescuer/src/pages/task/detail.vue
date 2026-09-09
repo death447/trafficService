@@ -15,6 +15,17 @@
       <view class="line muted" v-if="order.rejectReason">退单原因：{{ order.rejectReason }}</view>
     </view>
 
+    <view class="card map-card">
+      <view class="section-title">位置</view>
+      <view v-if="canShowMap" class="map-box" id="task-detail-map" />
+      <view v-else class="map-placeholder">
+        <text v-if="!hasAccidentCoords">暂无事故坐标，无法展示地图</text>
+        <text v-else-if="!amapReady">未配置地图 Key</text>
+      </view>
+      <view v-if="mapHint" class="line muted">{{ mapHint }}</view>
+      <view v-if="mapError" class="line error">{{ mapError }}</view>
+    </view>
+
     <view class="card" v-if="fieldRecord">
       <view class="section-title">现场摘要</view>
       <view class="line">车牌：{{ fieldRecord.plateNo || '-' }}</view>
@@ -56,8 +67,9 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { onLoad, onShow } from '@dcloudio/uni-app'
+import { ref, computed, nextTick } from 'vue'
+import { onLoad, onShow, onHide, onUnload } from '@dcloudio/uni-app'
+import { hasAmapKey, loadAmap, createVehicleMapIcon } from '../../utils/amap'
 import {
   getTask,
   acceptTask,
@@ -72,12 +84,36 @@ const fieldRecord = ref(null)
 const reasonPanel = ref(null)
 const reasonText = ref('')
 
+const assignedVehicle = ref(null)
+const amapReady = hasAmapKey()
+const mapError = ref('')
+const mapHint = ref('')
+let mapInstance = null
+let vehicleMarker = null
+let pollTimer = null
+
+const hasAccidentCoords = computed(() =>
+  order.value?.longitude != null && order.value?.latitude != null
+)
+const canShowMap = computed(() => amapReady && hasAccidentCoords.value)
+
 onLoad((q) => {
   id.value = q.id
 })
 
 onShow(() => {
-  if (id.value) load()
+  if (id.value) {
+    load().then(() => startPoll())
+  }
+})
+
+onHide(() => {
+  stopPoll()
+})
+
+onUnload(() => {
+  stopPoll()
+  destroyMap()
 })
 
 function statusText(s) {
@@ -96,8 +132,101 @@ async function load() {
     const res = await getTask(id.value)
     order.value = res.data?.order || null
     fieldRecord.value = res.data?.fieldRecord || null
+    assignedVehicle.value = res.data?.assignedVehicle || null
+    updateMapHint()
+    await nextTick()
+    await ensureMap()
+    syncVehicleMarker()
   } catch (_) {
     order.value = null
+  }
+}
+
+function updateMapHint() {
+  const v = assignedVehicle.value
+  if (!v) {
+    mapHint.value = order.value?.vehicleId ? '车辆信息暂不可用' : ''
+    return
+  }
+  if (v.longitude == null || v.latitude == null) {
+    mapHint.value = '车辆暂无位置'
+  } else {
+    mapHint.value = v.plateNo ? `救援车辆：${v.plateNo}` : ''
+  }
+}
+
+async function ensureMap() {
+  mapError.value = ''
+  if (!canShowMap.value) {
+    destroyMap()
+    return
+  }
+  const el = document.getElementById('task-detail-map')
+  if (!el) return
+  try {
+    const AMap = await loadAmap()
+    if (!mapInstance) {
+      const lng = Number(order.value.longitude)
+      const lat = Number(order.value.latitude)
+      mapInstance = new AMap.Map(el, { zoom: 14, center: [lng, lat] })
+      new AMap.Marker({ position: [lng, lat], map: mapInstance })
+    }
+  } catch (e) {
+    mapError.value = e.message || '地图加载失败'
+  }
+}
+
+function syncVehicleMarker() {
+  if (!mapInstance || !window.AMap) return
+  if (vehicleMarker) {
+    vehicleMarker.setMap(null)
+    vehicleMarker = null
+  }
+  const v = assignedVehicle.value
+  if (v?.longitude == null || v?.latitude == null) return
+  const AMap = window.AMap
+  const icon = createVehicleMapIcon(AMap)
+  vehicleMarker = new AMap.Marker({
+    position: [Number(v.longitude), Number(v.latitude)],
+    map: mapInstance,
+    icon,
+    offset: new AMap.Pixel(-22, -18),
+    title: v.plateNo || ''
+  })
+  const accident = [Number(order.value.longitude), Number(order.value.latitude)]
+  mapInstance.setFitView(
+    [new AMap.Marker({ position: accident }), vehicleMarker],
+    false,
+    [40, 40, 40, 40]
+  )
+}
+
+function destroyMap() {
+  if (vehicleMarker) {
+    vehicleMarker.setMap(null)
+    vehicleMarker = null
+  }
+  if (mapInstance && typeof mapInstance.destroy === 'function') {
+    mapInstance.destroy()
+  }
+  mapInstance = null
+}
+
+function startPoll() {
+  stopPoll()
+  const v = assignedVehicle.value
+  const hasVehicleCoords = v && v.longitude != null && v.latitude != null
+  // Spec: poll when tracking vehicle location; also refresh if vehicleId exists so coords can appear later
+  if (!order.value?.vehicleId && !hasVehicleCoords) return
+  pollTimer = setInterval(() => {
+    load()
+  }, 20000)
+}
+
+function stopPoll() {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
   }
 }
 
@@ -230,5 +359,20 @@ async function onComplete() {
 .area {
   min-height: 140rpx;
   margin: 20rpx 0 28rpx;
+}
+.map-box {
+  width: 100%;
+  height: 360rpx;
+  margin-top: 16rpx;
+  border-radius: 12rpx;
+  overflow: hidden;
+}
+.map-placeholder {
+  margin-top: 16rpx;
+  color: #888;
+  font-size: 26rpx;
+}
+.error {
+  color: #c62828;
 }
 </style>
