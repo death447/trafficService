@@ -86,7 +86,7 @@
       <!-- PENDING: map + nearby vehicles + assign -->
       <template v-if="order.status === 'PENDING'">
         <div class="panel edit-panel">
-          <h2 class="section-title">车牌与车型</h2>
+          <h2 class="section-title">车牌、车型与当事人</h2>
           <div class="edit-form">
             <label>
               车牌号码
