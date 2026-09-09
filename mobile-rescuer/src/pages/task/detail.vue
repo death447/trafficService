@@ -35,6 +35,35 @@
       <view class="line">车型：{{ fieldRecord.vehicleType || '-' }}</view>
       <view class="line">受损：{{ fieldRecord.damageDesc || '-' }}</view>
       <view class="line">停放：{{ fieldRecord.parkAddress || '-' }}</view>
+
+      <view v-if="damageMedias.length || parkMedias.length" class="media-block">
+        <view v-if="damageMedias.length" class="media-section">
+          <view class="section-title media-title">受损照片</view>
+          <view class="media-grid">
+            <image
+              v-for="m in damageMedias"
+              :key="m.id"
+              class="thumb"
+              :src="mediaUrl(m.filePath)"
+              mode="aspectFill"
+              @click="previewMedias(damageMedias, m.filePath)"
+            />
+          </view>
+        </view>
+        <view v-if="parkMedias.length" class="media-section">
+          <view class="section-title media-title">停放照片</view>
+          <view class="media-grid">
+            <image
+              v-for="m in parkMedias"
+              :key="m.id"
+              class="thumb"
+              :src="mediaUrl(m.filePath)"
+              mode="aspectFill"
+              @click="previewMedias(parkMedias, m.filePath)"
+            />
+          </view>
+        </view>
+      </view>
     </view>
 
     <view class="actions" v-if="order.status === 'DISPATCHED'">
@@ -77,13 +106,17 @@ import {
   acceptTask,
   rejectTask,
   checkinTask,
-  completeTask
+  completeTask,
+  listMedia
 } from '../../api/rescuer'
+import { mediaUrl } from '../../utils/request'
 import { canAutoCheckin, AUTO_CHECKIN_RADIUS_METERS } from '../../utils/geo'
 
 const id = ref(null)
 const order = ref(null)
 const fieldRecord = ref(null)
+const damageMedias = ref([])
+const parkMedias = ref([])
 const reasonPanel = ref(null)
 const reasonText = ref('')
 
@@ -144,24 +177,38 @@ function statusText(s) {
 
 async function load({ silent = false } = {}) {
   try {
-    const res = await getTask(id.value)
+    if (silent) {
+      const res = await getTask(id.value)
+      order.value = res.data?.order || null
+      fieldRecord.value = res.data?.fieldRecord || null
+      assignedVehicle.value = res.data?.assignedVehicle || null
+      pollHint.value = ''
+      updateMapHint()
+      await nextTick()
+      if (mapInstance) {
+        syncVehicleMarker({ recenter: false })
+        await tryAutoCheckin()
+      }
+      return
+    }
+
+    const [res, mediaRes] = await Promise.all([
+      getTask(id.value),
+      listMedia(id.value).catch(() => ({ data: [] }))
+    ])
     order.value = res.data?.order || null
     fieldRecord.value = res.data?.fieldRecord || null
     assignedVehicle.value = res.data?.assignedVehicle || null
+    const all = mediaRes.data || []
+    damageMedias.value = all.filter((m) => m.bizType === 'DAMAGE')
+    parkMedias.value = all.filter((m) => m.bizType === 'PARK')
     pollHint.value = ''
     updateMapHint()
     await nextTick()
-    if (silent && mapInstance) {
-      // Poll: move vehicle marker only — do not rebuild map / recenter
-      syncVehicleMarker({ recenter: false })
-      await tryAutoCheckin()
-      return
-    }
     await ensureMap()
     syncVehicleMarker({ recenter: true })
     await tryAutoCheckin()
   } catch (_) {
-    // Poll / refresh: keep last good order + map; only wipe on true initial failure
     if (silent || order.value) {
       if (silent) pollHint.value = '位置刷新失败，显示上次数据'
       return
@@ -170,7 +217,14 @@ async function load({ silent = false } = {}) {
     order.value = null
     fieldRecord.value = null
     assignedVehicle.value = null
+    damageMedias.value = []
+    parkMedias.value = []
   }
+}
+
+function previewMedias(list, filePath) {
+  const urls = list.map((m) => mediaUrl(m.filePath))
+  uni.previewImage({ urls, current: mediaUrl(filePath) })
 }
 
 function updateMapHint() {
@@ -540,5 +594,25 @@ async function onComplete() {
 }
 .error {
   color: #c62828;
+}
+.media-block {
+  margin-top: 20rpx;
+}
+.media-section + .media-section {
+  margin-top: 20rpx;
+}
+.media-title {
+  margin-bottom: 16rpx;
+}
+.media-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+}
+.thumb {
+  width: 200rpx;
+  height: 200rpx;
+  border-radius: 12rpx;
+  background: #eee;
 }
 </style>
