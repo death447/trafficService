@@ -151,8 +151,14 @@ async function load({ silent = false } = {}) {
     pollHint.value = ''
     updateMapHint()
     await nextTick()
+    if (silent && mapInstance) {
+      // Poll: move vehicle marker only — do not rebuild map / recenter
+      syncVehicleMarker({ recenter: false })
+      await tryAutoCheckin()
+      return
+    }
     await ensureMap()
-    syncVehicleMarker()
+    syncVehicleMarker({ recenter: true })
     await tryAutoCheckin()
   } catch (_) {
     // Poll / refresh: keep last good order + map; only wipe on true initial failure
@@ -219,43 +225,120 @@ async function ensureMap() {
         center: [lng, lat],
         resizeEnable: true
       })
-      accidentMarker = new AMap.Marker({ position: [lng, lat], map: mapInstance })
+      accidentMarker = new AMap.Marker({ position: [lng, lat] })
+      // AMap 2.0: prefer map.add over constructor `map` for Circle reliability
       accidentCircle = new AMap.Circle({
-        center: [lng, lat],
+        center: new AMap.LngLat(lng, lat),
         radius: AUTO_CHECKIN_RADIUS_METERS,
-        strokeColor: '#2979ff',
-        strokeWeight: 2,
-        strokeOpacity: 0.8,
-        fillColor: '#2979ff',
-        fillOpacity: 0.12,
-        map: mapInstance,
+        strokeColor: '#e53935',
+        strokeOpacity: 0.9,
+        strokeWeight: 3,
+        fillColor: '#e53935',
+        fillOpacity: 0.22,
+        zIndex: 50,
         bubble: true
       })
+      mapInstance.add([accidentMarker, accidentCircle])
+      // Prefer vehicle center when coords already known; else accident until sync
+      centerMapView()
       // Force layout after flex/card paint
       setTimeout(() => {
         if (mapInstance && typeof mapInstance.resize === 'function') {
           mapInstance.resize()
         }
+        centerMapView()
       }, 100)
+    } else if (!accidentCircle && Number.isFinite(Number(order.value.longitude))) {
+      // Hot reload / remount: map exists but circle missing — recreate circle
+      ensureAccidentCircle(AMap)
     }
   } catch (e) {
     mapError.value = e.message || '地图加载失败'
   }
 }
 
-function syncVehicleMarker() {
-  if (!mapInstance || !window.AMap) return
-  if (vehicleMarker) {
-    vehicleMarker.setMap(null)
-    vehicleMarker = null
+function ensureAccidentCircle(AMap) {
+  if (!mapInstance || !order.value) return
+  const lng = Number(order.value.longitude)
+  const lat = Number(order.value.latitude)
+  if (!Number.isFinite(lng) || !Number.isFinite(lat)) return
+  if (!accidentMarker) {
+    accidentMarker = new AMap.Marker({ position: [lng, lat] })
+    mapInstance.add(accidentMarker)
   }
+  if (!accidentCircle) {
+    accidentCircle = new AMap.Circle({
+      center: new AMap.LngLat(lng, lat),
+      radius: AUTO_CHECKIN_RADIUS_METERS,
+      strokeColor: '#e53935',
+      strokeOpacity: 0.9,
+      strokeWeight: 3,
+      fillColor: '#e53935',
+      fillOpacity: 0.22,
+      zIndex: 50,
+      bubble: true
+    })
+    mapInstance.add(accidentCircle)
+  }
+}
+
+/** Center on rescue vehicle when available; otherwise fit accident + 500m circle. */
+function centerMapView() {
+  if (!mapInstance) return
   const v = assignedVehicle.value
-  if (v?.longitude == null || v?.latitude == null) return
+  const vLng = Number(v?.longitude)
+  const vLat = Number(v?.latitude)
+  if (Number.isFinite(vLng) && Number.isFinite(vLat)) {
+    const zoom = mapInstance.getZoom()
+    const z = Number.isFinite(zoom) && zoom >= 12 ? zoom : 15
+    mapInstance.setZoomAndCenter(z, [vLng, vLat])
+    return
+  }
+  const overlays = [accidentMarker, accidentCircle].filter(Boolean)
+  if (overlays.length) {
+    mapInstance.setFitView(overlays, false, [40, 40, 40, 40])
+  }
+}
+
+function syncVehicleMarker({ recenter = true } = {}) {
+  if (!mapInstance || !window.AMap) return
   const AMap = window.AMap
+  ensureAccidentCircle(AMap)
+  const v = assignedVehicle.value
+  const lng = Number(v?.longitude)
+  const lat = Number(v?.latitude)
+  const hasCoords = Number.isFinite(lng) && Number.isFinite(lat)
+
+  if (!hasCoords) {
+    if (vehicleMarker) {
+      try {
+        mapInstance.remove(vehicleMarker)
+      } catch (_) {
+        vehicleMarker.setMap?.(null)
+      }
+      vehicleMarker = null
+    }
+    if (recenter) centerMapView()
+    return
+  }
+
+  if (vehicleMarker) {
+    vehicleMarker.setPosition([lng, lat])
+    if (v.plateNo) {
+      vehicleMarker.setTitle?.(v.plateNo)
+      vehicleMarker.setLabel?.({
+        content: v.plateNo,
+        direction: 'top',
+        offset: new AMap.Pixel(0, -4)
+      })
+    }
+    if (recenter) centerMapView()
+    return
+  }
+
   const icon = createVehicleMapIcon(AMap)
   vehicleMarker = new AMap.Marker({
-    position: [Number(v.longitude), Number(v.latitude)],
-    map: mapInstance,
+    position: [lng, lat],
     icon,
     offset: new AMap.Pixel(-22, -18),
     title: v.plateNo || '',
@@ -265,25 +348,22 @@ function syncVehicleMarker() {
       offset: new AMap.Pixel(0, -4)
     }
   })
-  const overlays = [accidentMarker, accidentCircle, vehicleMarker].filter(Boolean)
-  if (overlays.length) {
-    mapInstance.setFitView(overlays, false, [40, 40, 40, 40])
-  }
+  mapInstance.add(vehicleMarker)
+  if (recenter) centerMapView()
 }
 
 function destroyMap() {
-  if (vehicleMarker) {
-    vehicleMarker.setMap(null)
-    vehicleMarker = null
+  if (mapInstance) {
+    const overlays = [vehicleMarker, accidentCircle, accidentMarker].filter(Boolean)
+    if (overlays.length && typeof mapInstance.remove === 'function') {
+      try {
+        mapInstance.remove(overlays)
+      } catch (_) {}
+    }
   }
-  if (accidentCircle) {
-    accidentCircle.setMap(null)
-    accidentCircle = null
-  }
-  if (accidentMarker) {
-    accidentMarker.setMap(null)
-    accidentMarker = null
-  }
+  vehicleMarker = null
+  accidentCircle = null
+  accidentMarker = null
   if (mapInstance && typeof mapInstance.destroy === 'function') {
     mapInstance.destroy()
   }
