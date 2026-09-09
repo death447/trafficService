@@ -201,9 +201,25 @@
         </div>
       </template>
 
+      <!-- Non-PENDING: location tracking map -->
+      <div
+        v-if="order.status !== 'PENDING' && (canShowMap || hasCoords || !amapReady)"
+        class="panel map-panel track-map-panel"
+      >
+        <h2 class="section-title">位置跟踪</h2>
+        <div v-if="canShowMap" ref="trackMapEl" class="map-box" />
+        <div v-else class="map-placeholder">
+          <p v-if="!hasCoords">工单缺少坐标，无法在地图上展示。</p>
+          <p v-else-if="!amapReady">未配置 VITE_AMAP_KEY，地图不可用。</p>
+        </div>
+        <p v-if="trackHint" class="hint-inline">{{ trackHint }}</p>
+        <p v-if="trackPollHint" class="hint-inline">{{ trackPollHint }}</p>
+        <p v-if="mapError" class="error">{{ mapError }}</p>
+      </div>
+
       <!-- DISPATCHED / ACCEPTED: complete / abort -->
       <div
-        v-else-if="order.status === 'DISPATCHED' || order.status === 'ACCEPTED'"
+        v-if="order.status === 'DISPATCHED' || order.status === 'ACCEPTED'"
         class="panel action-panel"
       >
         <h2 class="section-title">工单操作</h2>
@@ -233,7 +249,10 @@
       </div>
 
       <!-- COMPLETED / ABORTED: read-only -->
-      <div v-else class="panel action-panel">
+      <div
+        v-else-if="order.status === 'COMPLETED' || order.status === 'ABORTED'"
+        class="panel action-panel"
+      >
         <p class="muted readonly-note">
           工单已{{ order.status === 'COMPLETED' ? '完成' : '中止' }}，仅可查看。
         </p>
@@ -274,7 +293,7 @@ import {
   completeDispatch,
   abortDispatch
 } from '../../api/dispatch'
-import { nearbyVehicles, listVehicles } from '../../api/vehicle'
+import { nearbyVehicles, listVehicles, getVehicle } from '../../api/vehicle'
 import { listEnabledVehicleTypes } from '../../api/vehicleType'
 import { hasAmapKey, loadAmap, createVehicleMapIcon } from '../../utils/amap'
 
@@ -340,11 +359,17 @@ const vehicleSections = computed(() => [
 ])
 
 const mapEl = ref(null)
+const trackMapEl = ref(null)
+const trackHint = ref('')
+const trackPollHint = ref('')
+const trackedVehicle = ref(null) // { id, plateNo, longitude, latitude, ... }
 const amapReady = hasAmapKey()
 const mapError = ref('')
 let mapInstance = null
 let nearbyPollTimer = null
+let trackPollTimer = null
 let vehicleMarkers = []
+let trackVehicleMarker = null
 
 const abortVisible = ref(false)
 const abortReason = ref('')
@@ -586,6 +611,84 @@ function stopNearbyPoll() {
   }
 }
 
+async function loadTrackedVehicle({ silent = false } = {}) {
+  trackPollHint.value = ''
+  const vehicleId = order.value?.vehicleId
+  if (!vehicleId) {
+    trackedVehicle.value = null
+    trackHint.value = '本单未绑定车辆'
+    syncTrackMarkers()
+    return
+  }
+  try {
+    const res = await getVehicle(vehicleId)
+    trackedVehicle.value = res.data || null
+    const v = trackedVehicle.value
+    if (v && v.longitude != null && v.latitude != null) {
+      trackHint.value = v.plateNo ? `施救车辆：${v.plateNo}` : ''
+    } else {
+      trackHint.value = '车辆暂无位置'
+    }
+    syncTrackMarkers()
+  } catch (e) {
+    if (silent) {
+      trackPollHint.value = e.response?.data?.message || e.message || '刷新车辆位置失败'
+    } else {
+      trackHint.value = e.response?.data?.message || e.message || '加载车辆位置失败'
+      trackedVehicle.value = null
+    }
+  }
+}
+
+function startTrackPoll() {
+  stopTrackPoll()
+  if (order.value?.status === 'PENDING' || !order.value?.vehicleId) return
+  trackPollTimer = setInterval(() => {
+    loadTrackedVehicle({ silent: true })
+  }, 20000)
+}
+
+function stopTrackPoll() {
+  if (trackPollTimer) {
+    clearInterval(trackPollTimer)
+    trackPollTimer = null
+  }
+}
+
+function clearTrackVehicleMarker() {
+  if (trackVehicleMarker && typeof trackVehicleMarker.setMap === 'function') {
+    trackVehicleMarker.setMap(null)
+  }
+  trackVehicleMarker = null
+}
+
+function syncTrackMarkers() {
+  if (!mapInstance || !window.AMap) return
+  clearTrackVehicleMarker()
+  const v = trackedVehicle.value
+  if (v?.longitude == null || v?.latitude == null) return
+  const AMap = window.AMap
+  const icon = createVehicleMapIcon(AMap)
+  trackVehicleMarker = new AMap.Marker({
+    position: [Number(v.longitude), Number(v.latitude)],
+    map: mapInstance,
+    icon,
+    offset: new AMap.Pixel(-22, -18),
+    title: v.plateNo || '',
+    label: {
+      content: v.plateNo || '施救车',
+      direction: 'top',
+      offset: new AMap.Pixel(0, -4)
+    }
+  })
+  const accident = [Number(order.value.longitude), Number(order.value.latitude)]
+  mapInstance.setFitView(
+    [new AMap.Marker({ position: accident }), trackVehicleMarker],
+    false,
+    [60, 60, 60, 60]
+  )
+}
+
 async function initMap() {
   destroyMap()
   mapError.value = ''
@@ -605,8 +708,28 @@ async function initMap() {
   }
 }
 
+async function initTrackMap() {
+  destroyMap()
+  mapError.value = ''
+  if (!canShowMap.value || !trackMapEl.value) return
+  try {
+    const AMap = await loadAmap()
+    const lng = Number(order.value.longitude)
+    const lat = Number(order.value.latitude)
+    mapInstance = new AMap.Map(trackMapEl.value, {
+      zoom: 14,
+      center: [lng, lat]
+    })
+    new AMap.Marker({ position: [lng, lat], map: mapInstance })
+    syncTrackMarkers()
+  } catch (e) {
+    mapError.value = e.message || '地图加载失败'
+  }
+}
+
 function destroyMap() {
   clearVehicleMarkers()
+  clearTrackVehicleMarker()
   if (mapInstance && typeof mapInstance.destroy === 'function') {
     mapInstance.destroy()
   }
@@ -672,11 +795,21 @@ watch(
   async (status) => {
     destroyMap()
     stopNearbyPoll()
+    stopTrackPoll()
+    trackedVehicle.value = null
+    trackHint.value = ''
+    trackPollHint.value = ''
+    if (!status) return
     if (status === 'PENDING') {
       await loadNearby()
       await nextTick()
       await initMap()
       startNearbyPoll()
+    } else {
+      await loadTrackedVehicle()
+      await nextTick()
+      await initTrackMap()
+      startTrackPoll()
     }
   }
 )
@@ -686,18 +819,29 @@ watch(
   async () => {
     destroyMap()
     stopNearbyPoll()
+    stopTrackPoll()
+    trackedVehicle.value = null
+    trackHint.value = ''
+    trackPollHint.value = ''
     nearby.value = []
     staleNearby.value = []
     matchedDistrict.value = null
     selectedVehicleId.value = null
     nearbyPollHint.value = ''
     await loadOrder()
-    // Status watcher may not re-fire when both orders are PENDING
-    if (order.value?.status === 'PENDING') {
+    // Status watcher may not re-fire when both orders share the same status
+    const status = order.value?.status
+    if (!status) return
+    if (status === 'PENDING') {
       await loadNearby()
       await nextTick()
       await initMap()
       startNearbyPoll()
+    } else {
+      await loadTrackedVehicle()
+      await nextTick()
+      await initTrackMap()
+      startTrackPoll()
     }
   }
 )
@@ -709,6 +853,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   stopNearbyPoll()
+  stopTrackPoll()
   destroyMap()
 })
 </script>
@@ -791,6 +936,10 @@ onBeforeUnmount(() => {
 .action-panel,
 .edit-panel {
   padding: 1.1rem 1.2rem;
+}
+
+.track-map-panel {
+  margin-bottom: 1rem;
 }
 
 .edit-panel {
