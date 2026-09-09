@@ -15,6 +15,7 @@
 <script setup>
 import { ref } from 'vue'
 import { bindVehicle } from '../../api/rescuer'
+import { startLocationReporter } from '../../utils/locationReporter'
 
 const payload = ref('')
 
@@ -39,6 +40,7 @@ async function onBind() {
   }
   try {
     await bindVehicle(qrPayload)
+    startLocationReporter()
     uni.showToast({ title: '绑定成功', icon: 'success' })
     setTimeout(() => uni.navigateBack(), 400)
   } catch (_) {}

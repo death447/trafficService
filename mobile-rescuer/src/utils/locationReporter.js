@@ -1,15 +1,48 @@
-import { getUserState } from '../stores/user'
 import { getBoundVehicle, reportLocation } from '../api/rescuer'
 
 const INTERVAL_MS = 30000
 let timer = null
 let running = false
 let unboundNotified = false
+let lastFailLogAt = 0
 
+function hasToken() {
+  return Boolean(uni.getStorageSync('token'))
+}
+
+function logFail(msg, detail) {
+  const now = Date.now()
+  // throttle console noise to once / 15s
+  if (now - lastFailLogAt < 15000) return
+  lastFailLogAt = now
+  console.warn('[locationReporter]', msg, detail || '')
+}
+
+/**
+ * H5: uni.getLocation often fails (permission / insecure context).
+ * Prefer navigator.geolocation on browser when available.
+ */
 function getLocationOnce() {
+  if (typeof navigator !== 'undefined' && navigator.geolocation) {
+    return new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          resolve({
+            longitude: pos.coords.longitude,
+            latitude: pos.coords.latitude,
+            accuracy: pos.coords.accuracy
+          })
+        },
+        (err) => reject(err),
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+      )
+    })
+  }
   return new Promise((resolve, reject) => {
     uni.getLocation({
       type: 'gcj02',
+      isHighAccuracy: true,
+      highAccuracyExpireTime: 5000,
       success: (res) => resolve(res),
       fail: (err) => reject(err)
     })
@@ -17,8 +50,7 @@ function getLocationOnce() {
 }
 
 async function tick() {
-  const { token } = getUserState()
-  if (!token) {
+  if (!hasToken()) {
     stopLocationReporter()
     return
   }
@@ -27,29 +59,33 @@ async function tick() {
     if (!bound?.data?.id) {
       if (!unboundNotified) {
         unboundNotified = true
-        // 非阻塞：控制台即可，避免频繁 toast
-        console.warn('[locationReporter] 未绑定车辆，跳过上报')
+        logFail('未绑定车辆，跳过上报')
       }
       return
     }
     unboundNotified = false
     const loc = await getLocationOnce()
+    if (loc?.longitude == null || loc?.latitude == null) {
+      logFail('定位结果无经纬度')
+      return
+    }
     await reportLocation(loc.longitude, loc.latitude, loc.accuracy)
   } catch (e) {
-    const msg = e?.message || e?.errMsg || String(e)
+    const msg = e?.message || e?.errMsg || e?.code || String(e)
     if (typeof msg === 'string' && msg.includes('绑定')) {
       stopLocationReporter()
+      return
     }
-    // 定位失败静默
+    logFail('本轮上报失败（定位或接口）', msg)
   }
 }
 
 export function startLocationReporter() {
-  const { token } = getUserState()
-  if (!token) return
-  // Restart-safe: no-op when already running with an active timer;
-  // if a prior early-return left running=false, start works; if running without timer, ensure one.
-  if (running && timer) return
+  if (!hasToken()) return
+  // Restart-safe: ensure interval is active
+  if (running && timer) {
+    return
+  }
   running = true
   tick()
   if (!timer) {

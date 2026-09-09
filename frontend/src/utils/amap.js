@@ -224,3 +224,38 @@ export async function createPolygonEditor(container, { path = [], onChange } = {
     }
   }
 }
+
+/** Inline SVG yellow mini truck (no circle) — data URL for AMap.Icon */
+const VEHICLE_ICON_SVG = encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="40" viewBox="0 0 48 40">
+    <g transform="translate(2 2)">
+      <!-- cargo bed -->
+      <rect x="1" y="10" width="22" height="14" rx="1.5" fill="#f5c518" stroke="#c9a000" stroke-width="1"/>
+      <rect x="3" y="12" width="18" height="10" rx="1" fill="#ffe066"/>
+      <!-- cab -->
+      <path d="M24 14h8.5L38 20.5V24H24V14z" fill="#f0b400" stroke="#c9a000" stroke-width="1"/>
+      <path d="M26 15.5h5.5L35 20H26V15.5z" fill="#fff3bf"/>
+      <!-- bumper -->
+      <rect x="37.5" y="21" width="4" height="5" rx="1" fill="#d4a017"/>
+      <!-- wheels -->
+      <circle cx="10" cy="27" r="5" fill="#333"/>
+      <circle cx="10" cy="27" r="2.2" fill="#ccc"/>
+      <circle cx="30" cy="27" r="5" fill="#333"/>
+      <circle cx="30" cy="27" r="2.2" fill="#ccc"/>
+    </g>
+  </svg>`.replace(/\s+/g, ' ')
+)
+
+const VEHICLE_ICON_URL = `data:image/svg+xml,${VEHICLE_ICON_SVG}`
+
+/**
+ * AMap icon for rescue vehicle markers (shared by create/detail maps).
+ * @param {typeof window.AMap} AMap
+ */
+export function createVehicleMapIcon(AMap) {
+  return new AMap.Icon({
+    size: new AMap.Size(44, 36),
+    image: VEHICLE_ICON_URL,
+    imageSize: new AMap.Size(44, 36)
+  })
+}

@@ -27,6 +27,7 @@ import { reactive, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { getProfile, getBoundVehicle } from '../../api/rescuer'
 import { getUserState, logout } from '../../stores/user'
+import { startLocationReporter } from '../../utils/locationReporter'
 
 const profile = reactive({
   username: '',
@@ -41,6 +42,7 @@ onShow(() => {
     uni.reLaunch({ url: '/pages/login/index' })
     return
   }
+  startLocationReporter()
   load()
 })
 

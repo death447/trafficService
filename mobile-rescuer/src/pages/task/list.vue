@@ -32,6 +32,7 @@ import { ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { listTasks } from '../../api/rescuer'
 import { getUserState } from '../../stores/user'
+import { startLocationReporter } from '../../utils/locationReporter'
 
 const tabs = [
   { label: '待办', value: 'todo' },
@@ -48,6 +49,7 @@ onShow(() => {
     uni.reLaunch({ url: '/pages/login/index' })
     return
   }
+  startLocationReporter()
   load()
 })
 

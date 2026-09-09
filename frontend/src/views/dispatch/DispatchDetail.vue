@@ -260,7 +260,7 @@ import {
 } from '../../api/dispatch'
 import { nearbyVehicles, listVehicles } from '../../api/vehicle'
 import { listEnabledVehicleTypes } from '../../api/vehicleType'
-import { hasAmapKey, loadAmap } from '../../utils/amap'
+import { hasAmapKey, loadAmap, createVehicleMapIcon } from '../../utils/amap'
 
 const route = useRoute()
 const id = computed(() => route.params.id)
@@ -526,16 +526,20 @@ function syncVehicleMarkers() {
   if (!mapInstance || !window.AMap) return
   clearVehicleMarkers()
   const AMap = window.AMap
+  const icon = createVehicleMapIcon(AMap)
   nearby.value.forEach((item) => {
     const v = item.vehicle
     if (v?.longitude == null || v?.latitude == null) return
     const marker = new AMap.Marker({
       position: [Number(v.longitude), Number(v.latitude)],
       map: mapInstance,
+      icon,
+      offset: new AMap.Pixel(-22, -18),
       title: v.plateNo || '',
       label: {
         content: `${v.plateNo || ''} ${formatDistance(item.distanceMeters)}`,
-        direction: 'top'
+        direction: 'top',
+        offset: new AMap.Pixel(0, -4)
       }
     })
     marker.on('click', () => {

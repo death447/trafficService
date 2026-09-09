@@ -14,7 +14,11 @@ export default {
     startLocationReporter()
   },
   onHide() {
-    stopLocationReporter()
+    // H5（有 window）: 切标签也会触发 onHide，停表会导致几乎不上报；仅原生 App 在后台停表。
+    const isH5 = typeof window !== 'undefined' && typeof document !== 'undefined'
+    if (!isH5) {
+      stopLocationReporter()
+    }
   }
 }
 </script>
