@@ -1,8 +1,10 @@
 <template>
   <view class="page">
     <view class="card">
-      <view class="muted tip">扫码内容格式：RV:{车辆ID}。H5 扫码可能受限，可手动输入。</view>
-      <view class="btn-primary" @click="onScan">扫码绑定</view>
+      <view class="muted tip">扫码内容格式：RV:{车辆ID}。可用摄像头/相册扫码，也可手动输入。</view>
+      <view class="btn-primary" :class="{ 'btn-disabled': scanning }" @click="onScan">
+        {{ scanning ? '扫码中…' : '扫码绑定' }}
+      </view>
       <view class="field" style="margin-top: 32rpx">
         <view class="field-label">手动输入载荷</view>
         <input class="field-input" v-model="payload" placeholder="例如 RV:1" />
@@ -16,20 +18,26 @@
 import { ref } from 'vue'
 import { bindVehicle } from '../../api/rescuer'
 import { startLocationReporter } from '../../utils/locationReporter'
+import { scanQrCode } from '../../utils/scanCode'
 
 const payload = ref('')
+const scanning = ref(false)
 
-function onScan() {
-  uni.scanCode({
-    onlyFromCamera: false,
-    success: (res) => {
-      payload.value = (res.result || '').trim()
-      if (payload.value) onBind()
-    },
-    fail: () => {
-      uni.showToast({ title: '扫码不可用，请手输 RV:id', icon: 'none' })
+async function onScan() {
+  if (scanning.value) return
+  scanning.value = true
+  try {
+    const text = await scanQrCode()
+    payload.value = text
+    if (payload.value) await onBind()
+  } catch (e) {
+    const msg = (e && e.message) || ''
+    if (msg !== 'cancel') {
+      uni.showToast({ title: '扫码失败，请手输 RV:id', icon: 'none' })
     }
-  })
+  } finally {
+    scanning.value = false
+  }
 }
 
 async function onBind() {

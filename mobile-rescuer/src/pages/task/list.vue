@@ -25,6 +25,7 @@
         <view class="line">事故联系人：{{ item.partyName || '-' }}</view>
         <view class="line">联系方式：{{ item.partyPhone || '-' }}</view>
         <view class="muted">{{ item.rescueReason || '' }}</view>
+        <view class="line">派单时间：{{ formatTime(item.dispatchedAt) }}</view>
       </view>
     </view>
   </view>
@@ -65,6 +66,11 @@ function statusText(s) {
     ABORTED: '已中止'
   }
   return map[s] || s || '-'
+}
+
+function formatTime(value) {
+  if (!value) return '-'
+  return String(value).replace('T', ' ').slice(0, 19)
 }
 
 async function load() {

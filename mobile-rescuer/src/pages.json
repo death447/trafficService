@@ -32,6 +32,12 @@
       }
     },
     {
+      "path": "pages/mine/scan",
+      "style": {
+        "navigationBarTitleText": "扫码绑车"
+      }
+    },
+    {
       "path": "pages/task/detail",
       "style": {
         "navigationBarTitleText": "任务详情"

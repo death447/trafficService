@@ -87,12 +87,53 @@ page {
   font-size: 26rpx;
 }
 
+/* Override uni-input 1.4em height + border-box padding (crushes tap area) and force readable text color. */
 .field-input {
-  background: #f5f6f8;
-  border-radius: 12rpx;
-  padding: 20rpx 24rpx;
+  display: block;
   width: 100%;
   box-sizing: border-box;
+  background: #f5f6f8;
+  border-radius: 12rpx;
+  padding: 22rpx 24rpx;
+  height: auto;
+  min-height: 88rpx;
+  line-height: 1.4;
+  font-size: 16px;
+  color: #222;
+  -webkit-text-fill-color: #222;
+  color-scheme: light;
+  -webkit-user-select: text;
+  user-select: text;
+  overflow: visible;
+}
+
+uni-textarea.field-input,
+.field-input.area {
+  min-height: 140rpx;
+  height: auto;
+  width: 100%;
+}
+
+/* H5 内层原生控件：继承外层可读色与可选中 */
+.field-input .uni-input-wrapper,
+.field-input .uni-textarea-wrapper {
+  min-height: inherit;
+  height: 100%;
+}
+
+.field-input .uni-input-input,
+.field-input .uni-textarea-textarea {
+  color: #222 !important;
+  -webkit-text-fill-color: #222 !important;
+  -webkit-user-select: text;
+  user-select: text;
+  caret-color: #222;
+}
+
+.field-input .uni-input-placeholder,
+.field-input .uni-textarea-placeholder {
+  color: #999;
+  -webkit-text-fill-color: #999;
 }
 
 .muted {
