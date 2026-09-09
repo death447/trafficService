@@ -111,6 +111,8 @@ CREATE TABLE `dispatch_order` (
   `plate_no` VARCHAR(20) DEFAULT NULL COMMENT '事故车辆车牌',
   `vehicle_type_id` BIGINT DEFAULT NULL COMMENT '事故车型字典 id',
   `vehicle_type_name` VARCHAR(50) DEFAULT NULL COMMENT '车型名称快照',
+  `party_name` VARCHAR(50) DEFAULT NULL COMMENT '事故当事人',
+  `party_phone` VARCHAR(20) DEFAULT NULL COMMENT '联系方式/手机号码',
   `status` VARCHAR(20) NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING/DISPATCHED/ACCEPTED/COMPLETED/ABORTED',
   `dispatcher_id` BIGINT NOT NULL COMMENT '创建调度员 user.id',
   `vehicle_id` BIGINT DEFAULT NULL,
