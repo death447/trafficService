@@ -187,8 +187,8 @@ async function load({ silent = false } = {}) {
       await nextTick()
       if (mapInstance) {
         syncVehicleMarker({ recenter: false })
-        await tryAutoCheckin()
       }
+      await tryAutoCheckin()
       return
     }
 
