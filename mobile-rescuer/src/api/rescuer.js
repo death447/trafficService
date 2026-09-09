@@ -40,8 +40,8 @@ export function rejectTask(id, reason) {
   return request({ url: `${PREFIX}/tasks/${id}/reject`, method: 'POST', data: { reason } })
 }
 
-export function checkinTask(id, data) {
-  return request({ url: `${PREFIX}/tasks/${id}/checkin`, method: 'POST', data })
+export function checkinTask(id, data, { showError = true } = {}) {
+  return request({ url: `${PREFIX}/tasks/${id}/checkin`, method: 'POST', data, showError })
 }
 
 export function saveScene(id, data) {

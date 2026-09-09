@@ -43,8 +43,7 @@
     </view>
 
     <view class="actions" v-if="order.status === 'ACCEPTED'">
-      <view v-if="!order.checkedInAt" class="btn-primary" @click="onCheckin">签到</view>
-      <view v-if="!order.checkedInAt" class="btn-ghost" @click="promptManual">无法定位，手动签到</view>
+      <view v-if="!order.checkedInAt" class="btn-ghost" @click="promptManual">手动签到（需填写原因）</view>
       <view class="btn-ghost" @click="goScene">现场采集</view>
       <view class="btn-ghost" @click="goPark">入库登记</view>
       <view
@@ -80,6 +79,7 @@ import {
   checkinTask,
   completeTask
 } from '../../api/rescuer'
+import { canAutoCheckin, AUTO_CHECKIN_RADIUS_METERS } from '../../utils/geo'
 
 const id = ref(null)
 const order = ref(null)
@@ -93,9 +93,13 @@ const mapError = ref('')
 const mapHint = ref('')
 const pollHint = ref('')
 let mapInstance = null
+let accidentMarker = null
+let accidentCircle = null
 let vehicleMarker = null
 let pollTimer = null
 let pageVisible = false
+let autoCheckinInFlight = false
+let autoCheckinDone = false
 
 const hasAccidentCoords = computed(() =>
   order.value?.longitude != null && order.value?.latitude != null
@@ -104,6 +108,7 @@ const canShowMap = computed(() => amapReady && hasAccidentCoords.value)
 
 onLoad((q) => {
   id.value = q.id
+  autoCheckinDone = false
 })
 
 onShow(() => {
@@ -148,6 +153,7 @@ async function load({ silent = false } = {}) {
     await nextTick()
     await ensureMap()
     syncVehicleMarker()
+    await tryAutoCheckin()
   } catch (_) {
     // Poll / refresh: keep last good order + map; only wipe on true initial failure
     if (silent || order.value) {
@@ -213,7 +219,18 @@ async function ensureMap() {
         center: [lng, lat],
         resizeEnable: true
       })
-      new AMap.Marker({ position: [lng, lat], map: mapInstance })
+      accidentMarker = new AMap.Marker({ position: [lng, lat], map: mapInstance })
+      accidentCircle = new AMap.Circle({
+        center: [lng, lat],
+        radius: AUTO_CHECKIN_RADIUS_METERS,
+        strokeColor: '#2979ff',
+        strokeWeight: 2,
+        strokeOpacity: 0.8,
+        fillColor: '#2979ff',
+        fillOpacity: 0.12,
+        map: mapInstance,
+        bubble: true
+      })
       // Force layout after flex/card paint
       setTimeout(() => {
         if (mapInstance && typeof mapInstance.resize === 'function') {
@@ -248,18 +265,24 @@ function syncVehicleMarker() {
       offset: new AMap.Pixel(0, -4)
     }
   })
-  const accident = [Number(order.value.longitude), Number(order.value.latitude)]
-  mapInstance.setFitView(
-    [new AMap.Marker({ position: accident }), vehicleMarker],
-    false,
-    [40, 40, 40, 40]
-  )
+  const overlays = [accidentMarker, accidentCircle, vehicleMarker].filter(Boolean)
+  if (overlays.length) {
+    mapInstance.setFitView(overlays, false, [40, 40, 40, 40])
+  }
 }
 
 function destroyMap() {
   if (vehicleMarker) {
     vehicleMarker.setMap(null)
     vehicleMarker = null
+  }
+  if (accidentCircle) {
+    accidentCircle.setMap(null)
+    accidentCircle = null
+  }
+  if (accidentMarker) {
+    accidentMarker.setMap(null)
+    accidentMarker = null
   }
   if (mapInstance && typeof mapInstance.destroy === 'function') {
     mapInstance.destroy()
@@ -275,7 +298,7 @@ function startPoll() {
   if (!order.value?.vehicleId && !hasVehicleCoords) return
   pollTimer = setInterval(() => {
     load({ silent: true })
-  }, 20000)
+  }, 10000)
 }
 
 function stopPoll() {
@@ -328,24 +351,30 @@ async function submitReason() {
   }
 }
 
-function onCheckin() {
-  uni.getLocation({
-    type: 'gcj02',
-    success: async (loc) => {
-      try {
-        await checkinTask(id.value, {
-          lng: loc.longitude,
-          lat: loc.latitude,
-          mode: 'AUTO'
-        })
-        uni.showToast({ title: '签到成功', icon: 'success' })
-        load()
-      } catch (_) {
-        // Distance / API errors already toasted by request.js; do not open MANUAL
-      }
-    },
-    fail: () => promptManual()
-  })
+async function tryAutoCheckin() {
+  if (autoCheckinDone || autoCheckinInFlight) return
+  const o = order.value
+  const v = assignedVehicle.value
+  if (!canAutoCheckin(o, v)) return
+  autoCheckinInFlight = true
+  try {
+    await checkinTask(
+      id.value,
+      {
+        lng: Number(v.longitude),
+        lat: Number(v.latitude),
+        mode: 'AUTO'
+      },
+      { showError: false }
+    )
+    autoCheckinDone = true
+    uni.showToast({ title: '签到成功', icon: 'success' })
+    await load({ silent: true })
+  } catch (_) {
+    // silent: AUTO during poll must not toast every 10s
+  } finally {
+    autoCheckinInFlight = false
+  }
 }
 
 function goScene() {
