@@ -203,7 +203,7 @@
 
       <!-- Non-PENDING: location tracking map -->
       <div
-        v-if="order.status !== 'PENDING' && (canShowMap || hasCoords || !amapReady)"
+        v-if="order.status !== 'PENDING'"
         class="panel map-panel track-map-panel"
       >
         <h2 class="section-title">位置跟踪</h2>

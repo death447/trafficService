@@ -23,6 +23,7 @@
         <text v-else-if="!amapReady">未配置地图 Key</text>
       </view>
       <view v-if="mapHint" class="line muted">{{ mapHint }}</view>
+      <view v-if="pollHint" class="line muted">{{ pollHint }}</view>
       <view v-if="mapError" class="line error">{{ mapError }}</view>
     </view>
 
@@ -88,9 +89,11 @@ const assignedVehicle = ref(null)
 const amapReady = hasAmapKey()
 const mapError = ref('')
 const mapHint = ref('')
+const pollHint = ref('')
 let mapInstance = null
 let vehicleMarker = null
 let pollTimer = null
+let pageVisible = false
 
 const hasAccidentCoords = computed(() =>
   order.value?.longitude != null && order.value?.latitude != null
@@ -102,16 +105,21 @@ onLoad((q) => {
 })
 
 onShow(() => {
+  pageVisible = true
   if (id.value) {
-    load().then(() => startPoll())
+    load().then(() => {
+      if (pageVisible) startPoll()
+    })
   }
 })
 
 onHide(() => {
+  pageVisible = false
   stopPoll()
 })
 
 onUnload(() => {
+  pageVisible = false
   stopPoll()
   destroyMap()
 })
@@ -127,18 +135,27 @@ function statusText(s) {
   return map[s] || s || '-'
 }
 
-async function load() {
+async function load({ silent = false } = {}) {
   try {
     const res = await getTask(id.value)
     order.value = res.data?.order || null
     fieldRecord.value = res.data?.fieldRecord || null
     assignedVehicle.value = res.data?.assignedVehicle || null
+    pollHint.value = ''
     updateMapHint()
     await nextTick()
     await ensureMap()
     syncVehicleMarker()
   } catch (_) {
+    // Poll / refresh: keep last good order + map; only wipe on true initial failure
+    if (silent || order.value) {
+      if (silent) pollHint.value = '位置刷新失败，显示上次数据'
+      return
+    }
+    destroyMap()
     order.value = null
+    fieldRecord.value = null
+    assignedVehicle.value = null
   }
 }
 
@@ -165,6 +182,14 @@ async function ensureMap() {
   if (!el) return
   try {
     const AMap = await loadAmap()
+    // Container remounted (e.g. after v-if cycle) — drop stale instance
+    if (
+      mapInstance &&
+      typeof mapInstance.getContainer === 'function' &&
+      mapInstance.getContainer() !== el
+    ) {
+      destroyMap()
+    }
     if (!mapInstance) {
       const lng = Number(order.value.longitude)
       const lat = Number(order.value.latitude)
@@ -219,7 +244,7 @@ function startPoll() {
   // Spec: poll when tracking vehicle location; also refresh if vehicleId exists so coords can appear later
   if (!order.value?.vehicleId && !hasVehicleCoords) return
   pollTimer = setInterval(() => {
-    load()
+    load({ silent: true })
   }, 20000)
 }
 
