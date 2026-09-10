@@ -46,7 +46,7 @@
     {
       "path": "pages/mine/scan",
       "style": {
-        "navigationBarTitleText": "扫码绑车"
+        "navigationBarTitleText": "扫码"
       }
     },
     {
