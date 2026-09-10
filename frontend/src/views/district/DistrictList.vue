@@ -97,7 +97,7 @@
               v-model="fenceJsonText"
               rows="6"
               required
-              placeholder='[{"lng":114.04,"lat":22.53},{"lng":114.08,"lat":22.53},{"lng":114.08,"lat":22.56}]'
+              placeholder='[{"lng":120.74,"lat":30.74},{"lng":120.77,"lat":30.74},{"lng":120.77,"lat":30.76}]'
             />
           </label>
           <p v-else class="vertex-count">当前顶点数：{{ fencePoints.length }}</p>
@@ -341,7 +341,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .modal-wide {
-  width: 640px;
+  width: min(960px, calc(100vw - 2rem));
 }
 
 .fence-block {
@@ -381,7 +381,8 @@ onBeforeUnmount(() => {
 }
 
 .map-box {
-  height: 280px;
+  height: min(52vh, 480px);
+  min-height: 380px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;

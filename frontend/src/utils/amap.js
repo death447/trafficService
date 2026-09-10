@@ -165,12 +165,19 @@ export async function createPickerMap(container, { lng, lat, onPicked, searchInp
   }
 }
 
+/** 嘉兴市本级（南湖 / 秀洲市区）默认落点，GCJ-02 */
+const JIAXING_MUNICIPAL_CENTER = [120.755486, 30.746849]
+const JIAXING_MUNICIPAL_ZOOM = 12
+
 /** 多边形围栏编辑：点击追加顶点；无 Key 时由页面用 textarea 编辑 JSON */
 export async function createPolygonEditor(container, { path = [], onChange } = {}) {
   const AMap = await loadAmap()
-  const map = new AMap.Map(container, { zoom: 12, center: [114.057868, 22.543099] })
+  const map = new AMap.Map(container, {
+    zoom: JIAXING_MUNICIPAL_ZOOM,
+    center: JIAXING_MUNICIPAL_CENTER
+  })
   let polygon
-  const apply = (ring) => {
+  const apply = (ring, { fitView = false } = {}) => {
     const pathLL = ring.map((p) => [p.lng, p.lat])
     if (!polygon) {
       polygon = new AMap.Polygon({
@@ -184,12 +191,12 @@ export async function createPolygonEditor(container, { path = [], onChange } = {
     } else {
       polygon.setPath(pathLL)
     }
-    if (pathLL.length) {
+    if (fitView && pathLL.length) {
       map.setFitView([polygon])
     }
     onChange?.(ring)
   }
-  if (path.length) apply(path)
+  if (path.length) apply(path, { fitView: true })
   map.on('click', (e) => {
     const current = polygon
       ? polygon.getPath().map((ll) => ({ lng: ll.lng, lat: ll.lat }))
