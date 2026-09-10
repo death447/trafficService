@@ -1,17 +1,18 @@
+import { createRequire } from 'node:module'
 import { defineConfig } from 'vite'
 import uni from '@dcloudio/vite-plugin-uni'
 
-/** Task 3 helpers stay CJS for Node tests; Vite/Rollup cannot named-import that file without this. */
+const { rewriteCjsNamedExports } = createRequire(import.meta.url)('./cjsNamedExportsToEsm.cjs')
+
+/** Utils stay CJS for Node tests; Vite cannot named-import those files without this. */
 function workspaceCjsToEsm() {
   return {
     name: 'workspace-cjs-to-esm',
+    enforce: 'pre',
     transform(code, id) {
-      if (!/[\\/]src[\\/]utils[\\/]workspace\.js$/.test(id)) return null
+      if (!/[\\/]src[\\/]utils[\\/][^/]+\.js$/.test(id)) return null
       if (!code.includes('module.exports')) return null
-      const next = code.replace(
-        /module\.exports\s*=\s*\{([^}]+)\}/,
-        'export { hasRescuerAccess, hasParkingAccess, resolveLoginTarget, shouldStartGps, matchHangtag }'
-      )
+      const next = rewriteCjsNamedExports(code)
       if (next === code) return null
       return { code: next, map: null }
     }
