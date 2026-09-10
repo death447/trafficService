@@ -2,7 +2,10 @@ package com.example.backend.service;
 
 import com.example.backend.dto.LoginRequest;
 import com.example.backend.dto.LoginResponse;
+import com.example.backend.dto.MeResponse;
+import com.example.backend.dto.RescuerProfileUpdateRequest;
 import com.example.backend.entity.Role;
+import com.example.backend.entity.User;
 import com.example.backend.mapper.UserMapper;
 import com.example.backend.security.CustomUserDetails;
 import com.example.backend.security.JwtTokenProvider;
@@ -40,6 +43,44 @@ public class AuthService {
                 .username(user.getUsername())
                 .permissions(permissions)
                 .roles(roles)
+                .build();
+    }
+
+    public MeResponse getMe(Long userId) {
+        User user = userMapper.findById(userId);
+        if (user == null) {
+            throw new RuntimeException("用户不存在");
+        }
+        return toMe(user);
+    }
+
+    public MeResponse updateMe(Long userId, RescuerProfileUpdateRequest req) {
+        User user = userMapper.findById(userId);
+        if (user == null) {
+            throw new RuntimeException("用户不存在");
+        }
+        if (req != null) {
+            if (req.getRealName() != null) {
+                user.setRealName(req.getRealName());
+            }
+            if (req.getPhone() != null) {
+                user.setPhone(req.getPhone());
+            }
+            if (req.getEmail() != null) {
+                user.setEmail(req.getEmail());
+            }
+        }
+        userMapper.update(user);
+        return toMe(user);
+    }
+
+    private static MeResponse toMe(User user) {
+        return MeResponse.builder()
+                .id(user.getId())
+                .username(user.getUsername())
+                .realName(user.getRealName())
+                .phone(user.getPhone())
+                .email(user.getEmail())
                 .build();
     }
 }

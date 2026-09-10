@@ -3,9 +3,13 @@ package com.example.backend.controller;
 import com.example.backend.common.Result;
 import com.example.backend.dto.LoginRequest;
 import com.example.backend.dto.LoginResponse;
+import com.example.backend.dto.MeResponse;
+import com.example.backend.dto.RescuerProfileUpdateRequest;
+import com.example.backend.security.CustomUserDetails;
 import com.example.backend.service.AuthService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -23,5 +27,29 @@ public class AuthController {
     @PostMapping("/logout")
     public Result<Void> logout() {
         return Result.success(null);
+    }
+
+    @GetMapping("/me")
+    public Result<MeResponse> me() {
+        try {
+            return Result.success(authService.getMe(currentUserId()));
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    @PutMapping("/me")
+    public Result<MeResponse> updateMe(@RequestBody RescuerProfileUpdateRequest request) {
+        try {
+            return Result.success(authService.updateMe(currentUserId(), request));
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    private Long currentUserId() {
+        CustomUserDetails principal =
+                (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        return principal.getId();
     }
 }
