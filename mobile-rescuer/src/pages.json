@@ -66,6 +66,24 @@
       "style": {
         "navigationBarTitleText": "入库登记"
       }
+    },
+    {
+      "path": "pages/detain/checkin",
+      "style": {
+        "navigationBarTitleText": "入库"
+      }
+    },
+    {
+      "path": "pages/detain/detail",
+      "style": {
+        "navigationBarTitleText": "扣车详情"
+      }
+    },
+    {
+      "path": "pages/detain/scan",
+      "style": {
+        "navigationBarTitleText": "扫码查找"
+      }
     }
   ],
   "globalStyle": {
