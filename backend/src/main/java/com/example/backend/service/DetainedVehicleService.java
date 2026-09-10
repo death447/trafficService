@@ -52,7 +52,7 @@ public class DetainedVehicleService {
     }
 
     @Transactional
-    public boolean checkIn(DetainInRequest req, Long operatorUserId) {
+    public DetainedVehicle checkIn(DetainInRequest req, Long operatorUserId) {
         String plate = requireTrimmedPlate(req.getPlateNo());
         if (req.getParkingLotId() == null) {
             throw new RuntimeException("停车场不能为空");
@@ -79,7 +79,10 @@ public class DetainedVehicleService {
         v.setInTime(LocalDateTime.now());
         v.setOperatorInId(operatorUserId);
         v.setRemark(req.getRemark());
-        return detainedVehicleMapper.insert(v) > 0;
+        if (detainedVehicleMapper.insert(v) <= 0) {
+            throw new RuntimeException("入库失败");
+        }
+        return v;
     }
 
     @Transactional

@@ -24,6 +24,36 @@ class DetainedVehicleServiceTest {
     @InjectMocks DetainedVehicleService service;
 
     @Test
+    void checkInReturnsDetainNoAndInYard() {
+        DetainInRequest req = new DetainInRequest();
+        req.setPlateNo(" 粤B停01 ");
+        req.setParkingLotId(1L);
+        req.setVehicleType("小型车");
+        ParkingLot lot = new ParkingLot();
+        lot.setId(1L);
+        lot.setStatus("ENABLED");
+        when(parkingLotService.requireEnabled(1L)).thenReturn(lot);
+        when(detainedVehicleMapper.countInYardByPlateNo("粤B停01")).thenReturn(0);
+        when(detainedVehicleMapper.countByDetainNoPrefix(org.mockito.ArgumentMatchers.startsWith("DV")))
+                .thenReturn(0);
+        when(detainedVehicleMapper.insert(any(DetainedVehicle.class))).thenAnswer(inv -> {
+            DetainedVehicle v = inv.getArgument(0);
+            v.setId(88L);
+            return 1;
+        });
+
+        DetainedVehicle created = service.checkIn(req, 4L);
+
+        assertEquals(88L, created.getId());
+        assertEquals("粤B停01", created.getPlateNo());
+        assertEquals("IN_YARD", created.getStatus());
+        assertEquals(4L, created.getOperatorInId());
+        assertNotNull(created.getDetainNo());
+        assertTrue(created.getDetainNo().startsWith("DV"));
+        assertEquals(14, created.getDetainNo().length());
+    }
+
+    @Test
     void checkInRejectsWhenPlateAlreadyInYard() {
         DetainInRequest req = new DetainInRequest();
         req.setPlateNo(" 粤B12345 ");

@@ -49,13 +49,9 @@ public class DetainedVehicleController {
 
     @PostMapping
     @PreAuthorize("hasAuthority('detain:add')")
-    public Result<Void> checkIn(@RequestBody DetainInRequest request) {
+    public Result<DetainedVehicle> checkIn(@RequestBody DetainInRequest request) {
         try {
-            boolean success = detainedVehicleService.checkIn(request, currentUserId());
-            if (success) {
-                return Result.success(null);
-            }
-            return Result.error("入库失败");
+            return Result.success(detainedVehicleService.checkIn(request, currentUserId()));
         } catch (RuntimeException e) {
             return Result.error(e.getMessage());
         }
