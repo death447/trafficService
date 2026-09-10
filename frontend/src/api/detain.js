@@ -23,3 +23,7 @@ export function checkOutDetain(id) {
 export function clearDetain(id) {
   return request.post(`/detain/${id}/clear`)
 }
+
+export function listDetainMedia(id) {
+  return request.get(`/detain/${id}/media`)
+}

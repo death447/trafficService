@@ -19,7 +19,7 @@
 
     <view v-if="loading" class="muted center">加载中…</view>
     <view v-else-if="loadFailed" class="muted center">加载失败</view>
-    <view v-else-if="!list.length" class="muted center">暂无数据</view>
+    <view v-else-if="!list.length" class="muted center">暂无在库车辆，可点右上角入库</view>
     <view v-else>
       <view class="card item" v-for="item in list" :key="item.id" @click="goDetail(item.id)">
         <view class="row-between">

@@ -60,6 +60,7 @@
             </td>
             <td class="actions">
               <button v-auth="'parking:edit'" type="button" @click="openEdit(lot)">编辑</button>
+              <button v-auth="'parking:query'" type="button" class="secondary" @click="openAreas(lot)">区域</button>
               <button
                 v-auth="'parking:delete'"
                 type="button"
@@ -126,6 +127,50 @@
         </div>
       </form>
     </div>
+
+    <div v-if="areaVisible" class="modal" @click.self="areaVisible = false">
+      <div class="modal-card area-modal">
+        <h2>{{ areaLot?.name }} · 停放区域</h2>
+        <p v-if="areaError" class="error">{{ areaError }}</p>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>名称</th>
+              <th>状态</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="area in areas" :key="area.id">
+              <td>{{ area.name }}</td>
+              <td>{{ area.status === 'ENABLED' ? '启用' : '停用' }}</td>
+              <td class="actions">
+                <button v-auth="'parking:edit'" type="button" @click="toggleArea(area)">
+                  {{ area.status === 'ENABLED' ? '停用' : '启用' }}
+                </button>
+                <button v-auth="'parking:delete'" type="button" class="danger" @click="onDeleteArea(area)">
+                  删除
+                </button>
+              </td>
+            </tr>
+            <tr v-if="!areas.length">
+              <td colspan="3" class="empty-cell">暂无区域</td>
+            </tr>
+          </tbody>
+        </table>
+        <form class="area-form" @submit.prevent="onCreateArea">
+          <input v-model.trim="areaForm.name" placeholder="区域名称" required />
+          <select v-model="areaForm.status">
+            <option value="ENABLED">启用</option>
+            <option value="DISABLED">停用</option>
+          </select>
+          <button v-auth="'parking:add'" type="submit" :disabled="areaSaving">新增</button>
+        </form>
+        <div class="modal-actions">
+          <button type="button" class="secondary" @click="areaVisible = false">关闭</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -135,7 +180,11 @@ import {
   listParkings,
   createParking,
   updateParking,
-  deleteParking
+  deleteParking,
+  listParkingAreas,
+  createParkingArea,
+  updateParkingArea,
+  deleteParkingArea
 } from '../../api/parking'
 import PaginationBar from '../../components/PaginationBar.vue'
 
@@ -147,6 +196,12 @@ const formVisible = ref(false)
 const formError = ref('')
 const saving = ref(false)
 const editingId = ref(null)
+const areaVisible = ref(false)
+const areaLot = ref(null)
+const areas = ref([])
+const areaError = ref('')
+const areaSaving = ref(false)
+const areaForm = reactive({ name: '', status: 'ENABLED' })
 
 const filters = reactive({
   keyword: '',
@@ -290,6 +345,66 @@ async function onDelete(lot) {
   }
 }
 
+async function openAreas(lot) {
+  areaLot.value = lot
+  areaForm.name = ''
+  areaForm.status = 'ENABLED'
+  areaVisible.value = true
+  await loadAreas()
+}
+
+async function loadAreas() {
+  if (!areaLot.value) return
+  areaError.value = ''
+  try {
+    const res = await listParkingAreas(areaLot.value.id)
+    areas.value = res.data || []
+  } catch (e) {
+    areas.value = []
+    areaError.value = e.response?.data?.message || e.message || '加载区域失败'
+  }
+}
+
+async function onCreateArea() {
+  if (!areaLot.value || !areaForm.name) return
+  areaSaving.value = true
+  areaError.value = ''
+  try {
+    await createParkingArea(areaLot.value.id, { name: areaForm.name, status: areaForm.status })
+    areaForm.name = ''
+    areaForm.status = 'ENABLED'
+    await loadAreas()
+  } catch (e) {
+    areaError.value = e.response?.data?.message || e.message || '新增失败'
+  } finally {
+    areaSaving.value = false
+  }
+}
+
+async function toggleArea(area) {
+  areaError.value = ''
+  try {
+    await updateParkingArea(area.id, {
+      name: area.name,
+      status: area.status === 'ENABLED' ? 'DISABLED' : 'ENABLED'
+    })
+    await loadAreas()
+  } catch (e) {
+    areaError.value = e.response?.data?.message || e.message || '更新失败'
+  }
+}
+
+async function onDeleteArea(area) {
+  if (!confirm(`确认删除区域「${area.name}」？`)) return
+  areaError.value = ''
+  try {
+    await deleteParkingArea(area.id)
+    await loadAreas()
+  } catch (e) {
+    areaError.value = e.response?.data?.message || e.message || '删除失败'
+  }
+}
+
 onMounted(() => {
   loadList()
 })
@@ -334,5 +449,23 @@ onMounted(() => {
   text-align: center;
   color: var(--text-secondary);
   padding: 1.25rem 0.75rem;
+}
+
+.area-modal {
+  min-width: min(520px, 92vw);
+}
+
+.area-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.area-form input,
+.area-form select {
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  font-size: 0.875rem;
 }
 </style>

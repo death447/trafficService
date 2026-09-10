@@ -40,6 +40,30 @@ public class LocalFileStorageService {
         return "dispatch/" + orderId + "/" + name;
     }
 
+    public String storeDetainMedia(Long detainId, MultipartFile file) throws IOException {
+        String original = file.getOriginalFilename() == null ? "file" : file.getOriginalFilename();
+        String ext = "";
+        int dot = original.lastIndexOf('.');
+        if (dot >= 0) {
+            ext = original.substring(dot).toLowerCase();
+        }
+        if (!List.of(".jpg", ".jpeg", ".png", ".webp").contains(ext)) {
+            throw new RuntimeException("仅支持 jpg/png/webp");
+        }
+        if (file.getSize() > 5 * 1024 * 1024) {
+            throw new RuntimeException("文件不能超过5MB");
+        }
+        Path dir = Paths.get(uploadDir, "detain", String.valueOf(detainId)).toAbsolutePath().normalize();
+        Files.createDirectories(dir);
+        String name = System.currentTimeMillis() + ext;
+        Path target = dir.resolve(name).normalize();
+        if (!target.startsWith(dir)) {
+            throw new RuntimeException("非法路径");
+        }
+        file.transferTo(target);
+        return "detain/" + detainId + "/" + name;
+    }
+
     public void deleteDispatchMedia(String relativePath) {
         if (relativePath == null || relativePath.isBlank()) {
             return;

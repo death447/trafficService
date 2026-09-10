@@ -63,11 +63,12 @@
       <table class="data-table">
         <thead>
           <tr>
-            <th>扣留编号</th>
+            <th>扣押编号</th>
+            <th>入场编号</th>
             <th>车牌</th>
             <th>类型</th>
             <th>停车场</th>
-            <th>扣留部门</th>
+            <th>区域</th>
             <th>状态</th>
             <th>入库时间</th>
             <th>操作</th>
@@ -76,10 +77,11 @@
         <tbody>
           <tr v-for="row in vehicles" :key="row.id">
             <td>{{ row.detainNo }}</td>
+            <td>{{ row.entryNo || '—' }}</td>
             <td>{{ row.plateNo }}</td>
             <td>{{ row.vehicleType || '—' }}</td>
             <td>{{ row.parkingLotName || '—' }}</td>
-            <td>{{ row.detainDept || '—' }}</td>
+            <td>{{ row.parkingAreaName || '—' }}</td>
             <td>
               <span :class="['badge', statusBadgeClass(row.status)]">
                 {{ statusLabel(row.status) }}
@@ -124,7 +126,7 @@
             </td>
           </tr>
           <tr v-if="!vehicles.length">
-            <td colspan="8" class="empty-cell">暂无扣留车辆</td>
+            <td colspan="9" class="empty-cell">暂无扣留车辆</td>
           </tr>
         </tbody>
       </table>
@@ -141,17 +143,53 @@
     <div v-if="formVisible" class="modal" @click.self="formVisible = false">
       <form class="modal-card" @submit.prevent="onSubmit">
         <h2>{{ editingId ? '编辑扣留车辆' : '车辆入库' }}</h2>
+        <label v-if="!editingId">
+          扣押编码
+          <input v-model.trim="form.detainNo" required placeholder="强制扣押凭证编码" />
+        </label>
+        <label v-else>
+          扣押编码
+          <input :value="form.detainNo" disabled />
+        </label>
+        <label>
+          入场编号
+          <input :value="editingId ? form.entryNo : '提交后生成'" disabled />
+        </label>
         <label>
           车牌
           <input v-model.trim="form.plateNo" required />
+        </label>
+        <label>
+          厂牌型号
+          <input v-model.trim="form.brandModel" />
         </label>
         <label>
           车辆类型
           <input v-model.trim="form.vehicleType" placeholder="如：小型车" />
         </label>
         <label>
+          车辆颜色
+          <input v-model.trim="form.vehicleColor" />
+        </label>
+        <label>
+          行驶里程
+          <input v-model.trim="form.mileage" />
+        </label>
+        <label>
+          重要装备
+          <input v-model.trim="form.importantEquipment" />
+        </label>
+        <label>
+          有无钥匙
+          <select v-model="form.hasKey">
+            <option value="">未填</option>
+            <option value="YES">有</option>
+            <option value="NO">无</option>
+          </select>
+        </label>
+        <label>
           停车场
-          <select v-model="form.parkingLotId" required>
+          <select v-model="form.parkingLotId" required @change="onFormLotChange">
             <option value="" disabled>请选择启用停车场</option>
             <option
               v-for="lot in formParkingOptions"
@@ -163,6 +201,19 @@
           </select>
         </label>
         <label>
+          停放区域
+          <select v-model="form.parkingAreaId">
+            <option value="">不选</option>
+            <option v-for="area in formAreas" :key="area.id" :value="String(area.id)">
+              {{ area.name }}{{ area.status === 'DISABLED' ? '（已停用）' : '' }}
+            </option>
+          </select>
+        </label>
+        <label>
+          车位编号
+          <input v-model.trim="form.stallNo" />
+        </label>
+        <label>
           关联工单 ID
           <input v-model.trim="form.dispatchOrderId" type="number" min="1" placeholder="可选" />
         </label>
@@ -171,9 +222,45 @@
           <input v-model.trim="form.detainDept" />
         </label>
         <label>
+          施救人员
+          <input v-model.trim="form.rescuerName" />
+        </label>
+        <label>
+          施救原因
+          <select v-model="form.rescueReason">
+            <option value="">未填</option>
+            <option value="ACCIDENT">事故</option>
+            <option value="ILLEGAL">违法</option>
+            <option value="RESCUE">救援</option>
+          </select>
+        </label>
+        <label>
+          施救方式
+          <input v-model.trim="form.rescueMethod" />
+        </label>
+        <label>
+          施救时间
+          <input v-model="form.rescueTime" type="datetime-local" />
+        </label>
+        <label>
+          施救地点
+          <input v-model.trim="form.rescueAddress" />
+        </label>
+        <label>
           备注
           <input v-model.trim="form.remark" />
         </label>
+        <div v-if="editingId && formMedias.length" class="media-readonly">
+          <p>照片（只读）</p>
+          <div class="media-grid">
+            <img
+              v-for="m in formMedias"
+              :key="m.id"
+              :src="mediaUrl(m.filePath)"
+              :alt="m.bizType"
+            />
+          </div>
+        </div>
         <p v-if="formError" class="error">{{ formError }}</p>
         <div class="modal-actions">
           <button type="button" class="secondary" @click="formVisible = false">取消</button>
@@ -191,9 +278,10 @@ import {
   checkInDetain,
   updateDetain,
   checkOutDetain,
-  clearDetain
+  clearDetain,
+  listDetainMedia
 } from '../../api/detain'
-import { listParkings } from '../../api/parking'
+import { listParkings, listParkingAreas } from '../../api/parking'
 import PaginationBar from '../../components/PaginationBar.vue'
 
 const vehicles = ref([])
@@ -215,13 +303,29 @@ const filters = reactive({
 })
 
 const form = reactive({
+  detainNo: '',
+  entryNo: '',
   plateNo: '',
+  brandModel: '',
   vehicleType: '',
+  vehicleColor: '',
+  mileage: '',
+  importantEquipment: '',
+  hasKey: '',
   parkingLotId: '',
+  parkingAreaId: '',
+  stallNo: '',
   dispatchOrderId: '',
   detainDept: '',
+  rescuerName: '',
+  rescueReason: '',
+  rescueMethod: '',
+  rescueTime: '',
+  rescueAddress: '',
   remark: ''
 })
+const formAreas = ref([])
+const formMedias = ref([])
 
 const statusLabels = {
   IN_YARD: '在库',
@@ -262,13 +366,65 @@ function formatTime(value) {
   return String(value).replace('T', ' ').slice(0, 19)
 }
 
+function mediaUrl(filePath) {
+  if (!filePath) return ''
+  if (/^https?:\/\//i.test(filePath)) return filePath
+  const path = String(filePath).replace(/^\/+/, '')
+  return `/uploads/${path}`
+}
+
+function toDatetimeLocal(value) {
+  if (!value) return ''
+  return String(value).replace(' ', 'T').slice(0, 16)
+}
+
+async function loadFormAreas(lotId, keepAreaId) {
+  formAreas.value = []
+  if (!lotId) {
+    form.parkingAreaId = ''
+    return
+  }
+  try {
+    const res = await listParkingAreas(lotId)
+    formAreas.value = res.data || []
+    const keep = keepAreaId != null ? String(keepAreaId) : ''
+    if (keep && formAreas.value.some((a) => String(a.id) === keep)) {
+      form.parkingAreaId = keep
+    } else if (!keep) {
+      form.parkingAreaId = ''
+    }
+  } catch {
+    formAreas.value = []
+  }
+}
+
+function onFormLotChange() {
+  loadFormAreas(form.parkingLotId, '')
+}
+
 function resetForm() {
+  form.detainNo = ''
+  form.entryNo = ''
   form.plateNo = ''
+  form.brandModel = ''
   form.vehicleType = ''
+  form.vehicleColor = ''
+  form.mileage = ''
+  form.importantEquipment = ''
+  form.hasKey = ''
   form.parkingLotId = ''
+  form.parkingAreaId = ''
+  form.stallNo = ''
   form.dispatchOrderId = ''
   form.detainDept = ''
+  form.rescuerName = ''
+  form.rescueReason = ''
+  form.rescueMethod = ''
+  form.rescueTime = ''
+  form.rescueAddress = ''
   form.remark = ''
+  formAreas.value = []
+  formMedias.value = []
   formError.value = ''
 }
 
@@ -338,22 +494,56 @@ function openCreate() {
 function openEdit(row) {
   editingId.value = row.id
   resetForm()
+  form.detainNo = row.detainNo || ''
+  form.entryNo = row.entryNo || ''
   form.plateNo = row.plateNo || ''
+  form.brandModel = row.brandModel || ''
   form.vehicleType = row.vehicleType || ''
+  form.vehicleColor = row.vehicleColor || ''
+  form.mileage = row.mileage || ''
+  form.importantEquipment = row.importantEquipment || ''
+  form.hasKey = row.hasKey || ''
   form.parkingLotId = row.parkingLotId != null ? String(row.parkingLotId) : ''
+  form.stallNo = row.stallNo || ''
   form.dispatchOrderId = row.dispatchOrderId != null ? String(row.dispatchOrderId) : ''
   form.detainDept = row.detainDept || ''
+  form.rescuerName = row.rescuerName || ''
+  form.rescueReason = row.rescueReason || ''
+  form.rescueMethod = row.rescueMethod || ''
+  form.rescueTime = toDatetimeLocal(row.rescueTime)
+  form.rescueAddress = row.rescueAddress || ''
   form.remark = row.remark || ''
   formVisible.value = true
+  loadFormAreas(form.parkingLotId, row.parkingAreaId)
+  listDetainMedia(row.id)
+    .then((res) => { formMedias.value = res.data || [] })
+    .catch(() => { formMedias.value = [] })
 }
 
 function payload() {
   const data = {
     plateNo: form.plateNo,
     vehicleType: form.vehicleType || null,
+    brandModel: form.brandModel || null,
+    vehicleColor: form.vehicleColor || null,
+    mileage: form.mileage || null,
+    importantEquipment: form.importantEquipment || null,
+    hasKey: form.hasKey || null,
     parkingLotId: Number(form.parkingLotId),
+    parkingAreaId: form.parkingAreaId ? Number(form.parkingAreaId) : null,
+    stallNo: form.stallNo || null,
     detainDept: form.detainDept || null,
+    rescuerName: form.rescuerName || null,
+    rescueReason: form.rescueReason || null,
+    rescueMethod: form.rescueMethod || null,
+    rescueTime: form.rescueTime
+      ? (form.rescueTime.length === 16 ? `${form.rescueTime}:00` : form.rescueTime)
+      : null,
+    rescueAddress: form.rescueAddress || null,
     remark: form.remark || null
+  }
+  if (!editingId.value) {
+    data.detainNo = form.detainNo
   }
   if (form.dispatchOrderId) {
     data.dispatchOrderId = Number(form.dispatchOrderId)
@@ -464,5 +654,31 @@ onMounted(async () => {
 .link-btn:hover {
   border-color: #9cc7e6;
   color: var(--accent-hover);
+}
+
+.modal-card {
+  max-height: 88vh;
+  overflow: auto;
+}
+
+.media-readonly {
+  margin: 0.5rem 0 0.75rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.media-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+}
+
+.media-grid img {
+  width: 88px;
+  height: 88px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
 }
 </style>

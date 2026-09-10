@@ -4,6 +4,7 @@ import com.example.backend.common.PageParams;
 import com.example.backend.common.Result;
 import com.example.backend.dto.DetainInRequest;
 import com.example.backend.dto.DetainUpdateRequest;
+import com.example.backend.entity.DetainMedia;
 import com.example.backend.entity.DetainedVehicle;
 import com.example.backend.security.CustomUserDetails;
 import com.example.backend.service.DetainedVehicleService;
@@ -11,7 +12,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -94,6 +97,40 @@ public class DetainedVehicleController {
                 return Result.success(null);
             }
             return Result.error("清理失败");
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    @GetMapping("/{id}/media")
+    @PreAuthorize("hasAuthority('detain:query')")
+    public Result<List<DetainMedia>> listMedia(@PathVariable Long id) {
+        try {
+            return Result.success(detainedVehicleService.listMedia(id));
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    @PostMapping("/{id}/media")
+    @PreAuthorize("hasAuthority('detain:add')")
+    public Result<DetainMedia> addMedia(
+            @PathVariable Long id,
+            @RequestParam MultipartFile file,
+            @RequestParam String bizType) {
+        try {
+            return Result.success(detainedVehicleService.addMedia(id, bizType, file, currentUserId()));
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    @DeleteMapping("/{id}/media/{mediaId}")
+    @PreAuthorize("hasAuthority('detain:edit')")
+    public Result<Void> deleteMedia(@PathVariable Long id, @PathVariable Long mediaId) {
+        try {
+            detainedVehicleService.deleteMedia(id, mediaId);
+            return Result.success(null);
         } catch (RuntimeException e) {
             return Result.error(e.getMessage());
         }

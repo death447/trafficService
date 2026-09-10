@@ -1,4 +1,4 @@
-import { request } from '../utils/request'
+import { request, uploadFile } from '../utils/request'
 
 export function listDetains(params) {
   return request({ url: '/detain/list', data: params })
@@ -14,4 +14,17 @@ export function checkInDetain(body) {
 
 export function checkOutDetain(id) {
   return request({ url: `/detain/${id}/out`, method: 'POST' })
+}
+
+export function listDetainMedia(id) {
+  return request({ url: `/detain/${id}/media` })
+}
+
+export function uploadDetainMedia(id, filePath, bizType) {
+  return uploadFile({
+    url: `/detain/${id}/media`,
+    filePath,
+    name: 'file',
+    formData: { bizType }
+  })
 }

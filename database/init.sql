@@ -228,14 +228,39 @@ CREATE TABLE `parking_lot` (
   KEY `idx_status` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='停车场';
 
+CREATE TABLE `parking_area` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `parking_lot_id` BIGINT NOT NULL COMMENT '所属停车场',
+  `name` VARCHAR(100) NOT NULL COMMENT '区域名称',
+  `status` VARCHAR(20) NOT NULL DEFAULT 'ENABLED' COMMENT 'ENABLED/DISABLED',
+  `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_lot_name` (`parking_lot_id`, `name`),
+  KEY `idx_parking_lot_id` (`parking_lot_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='停车场停放区域';
+
 CREATE TABLE `detained_vehicle` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
-  `detain_no` VARCHAR(32) NOT NULL COMMENT '扣押编号，唯一',
+  `detain_no` VARCHAR(64) NOT NULL COMMENT '扣押编号（手填凭证编码），唯一',
+  `entry_no` VARCHAR(32) DEFAULT NULL COMMENT '入场编号，系统生成',
   `plate_no` VARCHAR(20) NOT NULL COMMENT '车牌',
   `vehicle_type` VARCHAR(50) DEFAULT NULL COMMENT '车辆类型文本',
+  `brand_model` VARCHAR(100) DEFAULT NULL COMMENT '厂牌型号',
+  `vehicle_color` VARCHAR(30) DEFAULT NULL COMMENT '车辆颜色',
+  `mileage` VARCHAR(50) DEFAULT NULL COMMENT '行驶里程',
+  `important_equipment` VARCHAR(200) DEFAULT NULL COMMENT '重要装备',
+  `has_key` VARCHAR(8) DEFAULT NULL COMMENT 'YES/NO',
   `parking_lot_id` BIGINT NOT NULL COMMENT '所属停车场',
+  `parking_area_id` BIGINT DEFAULT NULL COMMENT '停放区域',
+  `stall_no` VARCHAR(50) DEFAULT NULL COMMENT '车位编号',
   `dispatch_order_id` BIGINT DEFAULT NULL COMMENT '可选关联救援工单',
   `detain_dept` VARCHAR(100) DEFAULT NULL COMMENT '扣留部门',
+  `rescuer_name` VARCHAR(50) DEFAULT NULL COMMENT '施救人员',
+  `rescue_reason` VARCHAR(20) DEFAULT NULL COMMENT 'ACCIDENT/ILLEGAL/RESCUE',
+  `rescue_method` VARCHAR(100) DEFAULT NULL COMMENT '施救方式',
+  `rescue_time` DATETIME DEFAULT NULL COMMENT '施救时间',
+  `rescue_address` VARCHAR(255) DEFAULT NULL COMMENT '施救地点',
   `status` VARCHAR(20) NOT NULL DEFAULT 'IN_YARD' COMMENT 'IN_YARD/OUT/CLEARED',
   `in_time` DATETIME NOT NULL COMMENT '入库时间',
   `out_time` DATETIME DEFAULT NULL,
@@ -247,11 +272,25 @@ CREATE TABLE `detained_vehicle` (
   `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_detain_no` (`detain_no`),
+  UNIQUE KEY `uk_entry_no` (`entry_no`),
   KEY `idx_plate_no` (`plate_no`),
   KEY `idx_status` (`status`),
   KEY `idx_parking_lot_id` (`parking_lot_id`),
+  KEY `idx_parking_area_id` (`parking_area_id`),
   KEY `idx_dispatch_order_id` (`dispatch_order_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='扣留车辆';
+
+CREATE TABLE `detain_media` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `detain_id` BIGINT NOT NULL,
+  `biz_type` VARCHAR(20) NOT NULL COMMENT 'SCENE/PARK',
+  `file_path` VARCHAR(255) NOT NULL,
+  `sort_order` INT NOT NULL DEFAULT 0,
+  `uploaded_by` BIGINT DEFAULT NULL,
+  `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_detain_id` (`detain_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='扣车现场/停放照片';
 
 INSERT INTO `role` (`role_name`, `role_code`, `description`) VALUES
 ('交警', 'TRAFFIC_POLICE', '负责事故处理'),
@@ -423,10 +462,15 @@ INSERT INTO `parking_lot` (`name`, `code`, `address`, `contact_name`, `contact_p
 ('南山扣留场', 'PK-NS-01', '深圳市南山区示例路2号', '李管', '13900000002', 'ENABLED', NULL),
 ('罗湖备用场', 'PK-LH-00', '深圳市罗湖区示例路3号', NULL, NULL, 'DISABLED', '禁用样例');
 
+INSERT INTO `parking_area` (`parking_lot_id`, `name`, `status`) VALUES
+(1, 'A区', 'ENABLED'),
+(1, 'B区', 'ENABLED'),
+(2, 'A区', 'ENABLED');
+
 INSERT INTO `detained_vehicle`
-(`detain_no`, `plate_no`, `vehicle_type`, `parking_lot_id`, `dispatch_order_id`, `detain_dept`, `status`,
+(`detain_no`, `entry_no`, `plate_no`, `vehicle_type`, `parking_lot_id`, `parking_area_id`, `dispatch_order_id`, `detain_dept`, `status`,
  `in_time`, `out_time`, `cleared_at`, `operator_in_id`, `operator_out_id`, `remark`) VALUES
-('DV202609070001', '粤B·扣留01', '小型车', 1, NULL, '福田交警大队', 'IN_YARD',
+('DV202609070001', '20260907000001', '粤B·扣留01', '小型车', 1, 1, NULL, '福田交警大队', 'IN_YARD',
  NOW(), NULL, NULL, 1, NULL, '在库样例'),
-('DV202609070002', '粤B·扣留02', '货车', 1, NULL, '南山交警大队', 'OUT',
+('DV202609070002', '20260907000002', '粤B·扣留02', '货车', 1, 1, NULL, '南山交警大队', 'OUT',
  DATE_SUB(NOW(), INTERVAL 2 DAY), DATE_SUB(NOW(), INTERVAL 1 DAY), NULL, 1, 1, '已出库样例');

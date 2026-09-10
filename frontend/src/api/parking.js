@@ -19,3 +19,19 @@ export function updateParking(id, data) {
 export function deleteParking(id) {
   return request.delete(`/parking/${id}`)
 }
+
+export function listParkingAreas(lotId, params) {
+  return request.get(`/parking/${lotId}/areas`, { params })
+}
+
+export function createParkingArea(lotId, data) {
+  return request.post(`/parking/${lotId}/areas`, data)
+}
+
+export function updateParkingArea(id, data) {
+  return request.put(`/parking/areas/${id}`, data)
+}
+
+export function deleteParkingArea(id) {
+  return request.delete(`/parking/areas/${id}`)
+}

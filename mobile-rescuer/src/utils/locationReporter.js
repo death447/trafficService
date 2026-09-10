@@ -19,12 +19,20 @@ function logFail(msg, detail) {
   console.warn('[locationReporter]', msg, detail || '')
 }
 
+function isH5() {
+  return typeof window !== 'undefined' && typeof document !== 'undefined'
+}
+
 /**
- * H5: uni.getLocation often fails (permission / insecure context).
- * Prefer navigator.geolocation on browser when available.
+ * H5 must not call uni.getLocation: without manifest map key it falls back to
+ * IP locate, waits on Google/DCloud, then the runtime toasts「链接服务器超时」.
+ * Native App still uses uni.getLocation.
  */
 function getLocationOnce() {
-  if (typeof navigator !== 'undefined' && navigator.geolocation) {
+  if (isH5()) {
+    if (!navigator.geolocation) {
+      return Promise.reject(new Error('h5-no-geolocation'))
+    }
     return new Promise((resolve, reject) => {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -35,7 +43,7 @@ function getLocationOnce() {
           })
         },
         (err) => reject(err),
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+        { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
       )
     })
   }

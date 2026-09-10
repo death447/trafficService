@@ -54,18 +54,32 @@ public interface DetainedVehicleMapper {
     @Select("SELECT COUNT(*) FROM detained_vehicle WHERE plate_no = #{plateNo} AND status = 'IN_YARD' AND id <> #{excludeId}")
     int countInYardByPlateNoExcludingId(@Param("plateNo") String plateNo, @Param("excludeId") Long excludeId);
 
-    @Select("SELECT COUNT(*) FROM detained_vehicle WHERE detain_no LIKE CONCAT(#{prefix}, '%')")
-    int countByDetainNoPrefix(String prefix);
+    @Select("SELECT COUNT(*) FROM detained_vehicle WHERE parking_area_id = #{parkingAreaId}")
+    int countByParkingAreaId(Long parkingAreaId);
 
-    @Insert("INSERT INTO detained_vehicle (detain_no, plate_no, vehicle_type, parking_lot_id, dispatch_order_id, " +
-            "detain_dept, status, in_time, operator_in_id, remark) VALUES (#{detainNo}, #{plateNo}, #{vehicleType}, " +
-            "#{parkingLotId}, #{dispatchOrderId}, #{detainDept}, #{status}, #{inTime}, #{operatorInId}, #{remark})")
+    @Select("SELECT * FROM detained_vehicle WHERE detain_no = #{detainNo}")
+    DetainedVehicle findByDetainNo(String detainNo);
+
+    @Select("SELECT COUNT(*) FROM detained_vehicle WHERE entry_no LIKE CONCAT(#{prefix}, '%')")
+    int countByEntryNoPrefix(String prefix);
+
+    @Insert("INSERT INTO detained_vehicle (detain_no, entry_no, plate_no, vehicle_type, brand_model, vehicle_color, " +
+            "mileage, important_equipment, has_key, parking_lot_id, parking_area_id, stall_no, dispatch_order_id, " +
+            "detain_dept, rescuer_name, rescue_reason, rescue_method, rescue_time, rescue_address, status, in_time, " +
+            "operator_in_id, remark) VALUES (#{detainNo}, #{entryNo}, #{plateNo}, #{vehicleType}, #{brandModel}, " +
+            "#{vehicleColor}, #{mileage}, #{importantEquipment}, #{hasKey}, #{parkingLotId}, #{parkingAreaId}, " +
+            "#{stallNo}, #{dispatchOrderId}, #{detainDept}, #{rescuerName}, #{rescueReason}, #{rescueMethod}, " +
+            "#{rescueTime}, #{rescueAddress}, #{status}, #{inTime}, #{operatorInId}, #{remark})")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(DetainedVehicle v);
 
-    @Update("UPDATE detained_vehicle SET plate_no=#{plateNo}, vehicle_type=#{vehicleType}, parking_lot_id=#{parkingLotId}, " +
-            "dispatch_order_id=#{dispatchOrderId}, detain_dept=#{detainDept}, status=#{status}, in_time=#{inTime}, " +
-            "out_time=#{outTime}, cleared_at=#{clearedAt}, operator_in_id=#{operatorInId}, operator_out_id=#{operatorOutId}, " +
+    @Update("UPDATE detained_vehicle SET plate_no=#{plateNo}, vehicle_type=#{vehicleType}, brand_model=#{brandModel}, " +
+            "vehicle_color=#{vehicleColor}, mileage=#{mileage}, important_equipment=#{importantEquipment}, " +
+            "has_key=#{hasKey}, parking_lot_id=#{parkingLotId}, parking_area_id=#{parkingAreaId}, stall_no=#{stallNo}, " +
+            "dispatch_order_id=#{dispatchOrderId}, detain_dept=#{detainDept}, rescuer_name=#{rescuerName}, " +
+            "rescue_reason=#{rescueReason}, rescue_method=#{rescueMethod}, rescue_time=#{rescueTime}, " +
+            "rescue_address=#{rescueAddress}, status=#{status}, in_time=#{inTime}, out_time=#{outTime}, " +
+            "cleared_at=#{clearedAt}, operator_in_id=#{operatorInId}, operator_out_id=#{operatorOutId}, " +
             "remark=#{remark} WHERE id=#{id}")
     int update(DetainedVehicle v);
 }

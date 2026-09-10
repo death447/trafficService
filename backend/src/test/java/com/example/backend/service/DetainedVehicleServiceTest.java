@@ -4,6 +4,7 @@ import com.example.backend.dto.DetainInRequest;
 import com.example.backend.dto.DetainUpdateRequest;
 import com.example.backend.entity.DetainedVehicle;
 import com.example.backend.entity.ParkingLot;
+import com.example.backend.mapper.DetainMediaMapper;
 import com.example.backend.mapper.DetainedVehicleMapper;
 import com.example.backend.mapper.DispatchOrderMapper;
 import org.junit.jupiter.api.Test;
@@ -20,12 +21,16 @@ import static org.mockito.Mockito.*;
 class DetainedVehicleServiceTest {
     @Mock DetainedVehicleMapper detainedVehicleMapper;
     @Mock ParkingLotService parkingLotService;
+    @Mock ParkingAreaService parkingAreaService;
     @Mock DispatchOrderMapper dispatchOrderMapper;
+    @Mock DetainMediaMapper detainMediaMapper;
+    @Mock LocalFileStorageService fileStorageService;
     @InjectMocks DetainedVehicleService service;
 
     @Test
-    void checkInReturnsDetainNoAndInYard() {
+    void checkInUsesManualDetainNoAndGeneratesEntryNo() {
         DetainInRequest req = new DetainInRequest();
+        req.setDetainNo(" 凭证001 ");
         req.setPlateNo(" 粤B停01 ");
         req.setParkingLotId(1L);
         req.setVehicleType("小型车");
@@ -33,9 +38,9 @@ class DetainedVehicleServiceTest {
         lot.setId(1L);
         lot.setStatus("ENABLED");
         when(parkingLotService.requireEnabled(1L)).thenReturn(lot);
+        when(detainedVehicleMapper.findByDetainNo("凭证001")).thenReturn(null);
         when(detainedVehicleMapper.countInYardByPlateNo("粤B停01")).thenReturn(0);
-        when(detainedVehicleMapper.countByDetainNoPrefix(org.mockito.ArgumentMatchers.startsWith("DV")))
-                .thenReturn(0);
+        when(detainedVehicleMapper.countByEntryNoPrefix(org.mockito.ArgumentMatchers.anyString())).thenReturn(0);
         when(detainedVehicleMapper.insert(any(DetainedVehicle.class))).thenAnswer(inv -> {
             DetainedVehicle v = inv.getArgument(0);
             v.setId(88L);
@@ -48,20 +53,58 @@ class DetainedVehicleServiceTest {
         assertEquals("粤B停01", created.getPlateNo());
         assertEquals("IN_YARD", created.getStatus());
         assertEquals(4L, created.getOperatorInId());
-        assertNotNull(created.getDetainNo());
-        assertTrue(created.getDetainNo().startsWith("DV"));
-        assertEquals(14, created.getDetainNo().length());
+        assertEquals("凭证001", created.getDetainNo());
+        assertNotNull(created.getEntryNo());
+        assertTrue(created.getEntryNo().length() >= 12);
+    }
+
+    @Test
+    void checkInRejectsDuplicateDetainNo() {
+        DetainInRequest req = new DetainInRequest();
+        req.setDetainNo("DV1");
+        req.setPlateNo("粤B1");
+        req.setParkingLotId(1L);
+        ParkingLot lot = new ParkingLot();
+        lot.setId(1L);
+        lot.setStatus("ENABLED");
+        when(parkingLotService.requireEnabled(1L)).thenReturn(lot);
+        when(detainedVehicleMapper.findByDetainNo("DV1")).thenReturn(new DetainedVehicle());
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> service.checkIn(req, 1L));
+        assertTrue(ex.getMessage().contains("扣押编号"));
+        verify(detainedVehicleMapper, never()).insert(any());
+    }
+
+    @Test
+    void checkInRejectsAreaFromOtherLot() {
+        DetainInRequest req = new DetainInRequest();
+        req.setDetainNo("DV2");
+        req.setPlateNo("粤B2");
+        req.setParkingLotId(1L);
+        req.setParkingAreaId(9L);
+        ParkingLot lot = new ParkingLot();
+        lot.setId(1L);
+        lot.setStatus("ENABLED");
+        when(parkingLotService.requireEnabled(1L)).thenReturn(lot);
+        when(detainedVehicleMapper.findByDetainNo("DV2")).thenReturn(null);
+        when(detainedVehicleMapper.countInYardByPlateNo("粤B2")).thenReturn(0);
+        doThrow(new RuntimeException("停放区域不属于所选停车场"))
+                .when(parkingAreaService).requireEnabledForLot(9L, 1L);
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> service.checkIn(req, 1L));
+        assertTrue(ex.getMessage().contains("不属于"));
+        verify(detainedVehicleMapper, never()).insert(any());
     }
 
     @Test
     void checkInRejectsWhenPlateAlreadyInYard() {
         DetainInRequest req = new DetainInRequest();
+        req.setDetainNo("DV3");
         req.setPlateNo(" 粤B12345 ");
         req.setParkingLotId(1L);
         ParkingLot lot = new ParkingLot();
         lot.setId(1L);
         lot.setStatus("ENABLED");
         when(parkingLotService.requireEnabled(1L)).thenReturn(lot);
+        when(detainedVehicleMapper.findByDetainNo("DV3")).thenReturn(null);
         when(detainedVehicleMapper.countInYardByPlateNo("粤B12345")).thenReturn(1);
         RuntimeException ex = assertThrows(RuntimeException.class, () -> service.checkIn(req, 9L));
         assertTrue(ex.getMessage().contains("在库") || ex.getMessage().contains("车牌"));
@@ -96,7 +139,7 @@ class DetainedVehicleServiceTest {
         when(detainedVehicleMapper.findById(5L)).thenReturn(v);
         DetainUpdateRequest req = new DetainUpdateRequest();
         req.setPlateNo("粤B新");
-        req.setParkingLotId(1L); // same lot → requireEnabled skipped
+        req.setParkingLotId(1L);
         when(detainedVehicleMapper.countInYardByPlateNoExcludingId("粤B新", 5L)).thenReturn(1);
         assertThrows(RuntimeException.class, () -> service.update(5L, req));
         verify(parkingLotService, never()).requireEnabled(any());
