@@ -49,6 +49,7 @@ import { onLoad } from '@dcloudio/uni-app'
 import { getTask, saveScene, listMedia, uploadMedia, deleteMedia } from '../../api/rescuer'
 import { listEnabledVehicleTypes } from '../../api/vehicleType'
 import { mediaUrl } from '../../utils/request'
+import { requirePageAccess } from '../../utils/guard.js'
 
 const id = ref(null)
 const form = reactive({
@@ -67,6 +68,7 @@ function onTypePick(e) {
 }
 
 onLoad(async (q) => {
+  if (!requirePageAccess('rescuer')) return
   id.value = q.id
   await load()
 })

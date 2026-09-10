@@ -37,6 +37,7 @@ import { reactive, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { getTask, savePark, listMedia, uploadMedia } from '../../api/rescuer'
 import { mediaUrl } from '../../utils/request'
+import { requirePageAccess } from '../../utils/guard.js'
 
 const id = ref(null)
 const form = reactive({
@@ -46,6 +47,7 @@ const form = reactive({
 const medias = ref([])
 
 onLoad(async (q) => {
+  if (!requirePageAccess('rescuer')) return
   id.value = q.id
   await load()
 })

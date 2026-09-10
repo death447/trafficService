@@ -111,6 +111,7 @@ import {
 } from '../../api/rescuer'
 import { mediaUrl } from '../../utils/request'
 import { canAutoCheckin, AUTO_CHECKIN_RADIUS_METERS } from '../../utils/geo'
+import { requirePageAccess } from '../../utils/guard.js'
 
 const id = ref(null)
 const order = ref(null)
@@ -140,11 +141,13 @@ const hasAccidentCoords = computed(() =>
 const canShowMap = computed(() => amapReady && hasAccidentCoords.value)
 
 onLoad((q) => {
+  if (!requirePageAccess('rescuer')) return
   id.value = q.id
   autoCheckinDone = false
 })
 
 onShow(() => {
+  if (!requirePageAccess('rescuer')) return
   pageVisible = true
   if (id.value) {
     load().then(() => {
