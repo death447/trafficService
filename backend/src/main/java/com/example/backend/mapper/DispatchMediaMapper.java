@@ -19,4 +19,10 @@ public interface DispatchMediaMapper {
     @Select("SELECT * FROM dispatch_media WHERE dispatch_order_id = #{dispatchOrderId} AND biz_type = #{bizType} ORDER BY sort_order, id")
     List<DispatchMedia> findByOrderIdAndBizType(@Param("dispatchOrderId") Long dispatchOrderId,
                                                  @Param("bizType") String bizType);
+
+    @Select("SELECT * FROM dispatch_media WHERE id = #{id}")
+    DispatchMedia findById(Long id);
+
+    @Delete("DELETE FROM dispatch_media WHERE id = #{id}")
+    int deleteById(Long id);
 }

@@ -194,6 +194,19 @@ public class RescuerMobileController {
         }
     }
 
+    @DeleteMapping("/tasks/{id}/media/{mediaId}")
+    @PreAuthorize("hasAuthority('rescuer:scene') or hasAuthority('rescuer:park')")
+    public Result<Void> deleteMedia(@PathVariable Long id, @PathVariable Long mediaId) {
+        try {
+            DispatchMedia media = rescuerMobileService.getOwnedMedia(currentUserId(), id, mediaId);
+            requireMediaAuthority(media.getBizType());
+            rescuerMobileService.deleteMedia(currentUserId(), id, mediaId);
+            return Result.success(null);
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
     @PostMapping("/tasks/{id}/complete")
     @PreAuthorize("hasAuthority('rescuer:complete')")
     public Result<DispatchOrder> complete(@PathVariable Long id) {

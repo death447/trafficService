@@ -4,6 +4,7 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 public class DispatchOrder {
@@ -39,4 +40,6 @@ public class DispatchOrder {
     private String vehiclePlate;
     private String dispatcherName;
     private String rescuerName;
+    private DispatchFieldRecord fieldRecord;
+    private List<DispatchMedia> medias;
 }

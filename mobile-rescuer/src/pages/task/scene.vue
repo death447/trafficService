@@ -28,14 +28,15 @@
         <text class="link" @click="onPick">拍照/选图</text>
       </view>
       <view class="media-grid" v-if="medias.length">
-        <image
-          v-for="m in medias"
-          :key="m.id"
-          class="thumb"
-          :src="mediaUrl(m.filePath)"
-          mode="aspectFill"
-          @click="preview(m.filePath)"
-        />
+        <view v-for="m in medias" :key="m.id" class="thumb-wrap">
+          <image
+            class="thumb"
+            :src="mediaUrl(m.filePath)"
+            mode="aspectFill"
+            @click="preview(m.filePath)"
+          />
+          <view class="thumb-del" @click.stop="onDelete(m)">×</view>
+        </view>
       </view>
       <view v-else class="muted">暂无照片</view>
     </view>
@@ -45,7 +46,7 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { getTask, saveScene, listMedia, uploadMedia } from '../../api/rescuer'
+import { getTask, saveScene, listMedia, uploadMedia, deleteMedia } from '../../api/rescuer'
 import { listEnabledVehicleTypes } from '../../api/vehicleType'
 import { mediaUrl } from '../../utils/request'
 
@@ -124,6 +125,21 @@ function preview(filePath) {
   const urls = medias.value.map((m) => mediaUrl(m.filePath))
   uni.previewImage({ urls, current: mediaUrl(filePath) })
 }
+
+function onDelete(item) {
+  uni.showModal({
+    title: '删除照片',
+    content: '确定删除这张受损照片？',
+    success: async (res) => {
+      if (!res.confirm) return
+      try {
+        await deleteMedia(id.value, item.id)
+        medias.value = medias.value.filter((m) => m.id !== item.id)
+        uni.showToast({ title: '已删除', icon: 'success' })
+      } catch (_) {}
+    }
+  })
+}
 </script>
 
 <style scoped>
@@ -146,5 +162,23 @@ function preview(filePath) {
   height: 200rpx;
   border-radius: 12rpx;
   background: #eee;
+}
+.thumb-wrap {
+  position: relative;
+  width: 200rpx;
+  height: 200rpx;
+}
+.thumb-del {
+  position: absolute;
+  top: 6rpx;
+  right: 6rpx;
+  width: 40rpx;
+  height: 40rpx;
+  line-height: 36rpx;
+  text-align: center;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 28rpx;
 }
 </style>

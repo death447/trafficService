@@ -143,6 +143,24 @@ public class RescuerMobileService {
         return media;
     }
 
+    @Transactional
+    public void deleteMedia(Long userId, Long orderId, Long mediaId) {
+        DispatchMedia media = getOwnedMedia(userId, orderId, mediaId);
+        if (media.getFilePath() != null) {
+            fileStorageService.deleteDispatchMedia(media.getFilePath());
+        }
+        mediaMapper.deleteById(mediaId);
+    }
+
+    public DispatchMedia getOwnedMedia(Long userId, Long orderId, Long mediaId) {
+        requireOwnedAccepted(orderId, userId);
+        DispatchMedia media = mediaMapper.findById(mediaId);
+        if (media == null || !orderId.equals(media.getDispatchOrderId())) {
+            throw new RuntimeException("照片不存在");
+        }
+        return media;
+    }
+
     public List<DispatchMedia> listMedia(Long userId, Long orderId) {
         requireOwned(orderId, userId);
         return mediaMapper.findByOrderId(orderId);

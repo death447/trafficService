@@ -4,6 +4,7 @@ import com.example.backend.dto.BindVehicleRequest;
 import com.example.backend.dto.LocationReportRequest;
 import com.example.backend.dto.LocationReportResponse;
 import com.example.backend.dto.SceneRequest;
+import com.example.backend.entity.DispatchMedia;
 import com.example.backend.entity.DispatchOrder;
 import com.example.backend.entity.RescueVehicle;
 import com.example.backend.mapper.DispatchFieldRecordMapper;
@@ -87,6 +88,41 @@ class RescuerMobileServiceTest {
         assertTrue(ex.getMessage().contains("bizType") || ex.getMessage().contains("类型"));
         verifyNoInteractions(fileStorageService);
         verify(mediaMapper, never()).insert(any());
+    }
+
+    @Test
+    void deleteMediaRemovesRecordAndFile() {
+        DispatchOrder order = new DispatchOrder();
+        order.setId(1L);
+        order.setRescuerId(9L);
+        order.setStatus("ACCEPTED");
+        when(dispatchOrderMapper.findById(1L)).thenReturn(order);
+        DispatchMedia media = new DispatchMedia();
+        media.setId(5L);
+        media.setDispatchOrderId(1L);
+        media.setBizType("DAMAGE");
+        media.setFilePath("dispatch/1/a.jpg");
+        when(mediaMapper.findById(5L)).thenReturn(media);
+
+        service.deleteMedia(9L, 1L, 5L);
+
+        verify(fileStorageService).deleteDispatchMedia("dispatch/1/a.jpg");
+        verify(mediaMapper).deleteById(5L);
+    }
+
+    @Test
+    void deleteMediaFailsWhenNotAccepted() {
+        DispatchOrder order = new DispatchOrder();
+        order.setId(1L);
+        order.setRescuerId(9L);
+        order.setStatus("DISPATCHED");
+        when(dispatchOrderMapper.findById(1L)).thenReturn(order);
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> service.deleteMedia(9L, 1L, 5L));
+        assertTrue(ex.getMessage().contains("接单") || ex.getMessage().contains("状态"));
+        verify(mediaMapper, never()).deleteById(any());
+        verifyNoInteractions(fileStorageService);
     }
 
     @Test

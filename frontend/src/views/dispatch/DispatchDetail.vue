@@ -85,6 +85,46 @@
             </div>
           </div>
 
+          <div v-if="hasSceneCollection" class="panel info-panel scene-panel">
+            <h2 class="section-title">现场采集</h2>
+            <div class="info-grid">
+              <div>
+                <span class="label">车牌号码</span>
+                <strong>{{ fieldRecord?.plateNo || '—' }}</strong>
+              </div>
+              <div>
+                <span class="label">车型</span>
+                <strong>{{ fieldRecord?.vehicleType || '—' }}</strong>
+              </div>
+              <div v-if="fieldRecord?.sceneSubmittedAt">
+                <span class="label">采集时间</span>
+                <strong>{{ formatTime(fieldRecord.sceneSubmittedAt) }}</strong>
+              </div>
+              <div class="span-2">
+                <span class="label">受损描述</span>
+                <strong>{{ fieldRecord?.damageDesc || '—' }}</strong>
+              </div>
+              <div class="span-2">
+                <span class="label">现场备注</span>
+                <strong>{{ fieldRecord?.sceneRemark || '—' }}</strong>
+              </div>
+              <div v-if="damageMedias.length" class="span-2">
+                <span class="label">受损照片</span>
+                <div class="photo-grid">
+                  <button
+                    v-for="m in damageMedias"
+                    :key="m.id"
+                    type="button"
+                    class="photo-thumb"
+                    @click="previewSrc = mediaUrl(m.filePath)"
+                  >
+                    <img :src="mediaUrl(m.filePath)" :alt="m.filePath || '受损照片'" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- PENDING: edit + nearby vehicles + assign -->
           <template v-if="order.status === 'PENDING'">
             <div class="panel edit-panel">
@@ -261,6 +301,10 @@
       </div>
     </template>
 
+    <div v-if="previewSrc" class="modal photo-preview" @click.self="previewSrc = ''">
+      <img :src="previewSrc" alt="受损照片预览" />
+    </div>
+
     <div v-if="abortVisible" class="modal" @click.self="abortVisible = false">
       <form class="modal-card" @submit.prevent="onAbort">
         <h2>中止工单</h2>
@@ -342,6 +386,26 @@ const editForm = reactive({
 })
 const savingEdit = ref(false)
 const editError = ref('')
+const previewSrc = ref('')
+
+const fieldRecord = computed(() => order.value?.fieldRecord || null)
+const damageMedias = computed(() =>
+  (order.value?.medias || []).filter((m) => m.bizType === 'DAMAGE')
+)
+const hasSceneCollection = computed(() => {
+  const fr = fieldRecord.value
+  const hasText = Boolean(
+    fr && (fr.plateNo || fr.vehicleType || fr.damageDesc || fr.sceneRemark || fr.sceneSubmittedAt)
+  )
+  return hasText || damageMedias.value.length > 0
+})
+
+function mediaUrl(filePath) {
+  if (!filePath) return ''
+  if (/^https?:\/\//i.test(filePath)) return filePath
+  const path = String(filePath).replace(/^\/+/, '')
+  return `/uploads/${path}`
+}
 
 const vehicleSections = computed(() => [
   {
@@ -743,9 +807,12 @@ async function onAssign() {
   assigning.value = true
   actionError.value = ''
   try {
+    const picked = [...nearby.value, ...staleNearby.value].find(
+      (item) => item.vehicle?.id === selectedVehicleId.value
+    )
     const res = await assignDispatch(id.value, {
       vehicleId: selectedVehicleId.value,
-      rescuerId: order.value?.rescuerId ?? null
+      rescuerId: picked?.vehicle?.driverUserId ?? null
     })
     order.value = res.data
   } catch (e) {
@@ -916,7 +983,15 @@ onBeforeUnmount(() => {
 .section-title {
   font-size: 0.95rem;
   font-weight: 600;
-  margin-bottom: 0.75rem;
+  margin: 0 0 0.85rem;
+}
+
+.scene-panel .section-title {
+  margin-bottom: 0.85rem;
+}
+
+.scene-panel .photo-grid {
+  margin-top: 0.15rem;
 }
 
 .subsection-header {
@@ -958,8 +1033,51 @@ onBeforeUnmount(() => {
 .edit-panel,
 .map-panel,
 .vehicle-panel,
-.action-panel {
+.action-panel,
+.scene-panel {
   margin-bottom: 0;
+}
+
+.photo-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.photo-thumb {
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  width: 112px;
+  height: 112px;
+  background: var(--bg-muted);
+  cursor: pointer;
+  display: block;
+  line-height: 0;
+}
+
+.photo-thumb:hover {
+  background: var(--bg-muted);
+}
+
+.photo-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.photo-preview {
+  align-items: center;
+  padding: 2rem 1rem;
+}
+
+.photo-preview img {
+  max-width: min(920px, 100%);
+  max-height: 86vh;
+  border-radius: 8px;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.28);
 }
 
 .edit-form {

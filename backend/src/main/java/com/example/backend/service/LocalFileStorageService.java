@@ -39,4 +39,20 @@ public class LocalFileStorageService {
         file.transferTo(target);
         return "dispatch/" + orderId + "/" + name;
     }
+
+    public void deleteDispatchMedia(String relativePath) {
+        if (relativePath == null || relativePath.isBlank()) {
+            return;
+        }
+        Path root = Paths.get(uploadDir).toAbsolutePath().normalize();
+        Path target = root.resolve(relativePath).normalize();
+        if (!target.startsWith(root)) {
+            throw new RuntimeException("非法路径");
+        }
+        try {
+            Files.deleteIfExists(target);
+        } catch (IOException e) {
+            throw new RuntimeException("文件删除失败");
+        }
+    }
 }

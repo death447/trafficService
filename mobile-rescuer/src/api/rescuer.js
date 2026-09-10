@@ -65,6 +65,10 @@ export function uploadMedia(id, filePath, bizType) {
   })
 }
 
+export function deleteMedia(id, mediaId) {
+  return request({ url: `${PREFIX}/tasks/${id}/media/${mediaId}`, method: 'DELETE' })
+}
+
 export function completeTask(id) {
   return request({ url: `${PREFIX}/tasks/${id}/complete`, method: 'POST' })
 }

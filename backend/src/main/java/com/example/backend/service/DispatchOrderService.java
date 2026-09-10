@@ -6,6 +6,8 @@ import com.example.backend.entity.DispatchOrder;
 import com.example.backend.entity.RescueVehicle;
 import com.example.backend.entity.Role;
 import com.example.backend.entity.User;
+import com.example.backend.mapper.DispatchFieldRecordMapper;
+import com.example.backend.mapper.DispatchMediaMapper;
 import com.example.backend.mapper.DispatchOrderMapper;
 import com.example.backend.mapper.RescueVehicleMapper;
 import com.example.backend.mapper.UserMapper;
@@ -42,10 +44,18 @@ public class DispatchOrderService {
     @Autowired
     private AccidentVehicleTypeService accidentVehicleTypeService;
 
+    @Autowired
+    private DispatchFieldRecordMapper fieldRecordMapper;
+
+    @Autowired
+    private DispatchMediaMapper mediaMapper;
+
     public DispatchOrder findById(Long id) {
         DispatchOrder order = dispatchOrderMapper.findById(id);
         if (order != null) {
             enrich(order);
+            order.setFieldRecord(fieldRecordMapper.findByOrderId(id));
+            order.setMedias(mediaMapper.findByOrderId(id));
         }
         return order;
     }
@@ -187,11 +197,18 @@ public class DispatchOrderService {
         if (!"PENDING".equals(order.getStatus())) {
             throw new RuntimeException("仅待派单状态可派车");
         }
-        rescueVehicleService.requireIdle(vehicleId);
+        RescueVehicle vehicle = rescueVehicleService.requireIdle(vehicleId);
+        Long driverId = vehicle.getDriverUserId();
+        if (driverId == null) {
+            throw new RuntimeException("该车辆未绑定施救员");
+        }
+        assertHasRole(driverId, "TOW_DRIVER");
         order.setVehicleId(vehicleId);
-        order.setRescuerId(rescuerId);
+        // 施救员由车辆绑定带出；退单后再派时工单上的 rescuerId 已清空，不能沿用请求里的空值
+        order.setRescuerId(driverId);
         order.setStatus("DISPATCHED");
         order.setDispatchedAt(LocalDateTime.now());
+        order.setRejectReason(null);
         dispatchOrderMapper.update(order);
         rescueVehicleService.markBusy(vehicleId);
     }

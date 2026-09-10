@@ -1,9 +1,13 @@
 package com.example.backend.service;
 
 import com.example.backend.entity.AccidentVehicleType;
+import com.example.backend.entity.DispatchFieldRecord;
+import com.example.backend.entity.DispatchMedia;
 import com.example.backend.entity.DispatchOrder;
 import com.example.backend.entity.RescueVehicle;
 import com.example.backend.entity.Role;
+import com.example.backend.mapper.DispatchFieldRecordMapper;
+import com.example.backend.mapper.DispatchMediaMapper;
 import com.example.backend.mapper.DispatchOrderMapper;
 import com.example.backend.mapper.UserMapper;
 import org.junit.jupiter.api.Test;
@@ -26,6 +30,8 @@ class DispatchOrderServiceTest {
     @Mock RescueVehicleService rescueVehicleService;
     @Mock AccidentVehicleTypeService accidentVehicleTypeService;
     @Mock UserMapper userMapper;
+    @Mock DispatchFieldRecordMapper fieldRecordMapper;
+    @Mock DispatchMediaMapper mediaMapper;
     @InjectMocks DispatchOrderService service;
 
     @Test
@@ -264,13 +270,45 @@ class DispatchOrderServiceTest {
         RescueVehicle vehicle = new RescueVehicle();
         vehicle.setId(3L);
         vehicle.setStatus("IDLE");
+        vehicle.setDriverUserId(7L);
+        Role driver = new Role();
+        driver.setRoleCode("TOW_DRIVER");
         when(dispatchOrderMapper.findById(9L)).thenReturn(order);
         when(rescueVehicleService.requireIdle(3L)).thenReturn(vehicle);
+        when(userMapper.findRolesByUserId(7L)).thenReturn(List.of(driver));
 
         service.assign(9L, 3L, null);
 
         assertEquals("DISPATCHED", order.getStatus());
         assertEquals(3L, order.getVehicleId());
+        assertEquals(7L, order.getRescuerId());
+        verify(rescueVehicleService).markBusy(3L);
+        verify(dispatchOrderMapper).update(order);
+    }
+
+    @Test
+    void assignSetsRescuerFromVehicleWhenRequestRescuerNull() {
+        DispatchOrder order = new DispatchOrder();
+        order.setId(9L);
+        order.setStatus("PENDING");
+        order.setRescuerId(null);
+        order.setRejectReason("无法到达");
+        RescueVehicle vehicle = new RescueVehicle();
+        vehicle.setId(3L);
+        vehicle.setStatus("IDLE");
+        vehicle.setDriverUserId(7L);
+        Role driver = new Role();
+        driver.setRoleCode("TOW_DRIVER");
+        when(dispatchOrderMapper.findById(9L)).thenReturn(order);
+        when(rescueVehicleService.requireIdle(3L)).thenReturn(vehicle);
+        when(userMapper.findRolesByUserId(7L)).thenReturn(List.of(driver));
+
+        service.assign(9L, 3L, null);
+
+        assertEquals("DISPATCHED", order.getStatus());
+        assertEquals(3L, order.getVehicleId());
+        assertEquals(7L, order.getRescuerId());
+        assertNull(order.getRejectReason());
         verify(rescueVehicleService).markBusy(3L);
         verify(dispatchOrderMapper).update(order);
     }
@@ -562,5 +600,32 @@ class DispatchOrderServiceTest {
         assertEquals("ABORTED", o.getStatus());
         assertEquals(3L, o.getRescuerId()); // 保留以便 aborted 列表
         verify(rescueVehicleService).markIdle(8L);
+    }
+
+    @Test
+    void findByIdAttachesSceneCollection() {
+        DispatchOrder o = new DispatchOrder();
+        o.setId(1L);
+        o.setStatus("ACCEPTED");
+        when(dispatchOrderMapper.findById(1L)).thenReturn(o);
+        DispatchFieldRecord record = new DispatchFieldRecord();
+        record.setDispatchOrderId(1L);
+        record.setPlateNo("浙F12345");
+        record.setDamageDesc("左前损伤");
+        when(fieldRecordMapper.findByOrderId(1L)).thenReturn(record);
+        DispatchMedia photo = new DispatchMedia();
+        photo.setId(9L);
+        photo.setDispatchOrderId(1L);
+        photo.setBizType("DAMAGE");
+        photo.setFilePath("dispatch/1/a.jpg");
+        when(mediaMapper.findByOrderId(1L)).thenReturn(List.of(photo));
+
+        DispatchOrder detail = service.findById(1L);
+
+        assertNotNull(detail.getFieldRecord());
+        assertEquals("浙F12345", detail.getFieldRecord().getPlateNo());
+        assertEquals("左前损伤", detail.getFieldRecord().getDamageDesc());
+        assertEquals(1, detail.getMedias().size());
+        assertEquals("DAMAGE", detail.getMedias().get(0).getBizType());
     }
 }
