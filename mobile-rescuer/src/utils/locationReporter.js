@@ -1,4 +1,5 @@
 import { getBoundVehicle, reportLocation } from '../api/rescuer'
+import { shouldStartGps } from './workspace.js'
 
 const INTERVAL_MS = 30000
 let timer = null
@@ -82,6 +83,7 @@ async function tick() {
 
 export function startLocationReporter() {
   if (!hasToken()) return
+  if (!shouldStartGps(uni.getStorageSync('workspace') || '')) return
   // Restart-safe: ensure interval is active
   if (running && timer) {
     return

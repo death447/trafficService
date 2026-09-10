@@ -1,6 +1,6 @@
 <template>
   <view class="login-page">
-    <view class="brand">施救员移动端</view>
+    <view class="brand">救援移动端</view>
     <view class="sub">道路交通事故救援派单系统</view>
     <view class="card form">
       <view class="field">
@@ -14,25 +14,26 @@
       <view class="btn-primary" :class="{ 'btn-disabled': loading }" @click="onLogin">
         {{ loading ? '登录中…' : '登录' }}
       </view>
-      <view class="hint muted">演示账号：towdriver / admin123</view>
+      <view class="hint muted">towdriver 或 parkingadmin / admin123</view>
     </view>
   </view>
 </template>
 
 <script setup>
 import { ref } from 'vue'
-import { loginApi } from '../../api/auth'
-import { setSession, hasRescuerAccess, getUserState } from '../../stores/user'
 import { onShow } from '@dcloudio/uni-app'
+import { loginApi } from '../../api/auth'
+import { setSession } from '../../stores/user'
+import { requirePageAccess } from '../../utils/guard.js'
+import { startLocationReporter } from '../../utils/locationReporter'
+import { resolveLoginTarget, shouldStartGps } from '../../utils/workspace.js'
 
 const username = ref('towdriver')
 const password = ref('admin123')
 const loading = ref(false)
 
 onShow(() => {
-  if (getUserState().token && hasRescuerAccess()) {
-    uni.switchTab({ url: '/pages/task/list' })
-  }
+  requirePageAccess('public')
 })
 
 async function onLogin() {
@@ -46,15 +47,18 @@ async function onLogin() {
     const res = await loginApi({ username: username.value, password: password.value })
     const data = res.data || {}
     const permissions = data.permissions || []
-    if (!hasRescuerAccess(permissions)) {
-      uni.showToast({ title: '无施救员移动端权限', icon: 'none' })
+    const target = resolveLoginTarget(permissions)
+    if (target === 'none') {
+      uni.showToast({ title: '无移动端权限', icon: 'none' })
       return
     }
-    setSession(data)
-    uni.showToast({ title: '登录成功', icon: 'success' })
-    setTimeout(() => {
-      uni.switchTab({ url: '/pages/task/list' })
-    }, 300)
+    setSession({ ...data, workspace: target === 'select' ? '' : target })
+    if (target === 'select') {
+      uni.reLaunch({ url: '/pages/workspace/select' })
+      return
+    }
+    if (shouldStartGps(target)) startLocationReporter()
+    uni.switchTab({ url: '/pages/workbench/index' })
   } catch (e) {
     uni.showToast({ title: e.message || '登录失败', icon: 'none' })
   } finally {

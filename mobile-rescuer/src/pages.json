@@ -8,6 +8,18 @@
       }
     },
     {
+      "path": "pages/workbench/index",
+      "style": {
+        "navigationBarTitleText": "工作台"
+      }
+    },
+    {
+      "path": "pages/workspace/select",
+      "style": {
+        "navigationBarTitleText": "选择工作台"
+      }
+    },
+    {
       "path": "pages/task/list",
       "style": {
         "navigationBarTitleText": "任务"
@@ -58,7 +70,7 @@
   ],
   "globalStyle": {
     "navigationBarTextStyle": "black",
-    "navigationBarTitleText": "施救员",
+    "navigationBarTitleText": "救援移动端",
     "navigationBarBackgroundColor": "#FFFFFF",
     "backgroundColor": "#F5F6F8"
   },
@@ -69,7 +81,7 @@
     "borderStyle": "black",
     "list": [
       {
-        "pagePath": "pages/task/list",
+        "pagePath": "pages/workbench/index",
         "text": "任务",
         "iconPath": "static/tab/task.png",
         "selectedIconPath": "static/tab/task-active.png"

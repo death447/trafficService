@@ -22,6 +22,7 @@ function clearAuthAndGoLogin() {
   uni.removeStorageSync('username')
   uni.removeStorageSync('permissions')
   uni.removeStorageSync('roles')
+  uni.removeStorageSync('workspace')
   uni.reLaunch({ url: '/pages/login/index' })
 }
 

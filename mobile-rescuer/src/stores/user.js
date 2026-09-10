@@ -1,6 +1,7 @@
 import { startLocationReporter, stopLocationReporter } from '../utils/locationReporter'
+import { hasRescuerAccess as checkRescuerAccess, shouldStartGps } from '../utils/workspace.js'
 
-const KEYS = ['token', 'userId', 'username', 'permissions', 'roles']
+const KEYS = ['token', 'userId', 'username', 'permissions', 'roles', 'workspace']
 
 function readPermissions() {
   try {
@@ -28,7 +29,8 @@ export function getUserState() {
     userId: uni.getStorageSync('userId') || null,
     username: uni.getStorageSync('username') || '',
     permissions: readPermissions(),
-    roles: readRoles()
+    roles: readRoles(),
+    workspace: uni.getStorageSync('workspace') || ''
   }
 }
 
@@ -38,19 +40,24 @@ export function setSession(data) {
   uni.setStorageSync('username', data.username || '')
   uni.setStorageSync('permissions', JSON.stringify(data.permissions || []))
   uni.setStorageSync('roles', JSON.stringify(data.roles || []))
-  // Login switchTab does not re-fire App onShow; start reporter after token is written.
-  startLocationReporter()
+  uni.setStorageSync('workspace', data.workspace || '')
 }
 
 export function clearSession() {
   KEYS.forEach((k) => uni.removeStorageSync(k))
 }
 
+export function enterWorkspace(name) {
+  uni.setStorageSync('workspace', name)
+  if (shouldStartGps(name)) {
+    startLocationReporter()
+  } else {
+    stopLocationReporter()
+  }
+}
+
 export function hasRescuerAccess(permissions = readPermissions()) {
-  const list = permissions || []
-  return list.some(
-    (p) => p === 'mobile:rescuer' || (typeof p === 'string' && p.startsWith('rescuer:'))
-  )
+  return checkRescuerAccess(permissions)
 }
 
 export function logout() {
@@ -63,6 +70,7 @@ export default {
   getUserState,
   setSession,
   clearSession,
+  enterWorkspace,
   hasRescuerAccess,
   logout
 }
