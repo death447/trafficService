@@ -8,3 +8,11 @@ export function loginApi(data) {
     showError: false
   })
 }
+
+export function getMe() {
+  return request({ url: '/auth/me' })
+}
+
+export function updateMe(data) {
+  return request({ url: '/auth/me', method: 'PUT', data })
+}

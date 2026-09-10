@@ -21,7 +21,7 @@
 <script setup>
 import { reactive } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { getProfile, updateProfile } from '../../api/rescuer'
+import { getMe, updateMe } from '../../api/auth'
 
 const form = reactive({
   realName: '',
@@ -31,7 +31,7 @@ const form = reactive({
 
 onLoad(async () => {
   try {
-    const res = await getProfile()
+    const res = await getMe()
     form.realName = res.data?.realName || ''
     form.phone = res.data?.phone || ''
     form.email = res.data?.email || ''
@@ -40,7 +40,7 @@ onLoad(async () => {
 
 async function onSave() {
   try {
-    await updateProfile({
+    await updateMe({
       realName: form.realName,
       phone: form.phone,
       email: form.email

@@ -7,7 +7,7 @@
       <view class="line">邮箱：{{ profile.email || '未填写' }}</view>
     </view>
 
-    <view class="card">
+    <view class="card" v-if="workspace === 'rescuer'">
       <view class="section-title">绑定车辆</view>
       <view v-if="vehicle">
         <view class="line">车牌：{{ vehicle.plateNo || '-' }}</view>
@@ -17,7 +17,7 @@
     </view>
 
     <view class="btn-ghost" @click="goEdit">编辑资料</view>
-    <view class="btn-ghost" style="margin-top: 20rpx" @click="goBind">扫码/手输绑车</view>
+    <view v-if="workspace === 'rescuer'" class="btn-ghost" style="margin-top: 20rpx" @click="goBind">扫码/手输绑车</view>
     <view class="btn-danger" style="margin-top: 20rpx" @click="onLogout">退出登录</view>
   </view>
 </template>
@@ -25,8 +25,10 @@
 <script setup>
 import { reactive, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
-import { getProfile, getBoundVehicle } from '../../api/rescuer'
+import { getMe } from '../../api/auth'
+import { getBoundVehicle } from '../../api/rescuer'
 import { getUserState, logout } from '../../stores/user'
+import { requirePageAccess } from '../../utils/guard.js'
 import { startLocationReporter } from '../../utils/locationReporter'
 
 const profile = reactive({
@@ -36,21 +38,26 @@ const profile = reactive({
   email: ''
 })
 const vehicle = ref(null)
+const workspace = ref('')
 
 onShow(() => {
-  if (!getUserState().token) {
-    uni.reLaunch({ url: '/pages/login/index' })
-    return
-  }
+  if (!requirePageAccess('shared')) return
+  workspace.value = getUserState().workspace
   startLocationReporter()
   load()
 })
 
 async function load() {
   try {
-    const [p, v] = await Promise.all([getProfile(), getBoundVehicle()])
-    Object.assign(profile, p.data || {})
-    vehicle.value = v.data || null
+    if (workspace.value === 'rescuer') {
+      const [p, v] = await Promise.all([getMe(), getBoundVehicle()])
+      Object.assign(profile, p.data || {})
+      vehicle.value = v.data || null
+    } else {
+      const p = await getMe()
+      Object.assign(profile, p.data || {})
+      vehicle.value = null
+    }
   } catch (_) {}
 }
 

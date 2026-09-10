@@ -16,12 +16,18 @@
 
 <script setup>
 import { ref } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
 import { bindVehicle } from '../../api/rescuer'
+import { requirePageAccess } from '../../utils/guard.js'
 import { startLocationReporter } from '../../utils/locationReporter'
 import { scanQrCode } from '../../utils/scanCode'
 
 const payload = ref('')
 const scanning = ref(false)
+
+onShow(() => {
+  if (!requirePageAccess('rescuer')) return
+})
 
 async function onScan() {
   if (scanning.value) return
