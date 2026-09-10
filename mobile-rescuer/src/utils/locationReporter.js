@@ -83,7 +83,10 @@ async function tick() {
 
 export function startLocationReporter() {
   if (!hasToken()) return
-  if (!shouldStartGps(uni.getStorageSync('workspace') || '')) return
+  if (!shouldStartGps(uni.getStorageSync('workspace') || '')) {
+    stopLocationReporter()
+    return
+  }
   // Restart-safe: ensure interval is active
   if (running && timer) {
     return

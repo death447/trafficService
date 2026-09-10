@@ -18,6 +18,7 @@
     </view>
 
     <view v-if="loading" class="muted center">加载中…</view>
+    <view v-else-if="loadFailed" class="muted center">加载失败</view>
     <view v-else-if="!list.length" class="muted center">暂无数据</view>
     <view v-else>
       <view class="card item" v-for="item in list" :key="item.id" @click="goDetail(item.id)">
@@ -66,6 +67,7 @@ const size = ref(10)
 const total = ref(0)
 const list = ref([])
 const loading = ref(false)
+const loadFailed = ref(false)
 const canAdd = ref(false)
 
 const totalPages = computed(() => Math.max(1, Math.ceil((total.value || 0) / size.value)))
@@ -96,9 +98,11 @@ async function load() {
     total.value = res.data?.total ?? 0
     if (res.data?.page) page.value = res.data.page
     if (res.data?.size) size.value = res.data.size
+    loadFailed.value = false
   } catch (_) {
     list.value = []
     total.value = 0
+    loadFailed.value = true
   } finally {
     loading.value = false
   }

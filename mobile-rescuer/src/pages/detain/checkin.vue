@@ -126,7 +126,6 @@ async function onSubmit() {
     uni.showToast({ title: `已入库 ${data.detainNo}`, icon: 'success' })
     setTimeout(() => uni.navigateBack(), 400)
   } catch (_) {
-  } finally {
     submitting.value = false
   }
 }

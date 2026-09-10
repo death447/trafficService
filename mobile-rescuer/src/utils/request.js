@@ -1,3 +1,5 @@
+import { httpErrorMessage } from './httpError.js'
+
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8080/api'
 
 export function getApiBase() {
@@ -72,10 +74,11 @@ export function request(options = {}) {
           resolve(body)
           return
         }
+        const msg = httpErrorMessage(res.statusCode, body)
         if (showError) {
-          uni.showToast({ title: `HTTP ${res.statusCode}`, icon: 'none' })
+          uni.showToast({ title: msg, icon: 'none' })
         }
-        reject(new Error(`HTTP ${res.statusCode}`))
+        reject(new Error(msg))
       },
       fail: (err) => {
         if (showError) {

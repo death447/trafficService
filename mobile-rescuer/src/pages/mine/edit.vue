@@ -20,8 +20,9 @@
 
 <script setup>
 import { reactive } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
+import { onShow } from '@dcloudio/uni-app'
 import { getMe, updateMe } from '../../api/auth'
+import { requirePageAccess } from '../../utils/guard.js'
 
 const form = reactive({
   realName: '',
@@ -29,7 +30,8 @@ const form = reactive({
   email: ''
 })
 
-onLoad(async () => {
+onShow(async () => {
+  if (!requirePageAccess('shared')) return
   try {
     const res = await getMe()
     form.realName = res.data?.realName || ''

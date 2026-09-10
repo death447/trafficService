@@ -72,7 +72,11 @@ async function onScan() {
     const text = await scanQrCode()
     payload.value = text
     await lookup(text)
-  } catch (_) {
+  } catch (e) {
+    const msg = (e && e.message) || ''
+    if (msg !== 'cancel') {
+      uni.showToast({ title: msg === 'empty' ? '未识别到二维码' : '扫码失败', icon: 'none' })
+    }
   } finally {
     scanning.value = false
   }

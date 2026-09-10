@@ -15,7 +15,11 @@
       {{ submitting ? '出库中…' : '出库' }}
     </view>
   </view>
-  <view v-else class="page muted center">加载中…</view>
+  <view v-else-if="loading" class="page muted center">加载中…</view>
+  <view v-else class="page muted center">
+    <view>{{ notFound ? '未找到扣留记录' : (loadError || '加载失败') }}</view>
+    <view class="btn-ghost retry" @click="load">重试</view>
+  </view>
 </template>
 
 <script setup>
@@ -28,6 +32,9 @@ import { requirePageAccess } from '../../utils/guard.js'
 const id = ref(null)
 const record = ref(null)
 const submitting = ref(false)
+const loading = ref(true)
+const loadError = ref('')
+const notFound = ref(false)
 
 const canOut = computed(() => {
   const perms = getUserState().permissions || []
@@ -54,15 +61,33 @@ onLoad((q) => {
 
 onShow(() => {
   if (!requirePageAccess('parking')) return
-  if (id.value) load()
+  load()
 })
 
 async function load() {
+  loading.value = true
+  loadError.value = ''
+  notFound.value = false
+  record.value = null
+  if (!id.value) {
+    notFound.value = true
+    loading.value = false
+    return
+  }
   try {
     const res = await getDetain(id.value)
     record.value = res.data || null
-  } catch (_) {
+    if (!record.value) notFound.value = true
+  } catch (e) {
     record.value = null
+    const msg = (e && e.message) || ''
+    if (/404|不存在|未找到/.test(msg)) {
+      notFound.value = true
+    } else {
+      loadError.value = msg || '加载失败'
+    }
+  } finally {
+    loading.value = false
   }
 }
 
@@ -78,6 +103,7 @@ function onOut() {
         await checkOutDetain(id.value)
         uni.navigateBack()
       } catch (_) {
+        await load()
       } finally {
         submitting.value = false
       }
@@ -95,5 +121,8 @@ function onOut() {
 .center {
   text-align: center;
   padding: 80rpx 0;
+}
+.retry {
+  margin-top: 24rpx;
 }
 </style>

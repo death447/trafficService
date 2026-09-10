@@ -7,6 +7,7 @@ const {
   shouldStartGps,
   matchHangtag
 } = require('./workspace.js')
+const { httpErrorMessage } = require('./httpError.js')
 
 test('rescuer permission via prefix or module', () => {
   assert.equal(hasRescuerAccess(['rescuer:task']), true)
@@ -42,4 +43,12 @@ test('matchHangtag exact detainNo', () => {
   assert.equal(matchHangtag(rows, 'DV202609070001').kind, 'in-yard')
   assert.equal(matchHangtag(rows, 'DV202609070002').kind, 'not-in-yard')
   assert.equal(matchHangtag(rows, 'NOPE').kind, 'not-found')
+})
+
+test('httpErrorMessage uses body.message or 无权限 for 403', () => {
+  assert.equal(httpErrorMessage(403, { message: '禁止访问扣车' }), '禁止访问扣车')
+  assert.equal(httpErrorMessage(403, {}), '无权限')
+  assert.equal(httpErrorMessage(403, null), '无权限')
+  assert.equal(httpErrorMessage(500, { message: '服务器错误' }), '服务器错误')
+  assert.equal(httpErrorMessage(500, 'oops'), 'HTTP 500')
 })
