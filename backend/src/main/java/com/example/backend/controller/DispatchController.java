@@ -4,6 +4,7 @@ import com.example.backend.common.PageParams;
 import com.example.backend.common.Result;
 import com.example.backend.dto.AbortDispatchRequest;
 import com.example.backend.dto.AssignDispatchRequest;
+import com.example.backend.dto.DispatchOverview;
 import com.example.backend.entity.DispatchOrder;
 import com.example.backend.security.CustomUserDetails;
 import com.example.backend.service.DispatchOrderService;
@@ -35,6 +36,12 @@ public class DispatchController {
 
         PageParams pp = PageParams.normalize(page, size);
         return Result.success(dispatchOrderService.list(orderNo, status, address, dispatcherId, pp));
+    }
+
+    @GetMapping("/overview")
+    @PreAuthorize("hasAuthority('dispatch:query')")
+    public Result<DispatchOverview> overview() {
+        return Result.success(dispatchOrderService.overview());
     }
 
     @GetMapping("/{id}")

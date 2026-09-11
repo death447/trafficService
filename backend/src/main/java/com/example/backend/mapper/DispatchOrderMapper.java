@@ -3,6 +3,7 @@ package com.example.backend.mapper;
 import com.example.backend.entity.DispatchOrder;
 import org.apache.ibatis.annotations.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Mapper
@@ -74,4 +75,20 @@ public interface DispatchOrderMapper {
 
     @Select("SELECT COUNT(*) FROM dispatch_order WHERE vehicle_id = #{vehicleId} AND status IN ('DISPATCHED','ACCEPTED')")
     int countDispatchedByVehicleId(Long vehicleId);
+
+    @Select("SELECT COUNT(*) FROM dispatch_order WHERE create_time >= #{start} AND create_time < #{end}")
+    long countCreatedBetween(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+    @Select("SELECT COUNT(*) FROM dispatch_order WHERE dispatched_at >= #{start} AND dispatched_at < #{end}")
+    long countDispatchedBetween(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+    @Select("SELECT COUNT(*) FROM dispatch_order WHERE completed_at >= #{start} AND completed_at < #{end}")
+    long countCompletedBetween(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+    @Select("SELECT COUNT(*) FROM dispatch_order WHERE status IN ('PENDING','DISPATCHED','ACCEPTED')")
+    long countActive();
+
+    @Select("SELECT * FROM dispatch_order WHERE status IN ('PENDING','DISPATCHED','ACCEPTED') "
+            + "AND longitude IS NOT NULL AND latitude IS NOT NULL ORDER BY id DESC")
+    List<DispatchOrder> findActiveWithCoords();
 }

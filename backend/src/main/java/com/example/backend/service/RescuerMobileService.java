@@ -15,6 +15,7 @@ import com.example.backend.entity.RescueVehicle;
 import com.example.backend.entity.User;
 import com.example.backend.mapper.DispatchFieldRecordMapper;
 import com.example.backend.mapper.DispatchMediaMapper;
+import com.example.backend.mapper.DispatchOrderEvaluationMapper;
 import com.example.backend.mapper.DispatchOrderMapper;
 import com.example.backend.mapper.RescueVehicleMapper;
 import com.example.backend.mapper.UserMapper;
@@ -47,6 +48,9 @@ public class RescuerMobileService {
     private DispatchMediaMapper mediaMapper;
 
     @Autowired
+    private DispatchOrderEvaluationMapper evaluationMapper;
+
+    @Autowired
     private RescueVehicleMapper rescueVehicleMapper;
 
     @Autowired
@@ -77,6 +81,7 @@ public class RescuerMobileService {
         RescuerTaskDetail detail = new RescuerTaskDetail();
         detail.setOrder(order);
         detail.setFieldRecord(fieldRecordMapper.findByOrderId(orderId));
+        detail.setEvaluation(evaluationMapper.findByOrderId(orderId));
         if (order.getVehicleId() != null) {
             RescueVehicle vehicle = rescueVehicleMapper.findById(order.getVehicleId());
             if (vehicle != null) {

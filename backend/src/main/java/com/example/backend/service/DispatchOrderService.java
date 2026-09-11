@@ -1,6 +1,7 @@
 package com.example.backend.service;
 
 import com.example.backend.common.PageParams;
+import com.example.backend.dto.DispatchOverview;
 import com.example.backend.entity.AccidentVehicleType;
 import com.example.backend.entity.DispatchOrder;
 import com.example.backend.entity.RescueVehicle;
@@ -8,6 +9,7 @@ import com.example.backend.entity.Role;
 import com.example.backend.entity.User;
 import com.example.backend.mapper.DispatchFieldRecordMapper;
 import com.example.backend.mapper.DispatchMediaMapper;
+import com.example.backend.mapper.DispatchOrderEvaluationMapper;
 import com.example.backend.mapper.DispatchOrderMapper;
 import com.example.backend.mapper.RescueVehicleMapper;
 import com.example.backend.mapper.UserMapper;
@@ -19,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
@@ -50,12 +53,16 @@ public class DispatchOrderService {
     @Autowired
     private DispatchMediaMapper mediaMapper;
 
+    @Autowired
+    private DispatchOrderEvaluationMapper evaluationMapper;
+
     public DispatchOrder findById(Long id) {
         DispatchOrder order = dispatchOrderMapper.findById(id);
         if (order != null) {
             enrich(order);
             order.setFieldRecord(fieldRecordMapper.findByOrderId(id));
             order.setMedias(mediaMapper.findByOrderId(id));
+            order.setEvaluation(evaluationMapper.findByOrderId(id));
         }
         return order;
     }
@@ -71,6 +78,21 @@ public class DispatchOrderService {
                 orderNo, status, address, dispatcherId, pp.getOffset(), pp.getSize());
         orders.forEach(this::enrich);
         return pp.toResult(orders, total);
+    }
+
+    public DispatchOverview overview() {
+        ZoneId zone = ZoneId.of("Asia/Shanghai");
+        LocalDate today = LocalDate.now(zone);
+        LocalDateTime start = today.atStartOfDay();
+        LocalDateTime end = today.plusDays(1).atStartOfDay();
+        DispatchOverview overview = new DispatchOverview();
+        overview.setTodayTotal(dispatchOrderMapper.countCreatedBetween(start, end));
+        overview.setTodayDispatched(dispatchOrderMapper.countDispatchedBetween(start, end));
+        overview.setTodayCompleted(dispatchOrderMapper.countCompletedBetween(start, end));
+        overview.setInProgress(dispatchOrderMapper.countActive());
+        List<DispatchOrder> accidents = dispatchOrderMapper.findActiveWithCoords();
+        overview.setAccidents(accidents == null ? List.of() : accidents);
+        return overview;
     }
 
     @Transactional

@@ -6,9 +6,11 @@ import com.example.backend.dto.LocationReportResponse;
 import com.example.backend.dto.SceneRequest;
 import com.example.backend.entity.DispatchMedia;
 import com.example.backend.entity.DispatchOrder;
+import com.example.backend.entity.DispatchOrderEvaluation;
 import com.example.backend.entity.RescueVehicle;
 import com.example.backend.mapper.DispatchFieldRecordMapper;
 import com.example.backend.mapper.DispatchMediaMapper;
+import com.example.backend.mapper.DispatchOrderEvaluationMapper;
 import com.example.backend.mapper.DispatchOrderMapper;
 import com.example.backend.mapper.RescueVehicleMapper;
 import com.example.backend.mapper.UserMapper;
@@ -32,6 +34,7 @@ class RescuerMobileServiceTest {
     @Mock DispatchOrderMapper dispatchOrderMapper;
     @Mock DispatchFieldRecordMapper fieldRecordMapper;
     @Mock DispatchMediaMapper mediaMapper;
+    @Mock DispatchOrderEvaluationMapper evaluationMapper;
     @Mock RescueVehicleMapper rescueVehicleMapper;
     @Mock UserMapper userMapper;
     @Mock LocalFileStorageService fileStorageService;
@@ -195,6 +198,33 @@ class RescuerMobileServiceTest {
         var detail = service.getTask(9L, 1L);
 
         assertNull(detail.getAssignedVehicle());
+    }
+
+    @Test
+    void getTaskAttachesEvaluation() {
+        DispatchOrder order = new DispatchOrder();
+        order.setId(1L);
+        order.setRescuerId(9L);
+        order.setStatus("COMPLETED");
+        when(dispatchOrderMapper.findById(1L)).thenReturn(order);
+        when(fieldRecordMapper.findByOrderId(1L)).thenReturn(null);
+        DispatchOrderEvaluation evaluation = new DispatchOrderEvaluation();
+        evaluation.setDispatchOrderId(1L);
+        evaluation.setScorePunctual(5);
+        evaluation.setScoreStandard(4);
+        evaluation.setScoreSafety(5);
+        evaluation.setScoreAttitude(3);
+        evaluation.setComment("处置规范");
+        when(evaluationMapper.findByOrderId(1L)).thenReturn(evaluation);
+
+        var detail = service.getTask(9L, 1L);
+
+        assertNotNull(detail.getEvaluation());
+        assertEquals(5, detail.getEvaluation().getScorePunctual());
+        assertEquals(4, detail.getEvaluation().getScoreStandard());
+        assertEquals(5, detail.getEvaluation().getScoreSafety());
+        assertEquals(3, detail.getEvaluation().getScoreAttitude());
+        assertEquals("处置规范", detail.getEvaluation().getComment());
     }
 
     @Test

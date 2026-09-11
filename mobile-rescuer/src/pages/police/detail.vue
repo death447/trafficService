@@ -68,10 +68,50 @@
 
     <view class="card" v-if="evaluation">
       <view class="section-title">评价</view>
-      <view class="line">到达及时：{{ evaluation.scorePunctual }} 星</view>
-      <view class="line">处置规范：{{ evaluation.scoreStandard }} 星</view>
-      <view class="line">操作安全：{{ evaluation.scoreSafety }} 星</view>
-      <view class="line">服务态度：{{ evaluation.scoreAttitude }} 星</view>
+      <view class="score-row">
+        <text class="score-label">到达及时</text>
+        <view class="stars">
+          <text
+            v-for="n in 5"
+            :key="'p' + n"
+            class="star"
+            :class="{ on: starOn(evaluation.scorePunctual, n) }"
+          >★</text>
+        </view>
+      </view>
+      <view class="score-row">
+        <text class="score-label">处置规范</text>
+        <view class="stars">
+          <text
+            v-for="n in 5"
+            :key="'st' + n"
+            class="star"
+            :class="{ on: starOn(evaluation.scoreStandard, n) }"
+          >★</text>
+        </view>
+      </view>
+      <view class="score-row">
+        <text class="score-label">操作安全</text>
+        <view class="stars">
+          <text
+            v-for="n in 5"
+            :key="'sa' + n"
+            class="star"
+            :class="{ on: starOn(evaluation.scoreSafety, n) }"
+          >★</text>
+        </view>
+      </view>
+      <view class="score-row">
+        <text class="score-label">服务态度</text>
+        <view class="stars">
+          <text
+            v-for="n in 5"
+            :key="'at' + n"
+            class="star"
+            :class="{ on: starOn(evaluation.scoreAttitude, n) }"
+          >★</text>
+        </view>
+      </view>
       <view class="line">意见：{{ evaluation.comment || '无' }}</view>
     </view>
 
@@ -121,6 +161,10 @@ function statusText(s) {
 function formatTime(value) {
   if (!value) return '-'
   return String(value).replace('T', ' ').slice(0, 19)
+}
+
+function starOn(score, n) {
+  return Number(score) >= n
 }
 
 function previewMedias(list, filePath) {
@@ -208,4 +252,13 @@ onUnload(() => {
 .thumb { width: 160rpx; height: 160rpx; border-radius: 8rpx; }
 .actions { margin-top: 24rpx; }
 .error { color: #c62828; }
+.score-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12rpx;
+}
+.score-label { font-size: 26rpx; }
+.stars { display: flex; gap: 8rpx; font-size: 36rpx; color: #ccc; line-height: 1; }
+.star.on { color: #f5a623; }
 </style>

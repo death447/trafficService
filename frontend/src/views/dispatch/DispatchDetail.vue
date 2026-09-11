@@ -12,9 +12,9 @@
     <p v-if="loading" class="loading-text">加载中…</p>
 
     <template v-else-if="order">
-      <div class="detail-layout">
+      <div class="detail-layout" :class="{ 'rated-layout': showEvalBlock }">
         <div class="detail-left">
-          <div class="panel info-panel">
+          <div class="panel info-panel order-info">
             <div class="info-grid">
               <div>
                 <span class="label">单号</span>
@@ -297,6 +297,72 @@
             <p v-if="trackPollHint" class="hint-inline">{{ trackPollHint }}</p>
             <p v-if="mapError" class="error">{{ mapError }}</p>
           </div>
+
+          <div v-if="evaluation" class="panel info-panel eval-panel">
+            <h2 class="section-title">评价</h2>
+            <div class="info-grid">
+              <div>
+                <span class="label">到达及时</span>
+                <span class="stars" :aria-label="`${evaluation.scorePunctual} 星`">
+                  <span
+                    v-for="n in 5"
+                    :key="'p' + n"
+                    class="star"
+                    :class="{ on: starOn(evaluation.scorePunctual, n) }"
+                    aria-hidden="true"
+                  >★</span>
+                </span>
+              </div>
+              <div>
+                <span class="label">处置规范</span>
+                <span class="stars" :aria-label="`${evaluation.scoreStandard} 星`">
+                  <span
+                    v-for="n in 5"
+                    :key="'st' + n"
+                    class="star"
+                    :class="{ on: starOn(evaluation.scoreStandard, n) }"
+                    aria-hidden="true"
+                  >★</span>
+                </span>
+              </div>
+              <div>
+                <span class="label">操作安全</span>
+                <span class="stars" :aria-label="`${evaluation.scoreSafety} 星`">
+                  <span
+                    v-for="n in 5"
+                    :key="'sa' + n"
+                    class="star"
+                    :class="{ on: starOn(evaluation.scoreSafety, n) }"
+                    aria-hidden="true"
+                  >★</span>
+                </span>
+              </div>
+              <div>
+                <span class="label">服务态度</span>
+                <span class="stars" :aria-label="`${evaluation.scoreAttitude} 星`">
+                  <span
+                    v-for="n in 5"
+                    :key="'at' + n"
+                    class="star"
+                    :class="{ on: starOn(evaluation.scoreAttitude, n) }"
+                    aria-hidden="true"
+                  >★</span>
+                </span>
+              </div>
+              <div class="span-2">
+                <span class="label">意见</span>
+                <strong>{{ evaluation.comment || '无' }}</strong>
+              </div>
+            </div>
+          </div>
+
+          <div
+            v-else-if="order.status === 'COMPLETED'"
+            class="panel info-panel eval-panel"
+          >
+            <h2 class="section-title">评价</h2>
+            <p class="muted readonly-note">暂无评价</p>
+          </div>
         </div>
       </div>
     </template>
@@ -389,6 +455,10 @@ const editError = ref('')
 const previewSrc = ref('')
 
 const fieldRecord = computed(() => order.value?.fieldRecord || null)
+const evaluation = computed(() => order.value?.evaluation || null)
+const showEvalBlock = computed(
+  () => !!evaluation.value || order.value?.status === 'COMPLETED'
+)
 const damageMedias = computed(() =>
   (order.value?.medias || []).filter((m) => m.bizType === 'DAMAGE')
 )
@@ -479,6 +549,10 @@ function vehicleTypeLabel(type) {
 function formatTime(value) {
   if (!value) return '—'
   return String(value).replace('T', ' ').slice(0, 19)
+}
+
+function starOn(score, n) {
+  return Number(score) >= n
 }
 
 function formatDistance(meters) {
@@ -938,6 +1012,7 @@ onBeforeUnmount(() => {
   grid-template-columns: 1fr 1.2fr;
   gap: 1rem;
   align-items: start;
+  grid-template-areas: "left right";
 }
 
 .detail-left,
@@ -948,9 +1023,62 @@ onBeforeUnmount(() => {
   gap: 1rem;
 }
 
+.detail-left {
+  grid-area: left;
+}
+
 .detail-right {
+  grid-area: right;
   position: sticky;
   top: 1rem;
+}
+
+.detail-layout.rated-layout {
+  align-items: stretch;
+  grid-template-areas:
+    "info map"
+    "scene eval"
+    "note .";
+}
+
+.detail-layout.rated-layout:not(:has(.scene-panel)) {
+  grid-template-areas:
+    "info map"
+    "note eval";
+}
+
+.rated-layout .detail-left,
+.rated-layout .detail-right {
+  display: contents;
+}
+
+.rated-layout .order-info {
+  grid-area: info;
+}
+
+.rated-layout .map-panel {
+  grid-area: map;
+  display: flex;
+  flex-direction: column;
+}
+
+.rated-layout .scene-panel {
+  grid-area: scene;
+}
+
+.rated-layout .eval-panel {
+  grid-area: eval;
+}
+
+.rated-layout .action-panel {
+  grid-area: note;
+}
+
+.rated-layout .map-box,
+.rated-layout .map-placeholder {
+  flex: 1;
+  height: auto;
+  min-height: 280px;
 }
 
 .info-panel {
@@ -986,8 +1114,26 @@ onBeforeUnmount(() => {
   margin: 0 0 0.85rem;
 }
 
-.scene-panel .section-title {
+.scene-panel .section-title,
+.eval-panel .section-title {
   margin-bottom: 0.85rem;
+}
+
+.eval-panel {
+  margin-bottom: 0;
+}
+
+.stars {
+  display: flex;
+  gap: 0.15rem;
+  font-size: 1.15rem;
+  line-height: 1;
+  color: #d4dbe6;
+  letter-spacing: 0.04em;
+}
+
+.star.on {
+  color: #f5a623;
 }
 
 .scene-panel .photo-grid {
@@ -1034,7 +1180,8 @@ onBeforeUnmount(() => {
 .map-panel,
 .vehicle-panel,
 .action-panel,
-.scene-panel {
+.scene-panel,
+.eval-panel {
   margin-bottom: 0;
 }
 
@@ -1228,16 +1375,25 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 960px) {
-  .detail-layout {
+  .detail-layout,
+  .detail-layout.rated-layout,
+  .detail-layout.rated-layout:not(:has(.scene-panel)) {
     grid-template-columns: 1fr;
+    grid-template-areas:
+      "info"
+      "map"
+      "scene"
+      "eval"
+      "note";
+    align-items: start;
   }
 
-  .detail-right {
+  .detail-layout:not(.rated-layout) .detail-right {
     position: static;
     order: 2;
   }
 
-  .detail-left {
+  .detail-layout:not(.rated-layout) .detail-left {
     order: 1;
   }
 
@@ -1245,6 +1401,13 @@ onBeforeUnmount(() => {
   .map-placeholder {
     min-height: 320px;
     height: 360px;
+  }
+
+  .rated-layout .map-box,
+  .rated-layout .map-placeholder {
+    min-height: 280px;
+    height: 320px;
+    flex: none;
   }
 
   .info-grid {

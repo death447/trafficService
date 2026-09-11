@@ -4,10 +4,12 @@ import com.example.backend.entity.AccidentVehicleType;
 import com.example.backend.entity.DispatchFieldRecord;
 import com.example.backend.entity.DispatchMedia;
 import com.example.backend.entity.DispatchOrder;
+import com.example.backend.entity.DispatchOrderEvaluation;
 import com.example.backend.entity.RescueVehicle;
 import com.example.backend.entity.Role;
 import com.example.backend.mapper.DispatchFieldRecordMapper;
 import com.example.backend.mapper.DispatchMediaMapper;
+import com.example.backend.mapper.DispatchOrderEvaluationMapper;
 import com.example.backend.mapper.DispatchOrderMapper;
 import com.example.backend.mapper.UserMapper;
 import org.junit.jupiter.api.Test;
@@ -32,6 +34,7 @@ class DispatchOrderServiceTest {
     @Mock UserMapper userMapper;
     @Mock DispatchFieldRecordMapper fieldRecordMapper;
     @Mock DispatchMediaMapper mediaMapper;
+    @Mock DispatchOrderEvaluationMapper evaluationMapper;
     @InjectMocks DispatchOrderService service;
 
     @Test
@@ -627,5 +630,56 @@ class DispatchOrderServiceTest {
         assertEquals("左前损伤", detail.getFieldRecord().getDamageDesc());
         assertEquals(1, detail.getMedias().size());
         assertEquals("DAMAGE", detail.getMedias().get(0).getBizType());
+    }
+
+    @Test
+    void findByIdAttachesEvaluation() {
+        DispatchOrder o = new DispatchOrder();
+        o.setId(1L);
+        o.setStatus("COMPLETED");
+        when(dispatchOrderMapper.findById(1L)).thenReturn(o);
+        DispatchOrderEvaluation evaluation = new DispatchOrderEvaluation();
+        evaluation.setDispatchOrderId(1L);
+        evaluation.setScorePunctual(5);
+        evaluation.setScoreStandard(4);
+        evaluation.setScoreSafety(5);
+        evaluation.setScoreAttitude(3);
+        evaluation.setComment("处置规范");
+        when(evaluationMapper.findByOrderId(1L)).thenReturn(evaluation);
+
+        DispatchOrder detail = service.findById(1L);
+
+        assertNotNull(detail.getEvaluation());
+        assertEquals(5, detail.getEvaluation().getScorePunctual());
+        assertEquals(4, detail.getEvaluation().getScoreStandard());
+        assertEquals(5, detail.getEvaluation().getScoreSafety());
+        assertEquals(3, detail.getEvaluation().getScoreAttitude());
+        assertEquals("处置规范", detail.getEvaluation().getComment());
+    }
+
+    @Test
+    void overviewCountsTodayAndListsActiveAccidents() {
+        when(dispatchOrderMapper.countCreatedBetween(any(), any())).thenReturn(12L);
+        when(dispatchOrderMapper.countDispatchedBetween(any(), any())).thenReturn(8L);
+        when(dispatchOrderMapper.countCompletedBetween(any(), any())).thenReturn(5L);
+        when(dispatchOrderMapper.countActive()).thenReturn(3L);
+        DispatchOrder accident = new DispatchOrder();
+        accident.setId(9L);
+        accident.setOrderNo("RO202609120001");
+        accident.setStatus("ACCEPTED");
+        accident.setAccidentAddress("南湖大道");
+        accident.setLongitude(new BigDecimal("120.75"));
+        accident.setLatitude(new BigDecimal("30.75"));
+        when(dispatchOrderMapper.findActiveWithCoords()).thenReturn(List.of(accident));
+
+        var overview = service.overview();
+
+        assertEquals(12L, overview.getTodayTotal());
+        assertEquals(8L, overview.getTodayDispatched());
+        assertEquals(5L, overview.getTodayCompleted());
+        assertEquals(3L, overview.getInProgress());
+        assertEquals(1, overview.getAccidents().size());
+        assertEquals(9L, overview.getAccidents().get(0).getId());
+        assertEquals("南湖大道", overview.getAccidents().get(0).getAccidentAddress());
     }
 }

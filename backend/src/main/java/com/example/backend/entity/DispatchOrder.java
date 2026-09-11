@@ -42,4 +42,5 @@ public class DispatchOrder {
     private String rescuerName;
     private DispatchFieldRecord fieldRecord;
     private List<DispatchMedia> medias;
+    private DispatchOrderEvaluation evaluation;
 }

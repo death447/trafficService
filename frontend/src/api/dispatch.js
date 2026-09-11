@@ -27,3 +27,7 @@ export function completeDispatch(id) {
 export function abortDispatch(id, data) {
   return request.post(`/dispatch/${id}/abort`, data)
 }
+
+export function getDispatchOverview() {
+  return request.get('/dispatch/overview')
+}
