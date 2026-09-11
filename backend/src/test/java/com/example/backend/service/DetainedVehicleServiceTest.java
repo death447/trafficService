@@ -3,6 +3,7 @@ package com.example.backend.service;
 import com.example.backend.dto.ActiveDispatchSummary;
 import com.example.backend.dto.DetainInRequest;
 import com.example.backend.dto.DetainUpdateRequest;
+import com.example.backend.entity.DetainMedia;
 import com.example.backend.entity.DetainedVehicle;
 import com.example.backend.entity.DispatchMedia;
 import com.example.backend.entity.DispatchOrder;
@@ -279,9 +280,74 @@ class DetainedVehicleServiceTest {
             v.setId(101L);
             return 1;
         });
+        when(dispatchMediaMapper.findByOrderIdAndBizType(7L, "DAMAGE")).thenReturn(List.of());
 
         DetainedVehicle created = service.checkIn(req, 4L);
         assertEquals(7L, created.getDispatchOrderId());
+    }
+
+    @Test
+    void checkInCopiesDamagePhotosToSceneAndSkipsMissing() {
+        DetainInRequest req = new DetainInRequest();
+        req.setDetainNo("DV-CP");
+        req.setPlateNo("粤B12345");
+        req.setParkingLotId(1L);
+        req.setDispatchOrderId(7L);
+        ParkingLot lot = new ParkingLot();
+        lot.setId(1L);
+        lot.setStatus("ENABLED");
+        when(parkingLotService.requireEnabled(1L)).thenReturn(lot);
+        when(detainedVehicleMapper.findByDetainNo("DV-CP")).thenReturn(null);
+        when(detainedVehicleMapper.countInYardByPlateNo("粤B12345")).thenReturn(0);
+        when(detainedVehicleMapper.countByEntryNoPrefix(org.mockito.ArgumentMatchers.anyString())).thenReturn(0);
+        when(dispatchOrderMapper.findById(7L)).thenReturn(order(7L, "ACCEPTED", "粤B12345"));
+        when(detainedVehicleMapper.insert(any(DetainedVehicle.class))).thenAnswer(inv -> {
+            DetainedVehicle v = inv.getArgument(0);
+            v.setId(101L);
+            return 1;
+        });
+        DispatchMedia keep = new DispatchMedia();
+        keep.setFilePath("dispatch/7/a.jpg");
+        DispatchMedia miss = new DispatchMedia();
+        miss.setFilePath("dispatch/7/gone.jpg");
+        when(dispatchMediaMapper.findByOrderIdAndBizType(7L, "DAMAGE")).thenReturn(List.of(keep, miss));
+        when(fileStorageService.copyToDetainMedia(101L, "dispatch/7/a.jpg")).thenReturn("detain/101/1.jpg");
+        when(fileStorageService.copyToDetainMedia(101L, "dispatch/7/gone.jpg")).thenReturn(null);
+        when(detainMediaMapper.insert(any())).thenReturn(1);
+
+        service.checkIn(req, 4L);
+
+        org.mockito.ArgumentCaptor<DetainMedia> cap = org.mockito.ArgumentCaptor.forClass(DetainMedia.class);
+        verify(detainMediaMapper, times(1)).insert(cap.capture());
+        assertEquals("SCENE", cap.getValue().getBizType());
+        assertEquals("detain/101/1.jpg", cap.getValue().getFilePath());
+        assertEquals(101L, cap.getValue().getDetainId());
+        assertEquals(4L, cap.getValue().getUploadedBy());
+    }
+
+    @Test
+    void checkInWithoutOrderDoesNotCopyMedia() {
+        DetainInRequest req = new DetainInRequest();
+        req.setDetainNo("DV-NO");
+        req.setPlateNo("粤B停01");
+        req.setParkingLotId(1L);
+        ParkingLot lot = new ParkingLot();
+        lot.setId(1L);
+        lot.setStatus("ENABLED");
+        when(parkingLotService.requireEnabled(1L)).thenReturn(lot);
+        when(detainedVehicleMapper.findByDetainNo("DV-NO")).thenReturn(null);
+        when(detainedVehicleMapper.countInYardByPlateNo("粤B停01")).thenReturn(0);
+        when(detainedVehicleMapper.countByEntryNoPrefix(org.mockito.ArgumentMatchers.anyString())).thenReturn(0);
+        when(detainedVehicleMapper.insert(any(DetainedVehicle.class))).thenAnswer(inv -> {
+            DetainedVehicle v = inv.getArgument(0);
+            v.setId(88L);
+            return 1;
+        });
+
+        service.checkIn(req, 4L);
+
+        verify(dispatchMediaMapper, never()).findByOrderIdAndBizType(any(), any());
+        verify(fileStorageService, never()).copyToDetainMedia(any(), any());
     }
 
     @Test

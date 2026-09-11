@@ -157,6 +157,9 @@ public class DetainedVehicleService {
         if (detainedVehicleMapper.insert(v) <= 0) {
             throw new RuntimeException("入库失败");
         }
+        if (req.getDispatchOrderId() != null) {
+            copyDamageToScene(req.getDispatchOrderId(), v.getId(), operatorUserId);
+        }
         return v;
     }
 
@@ -268,6 +271,29 @@ public class DetainedVehicleService {
             fileStorageService.deleteDispatchMedia(media.getFilePath());
         }
         detainMediaMapper.deleteById(mediaId);
+    }
+
+    private void copyDamageToScene(Long orderId, Long detainId, Long operatorUserId) {
+        List<DispatchMedia> medias = dispatchMediaMapper.findByOrderIdAndBizType(orderId, "DAMAGE");
+        if (medias == null) {
+            return;
+        }
+        for (DispatchMedia m : medias) {
+            if (m == null) {
+                continue;
+            }
+            String dest = fileStorageService.copyToDetainMedia(detainId, m.getFilePath());
+            if (dest == null) {
+                continue;
+            }
+            DetainMedia row = new DetainMedia();
+            row.setDetainId(detainId);
+            row.setBizType("SCENE");
+            row.setFilePath(dest);
+            row.setSortOrder(0);
+            row.setUploadedBy(operatorUserId);
+            detainMediaMapper.insert(row);
+        }
     }
 
     private DetainedVehicle requireExisting(Long id) {
