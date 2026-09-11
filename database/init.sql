@@ -382,7 +382,9 @@ INSERT INTO `permission` (`id`, `permission_name`, `permission_code`, `permissio
 (66, '车型编辑', 'vehicle-type:edit', 'BUTTON', 63, 3),
 (67, '位置上报', 'rescuer:location', 'BUTTON', 53, 10),
 (68, '事故查询', 'accident:query', 'BUTTON', 17, 1),
-(69, '事故评价', 'accident:rate', 'BUTTON', 17, 2);
+(69, '事故评价', 'accident:rate', 'BUTTON', 17, 2),
+(70, '报表管理', 'report:manage', 'MODULE', 0, 14),
+(71, '报表查询', 'report:query', 'BUTTON', 70, 1);
 
 INSERT INTO `accident_vehicle_type` (`name`, `sort_order`, `status`) VALUES
 ('轿车', 1, 'ENABLED'),
@@ -408,11 +410,12 @@ INSERT INTO `role_permission` (`role_id`, `permission_id`)
 SELECT 5, id FROM `permission` WHERE id BETWEEN 1 AND 15
    OR id IN (16, 17, 19)
    OR id BETWEEN 20 AND 66
-   OR id IN (68, 69);
+   OR id IN (68, 69, 70, 71);
 
 -- DISPATCHER: user:query（排班选人）+ 派单 + 车辆 + 片区 + 排班（无 user:manage 菜单）
 INSERT INTO `role_permission` (`role_id`, `permission_id`)
-SELECT 2, id FROM `permission` WHERE id = 2 OR id = 16 OR id BETWEEN 20 AND 41;
+SELECT 2, id FROM `permission` WHERE id = 2 OR id = 16 OR id BETWEEN 20 AND 41
+   OR id IN (70, 71);
 
 -- TRAFFIC_POLICE 拥有事故处理
 INSERT INTO `role_permission` (`role_id`, `permission_id`) VALUES (1, 17), (1, 68), (1, 69);
