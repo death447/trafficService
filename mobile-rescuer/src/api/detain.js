@@ -12,6 +12,10 @@ export function checkInDetain(body) {
   return request({ url: '/detain', method: 'POST', data: body })
 }
 
+export function listActiveOrders(plateNo) {
+  return request({ url: '/detain/active-orders', data: { plateNo } })
+}
+
 export function checkOutDetain(id) {
   return request({ url: `/detain/${id}/out`, method: 'POST' })
 }

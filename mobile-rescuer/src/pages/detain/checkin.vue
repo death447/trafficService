@@ -27,7 +27,17 @@
       </view>
       <view class="field">
         <view class="field-label">车牌号码 *</view>
-        <input class="field-input" v-model="form.plateNo" placeholder="请填写车牌号码" />
+        <input
+          class="field-input"
+          v-model="form.plateNo"
+          placeholder="请填写车牌号码"
+          @input="onPlateInput"
+          @blur="searchOrders"
+        />
+        <view v-if="linkedOrder" class="link-row">
+          <text class="link-text">已关联 {{ linkedOrder.orderNo }} / {{ statusText(linkedOrder.status) }}</text>
+          <text class="link-clear" @click="clearLink">清除</text>
+        </view>
       </view>
       <view class="field">
         <view class="field-label">厂牌型号</view>
@@ -174,13 +184,35 @@
     <view class="btn-primary" :class="{ 'btn-disabled': submitting }" @click="onPrimary">
       {{ primaryLabel }}
     </view>
+
+    <view v-if="pickerVisible" class="picker-mask" @click="pickerVisible = false">
+      <view class="picker-sheet" @click.stop>
+        <view class="picker-title">选择运行中工单</view>
+        <view
+          v-for="row in pickerRows"
+          :key="row.id"
+          class="picker-item"
+          @click="bindOrder(row)"
+        >
+          <text>{{ row.orderNo }} · {{ statusText(row.status) }}</text>
+          <text class="picker-sub">{{ row.accidentAddress || '—' }}</text>
+        </view>
+        <view class="picker-cancel" @click="pickerVisible = false">不关联</view>
+      </view>
+    </view>
   </view>
 </template>
 
 <script setup>
 import { computed, reactive, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
-import { checkInDetain, uploadDetainMedia } from '../../api/detain'
+import { checkInDetain, uploadDetainMedia, listActiveOrders } from '../../api/detain'
+import {
+  ORDER_STATUS_TEXT,
+  applyEmptyOrderFields,
+  classifyMatches,
+  shouldSearchPlate
+} from '../../utils/plateOrder.js'
 import { listParkings, listParkingAreas } from '../../api/parking'
 import { listEnabledVehicleTypes } from '../../api/vehicleType'
 import { getMe } from '../../api/auth'
@@ -213,6 +245,12 @@ const form = reactive({
   parkingAreaId: '',
   stallNo: ''
 })
+
+const linkedOrder = ref(null)
+const pickerVisible = ref(false)
+const pickerRows = ref([])
+let plateTimer = null
+let searchSeq = 0
 
 const lots = ref([])
 const areas = ref([])
@@ -366,6 +404,54 @@ function fillLocation() {
   })
 }
 
+function statusText(status) {
+  return ORDER_STATUS_TEXT[status] || status || ''
+}
+
+function clearLink() {
+  linkedOrder.value = null
+  pickerVisible.value = false
+}
+
+function bindOrder(order) {
+  linkedOrder.value = order
+  pickerVisible.value = false
+  applyEmptyOrderFields(form, order)
+}
+
+function onPlateInput() {
+  clearLink()
+  if (plateTimer) clearTimeout(plateTimer)
+  plateTimer = setTimeout(() => { searchOrders() }, 400)
+}
+
+async function searchOrders() {
+  if (plateTimer) {
+    clearTimeout(plateTimer)
+    plateTimer = null
+  }
+  if (!shouldSearchPlate(form.plateNo)) return
+  const seq = ++searchSeq
+  try {
+    const res = await listActiveOrders(String(form.plateNo || '').trim())
+    if (seq !== searchSeq) return
+    const list = res.data?.list || []
+    const decision = classifyMatches(list)
+    if (decision.kind === 'one') {
+      bindOrder(decision.order)
+      return
+    }
+    if (decision.kind === 'many') {
+      pickerRows.value = decision.orders
+      pickerVisible.value = true
+      return
+    }
+    uni.showToast({ title: '未找到运行中工单', icon: 'none' })
+  } catch (_) {
+    /* request.js 已 toast；不打断填表 */
+  }
+}
+
 function onPrimary() {
   if (submitting.value) return
   if (step.value === 1) {
@@ -405,6 +491,9 @@ async function onSubmit() {
     detainNo,
     plateNo: plate,
     parkingLotId: lotId
+  }
+  if (linkedOrder.value && linkedOrder.value.id) {
+    body.dispatchOrderId = Number(linkedOrder.value.id)
   }
   const put = (key, val) => {
     const s = String(val || '').trim()
@@ -548,4 +637,37 @@ async function onSubmit() {
   font-size: 28rpx;
   flex-shrink: 0;
 }
+.link-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12rpx;
+  font-size: 24rpx;
+}
+.link-text { color: #2979ff; flex: 1; padding-right: 16rpx; }
+.link-clear { color: #999; }
+.picker-mask {
+  position: fixed;
+  left: 0; right: 0; top: 0; bottom: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 20;
+  display: flex;
+  align-items: flex-end;
+}
+.picker-sheet {
+  width: 100%;
+  background: #fff;
+  border-radius: 16rpx 16rpx 0 0;
+  padding: 24rpx 32rpx 48rpx;
+}
+.picker-title { font-size: 30rpx; font-weight: 600; margin-bottom: 16rpx; }
+.picker-item {
+  padding: 20rpx 0;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+.picker-sub { color: #999; font-size: 24rpx; }
+.picker-cancel { text-align: center; color: #666; padding: 28rpx 0 8rpx; }
 </style>
