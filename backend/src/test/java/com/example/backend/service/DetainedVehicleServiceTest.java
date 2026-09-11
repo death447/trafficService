@@ -182,6 +182,72 @@ class DetainedVehicleServiceTest {
     }
 
     @Test
+    void checkInRejectsFinishedLinkedOrder() {
+        DetainInRequest req = new DetainInRequest();
+        req.setDetainNo("DV-F");
+        req.setPlateNo("粤B12345");
+        req.setParkingLotId(1L);
+        req.setDispatchOrderId(9L);
+        ParkingLot lot = new ParkingLot();
+        lot.setId(1L);
+        lot.setStatus("ENABLED");
+        when(parkingLotService.requireEnabled(1L)).thenReturn(lot);
+        when(detainedVehicleMapper.findByDetainNo("DV-F")).thenReturn(null);
+        when(detainedVehicleMapper.countInYardByPlateNo("粤B12345")).thenReturn(0);
+        DispatchOrder finished = order(9L, "COMPLETED", "粤B12345");
+        when(dispatchOrderMapper.findById(9L)).thenReturn(finished);
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> service.checkIn(req, 4L));
+        assertTrue(ex.getMessage().contains("已结束"));
+        verify(detainedVehicleMapper, never()).insert(any());
+    }
+
+    @Test
+    void checkInRejectsLinkedOrderPlateMismatch() {
+        DetainInRequest req = new DetainInRequest();
+        req.setDetainNo("DV-M");
+        req.setPlateNo("粤B12345");
+        req.setParkingLotId(1L);
+        req.setDispatchOrderId(8L);
+        ParkingLot lot = new ParkingLot();
+        lot.setId(1L);
+        lot.setStatus("ENABLED");
+        when(parkingLotService.requireEnabled(1L)).thenReturn(lot);
+        when(detainedVehicleMapper.findByDetainNo("DV-M")).thenReturn(null);
+        when(detainedVehicleMapper.countInYardByPlateNo("粤B12345")).thenReturn(0);
+        when(dispatchOrderMapper.findById(8L)).thenReturn(order(8L, "ACCEPTED", "粤A00000"));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> service.checkIn(req, 4L));
+        assertTrue(ex.getMessage().contains("车牌"));
+        verify(detainedVehicleMapper, never()).insert(any());
+    }
+
+    @Test
+    void checkInAcceptsLinkedOrderWhenNormalizedPlateMatches() {
+        DetainInRequest req = new DetainInRequest();
+        req.setDetainNo("DV-OK");
+        req.setPlateNo("粤B12345");
+        req.setParkingLotId(1L);
+        req.setDispatchOrderId(7L);
+        ParkingLot lot = new ParkingLot();
+        lot.setId(1L);
+        lot.setStatus("ENABLED");
+        when(parkingLotService.requireEnabled(1L)).thenReturn(lot);
+        when(detainedVehicleMapper.findByDetainNo("DV-OK")).thenReturn(null);
+        when(detainedVehicleMapper.countInYardByPlateNo("粤B12345")).thenReturn(0);
+        when(detainedVehicleMapper.countByEntryNoPrefix(org.mockito.ArgumentMatchers.anyString())).thenReturn(0);
+        when(dispatchOrderMapper.findById(7L)).thenReturn(order(7L, "ACCEPTED", "粤b·12345"));
+        when(detainedVehicleMapper.insert(any(DetainedVehicle.class))).thenAnswer(inv -> {
+            DetainedVehicle v = inv.getArgument(0);
+            v.setId(101L);
+            return 1;
+        });
+
+        DetainedVehicle created = service.checkIn(req, 4L);
+        assertEquals(7L, created.getDispatchOrderId());
+    }
+
+    @Test
     void updateKeepsSameDisabledLotWithoutRequireEnabled() {
         DetainedVehicle v = inYard(7L, "粤B停用场");
         v.setParkingLotId(99L);

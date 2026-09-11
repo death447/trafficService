@@ -114,6 +114,13 @@ public class DetainedVehicleService {
             if (order == null) {
                 throw new RuntimeException("关联救援工单不存在");
             }
+            String st = order.getStatus();
+            if (!"PENDING".equals(st) && !"DISPATCHED".equals(st) && !"ACCEPTED".equals(st)) {
+                throw new RuntimeException("工单已结束，无法关联");
+            }
+            if (!PlateNos.normalize(plate).equals(PlateNos.normalize(order.getPlateNo()))) {
+                throw new RuntimeException("工单车牌与入库车牌不一致");
+            }
         }
         validateArea(req.getParkingAreaId(), req.getParkingLotId());
         validateEnums(req.getHasKey(), req.getRescueReason());
