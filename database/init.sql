@@ -292,6 +292,20 @@ CREATE TABLE `detain_media` (
   KEY `idx_detain_id` (`detain_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='扣车现场/停放照片';
 
+CREATE TABLE `dispatch_order_evaluation` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `dispatch_order_id` BIGINT NOT NULL COMMENT '工单 id',
+  `rater_user_id` BIGINT NOT NULL COMMENT '评价人',
+  `score_punctual` TINYINT NOT NULL COMMENT '到达及时 1-5',
+  `score_standard` TINYINT NOT NULL COMMENT '处置规范 1-5',
+  `score_safety` TINYINT NOT NULL COMMENT '操作安全 1-5',
+  `score_attitude` TINYINT NOT NULL COMMENT '服务态度 1-5',
+  `comment` VARCHAR(500) DEFAULT NULL COMMENT '反馈意见',
+  `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_dispatch_order_id` (`dispatch_order_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='交警工单评价';
+
 INSERT INTO `role` (`role_name`, `role_code`, `description`) VALUES
 ('交警', 'TRAFFIC_POLICE', '负责事故处理'),
 ('调度员', 'DISPATCHER', '负责派单管理、资源调度、任务分配'),
@@ -366,7 +380,9 @@ INSERT INTO `permission` (`id`, `permission_name`, `permission_code`, `permissio
 (64, '车型查询', 'vehicle-type:query', 'BUTTON', 63, 1),
 (65, '车型新增', 'vehicle-type:add', 'BUTTON', 63, 2),
 (66, '车型编辑', 'vehicle-type:edit', 'BUTTON', 63, 3),
-(67, '位置上报', 'rescuer:location', 'BUTTON', 53, 10);
+(67, '位置上报', 'rescuer:location', 'BUTTON', 53, 10),
+(68, '事故查询', 'accident:query', 'BUTTON', 17, 1),
+(69, '事故评价', 'accident:rate', 'BUTTON', 17, 2);
 
 INSERT INTO `accident_vehicle_type` (`name`, `sort_order`, `status`) VALUES
 ('轿车', 1, 'ENABLED'),
@@ -390,14 +406,16 @@ INSERT INTO `accident_vehicle_type` (`name`, `sort_order`, `status`) VALUES
 -- ADMIN: 1-15 + 派单 16,19,20-66
 INSERT INTO `role_permission` (`role_id`, `permission_id`)
 SELECT 5, id FROM `permission` WHERE id BETWEEN 1 AND 15
-   OR id = 16 OR id = 19 OR id BETWEEN 20 AND 66;
+   OR id IN (16, 17, 19)
+   OR id BETWEEN 20 AND 66
+   OR id IN (68, 69);
 
 -- DISPATCHER: user:query（排班选人）+ 派单 + 车辆 + 片区 + 排班（无 user:manage 菜单）
 INSERT INTO `role_permission` (`role_id`, `permission_id`)
 SELECT 2, id FROM `permission` WHERE id = 2 OR id = 16 OR id BETWEEN 20 AND 41;
 
 -- TRAFFIC_POLICE 拥有事故处理
-INSERT INTO `role_permission` (`role_id`, `permission_id`) VALUES (1, 17);
+INSERT INTO `role_permission` (`role_id`, `permission_id`) VALUES (1, 17), (1, 68), (1, 69);
 
 -- TOW_DRIVER 拥有救援执行 + 施救员移动端 53-62 + 位置上报 67 (rescuer:location)
 INSERT INTO `role_permission` (`role_id`, `permission_id`) VALUES (3, 18);
@@ -456,6 +474,13 @@ INSERT INTO `user` (`username`, `email`, `password`, `phone`, `real_name`, `stat
  '13800000004', '停车场演示', 1);
 INSERT INTO `user_role` (`user_id`, `role_id`)
 SELECT id, 4 FROM `user` WHERE username = 'parkingadmin';
+
+INSERT INTO `user` (`username`, `email`, `password`, `phone`, `real_name`, `status`) VALUES
+('trafficpolice', 'police@example.com',
+ '$2a$10$tRbGvdiWK.72JRbBlUYmB.3K2h44sbb20U3qKWrAeggv0.lbqUhzW',
+ '13800000003', '交警演示', 1);
+INSERT INTO `user_role` (`user_id`, `role_id`)
+SELECT id, 1 FROM `user` WHERE username = 'trafficpolice';
 
 INSERT INTO `parking_lot` (`name`, `code`, `address`, `contact_name`, `contact_phone`, `status`, `remark`) VALUES
 ('福田扣留场', 'PK-FT-01', '深圳市福田区示例路1号', '张管', '13900000001', 'ENABLED', '主场'),
