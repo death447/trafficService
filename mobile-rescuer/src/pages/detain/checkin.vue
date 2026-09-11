@@ -420,6 +420,7 @@ function bindOrder(order) {
 }
 
 function onPlateInput() {
+  searchSeq++
   clearLink()
   if (plateTimer) clearTimeout(plateTimer)
   plateTimer = setTimeout(() => { searchOrders() }, 400)
