@@ -3,8 +3,11 @@ const assert = require('node:assert/strict')
 const {
   hasRescuerAccess,
   hasParkingAccess,
+  hasPoliceAccess,
   resolveLoginTarget,
   shouldStartGps,
+  workspaceMatchesKind,
+  canRatePoliceTask,
   matchHangtag,
   confirmInputValue,
   normalizeHangtagText
@@ -26,13 +29,39 @@ test('resolveLoginTarget', () => {
   assert.equal(resolveLoginTarget([]), 'none')
   assert.equal(resolveLoginTarget(['rescuer:task']), 'rescuer')
   assert.equal(resolveLoginTarget(['detain:query']), 'parking')
+  assert.equal(resolveLoginTarget(['accident:query']), 'police')
+  assert.equal(resolveLoginTarget(['accident:manage']), 'police')
   assert.equal(resolveLoginTarget(['rescuer:task', 'detain:query']), 'select')
+  assert.equal(resolveLoginTarget(['rescuer:task', 'accident:query']), 'select')
+  assert.equal(resolveLoginTarget(['detain:query', 'accident:rate']), 'select')
+  assert.equal(resolveLoginTarget(['rescuer:task', 'detain:query', 'accident:query']), 'select')
+})
+
+test('police permission via module or prefix', () => {
+  assert.equal(hasPoliceAccess(['accident:manage']), true)
+  assert.equal(hasPoliceAccess(['accident:query']), true)
+  assert.equal(hasPoliceAccess(['rescuer:task']), false)
 })
 
 test('gps only in rescuer workspace', () => {
   assert.equal(shouldStartGps('rescuer'), true)
   assert.equal(shouldStartGps('parking'), false)
+  assert.equal(shouldStartGps('police'), false)
   assert.equal(shouldStartGps(''), false)
+})
+
+test('workspaceMatchesKind', () => {
+  assert.equal(workspaceMatchesKind('police', 'police'), true)
+  assert.equal(workspaceMatchesKind('police', 'rescuer'), false)
+  assert.equal(workspaceMatchesKind('rescuer', 'police'), false)
+  assert.equal(workspaceMatchesKind('shared', 'police'), true)
+})
+
+test('canRatePoliceTask', () => {
+  assert.equal(canRatePoliceTask('COMPLETED', false), true)
+  assert.equal(canRatePoliceTask('COMPLETED', true), false)
+  assert.equal(canRatePoliceTask('ACCEPTED', false), false)
+  assert.equal(canRatePoliceTask('PENDING', false), false)
 })
 
 test('matchHangtag exact detainNo', () => {

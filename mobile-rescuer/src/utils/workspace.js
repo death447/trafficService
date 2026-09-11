@@ -11,16 +11,36 @@ function hasParkingAccess(permissions) {
   return (permissions || []).includes('detain:query')
 }
 
+function hasPoliceAccess(permissions) {
+  const list = permissions || []
+  return list.some(
+    (p) => p === 'accident:manage' || (typeof p === 'string' && p.startsWith('accident:'))
+  )
+}
+
 function resolveLoginTarget(permissions) {
-  const rescuer = hasRescuerAccess(permissions)
-  const parking = hasParkingAccess(permissions)
-  if (!rescuer && !parking) return 'none'
-  if (rescuer && parking) return 'select'
-  return rescuer ? 'rescuer' : 'parking'
+  const kinds = []
+  if (hasRescuerAccess(permissions)) kinds.push('rescuer')
+  if (hasParkingAccess(permissions)) kinds.push('parking')
+  if (hasPoliceAccess(permissions)) kinds.push('police')
+  if (kinds.length === 0) return 'none'
+  if (kinds.length === 1) return kinds[0]
+  return 'select'
 }
 
 function shouldStartGps(workspace) {
   return workspace === 'rescuer'
+}
+
+function workspaceMatchesKind(kind, workspace) {
+  if (kind === 'rescuer' || kind === 'parking' || kind === 'police') {
+    return workspace === kind
+  }
+  return true
+}
+
+function canRatePoliceTask(status, rated) {
+  return status === 'COMPLETED' && !rated
 }
 
 function confirmInputValue(event, fallback) {
@@ -50,8 +70,11 @@ function matchHangtag(list, payload) {
 module.exports = {
   hasRescuerAccess,
   hasParkingAccess,
+  hasPoliceAccess,
   resolveLoginTarget,
   shouldStartGps,
+  workspaceMatchesKind,
+  canRatePoliceTask,
   matchHangtag,
   confirmInputValue,
   normalizeHangtagText

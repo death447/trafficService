@@ -1,5 +1,5 @@
 import { getUserState, logout } from '../stores/user'
-import { resolveLoginTarget } from './workspace.js'
+import { resolveLoginTarget, workspaceMatchesKind } from './workspace.js'
 
 const WORKBENCH = '/pages/workbench/index'
 const SELECT = '/pages/workspace/select'
@@ -34,11 +34,7 @@ export function requirePageAccess(kind) {
     uni.switchTab({ url: WORKBENCH })
     return false
   }
-  if (kind === 'rescuer' && state.workspace !== 'rescuer') {
-    uni.switchTab({ url: WORKBENCH })
-    return false
-  }
-  if (kind === 'parking' && state.workspace !== 'parking') {
+  if (!workspaceMatchesKind(kind, state.workspace)) {
     uni.switchTab({ url: WORKBENCH })
     return false
   }
