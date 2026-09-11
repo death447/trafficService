@@ -40,6 +40,19 @@ public class DetainedVehicleController {
                 plateNo, detainNo, status, parkingLotId, detainDept, pp));
     }
 
+    @GetMapping("/active-orders")
+    @PreAuthorize("hasAuthority('detain:query')")
+    public Result<Map<String, Object>> listActiveOrders(@RequestParam(required = false) String plateNo) {
+        try {
+            return Result.success(Map.of("list", detainedVehicleService.listActiveOrdersByPlate(plateNo)));
+        } catch (RuntimeException e) {
+            if ("请输入车牌".equals(e.getMessage())) {
+                return Result.error(400, e.getMessage());
+            }
+            return Result.error(e.getMessage());
+        }
+    }
+
     @GetMapping("/{id}")
     @PreAuthorize("hasAuthority('detain:query')")
     public Result<DetainedVehicle> getById(@PathVariable Long id) {

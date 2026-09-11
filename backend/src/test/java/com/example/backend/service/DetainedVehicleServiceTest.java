@@ -1,8 +1,10 @@
 package com.example.backend.service;
 
+import com.example.backend.dto.ActiveDispatchSummary;
 import com.example.backend.dto.DetainInRequest;
 import com.example.backend.dto.DetainUpdateRequest;
 import com.example.backend.entity.DetainedVehicle;
+import com.example.backend.entity.DispatchOrder;
 import com.example.backend.entity.ParkingLot;
 import com.example.backend.mapper.DetainMediaMapper;
 import com.example.backend.mapper.DetainedVehicleMapper;
@@ -12,6 +14,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -146,6 +150,38 @@ class DetainedVehicleServiceTest {
     }
 
     @Test
+    void listActiveOrdersRejectsShortPlate() {
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> service.listActiveOrdersByPlate(" ·A. "));
+        assertEquals("请输入车牌", ex.getMessage());
+        verify(dispatchOrderMapper, never()).findActiveWithPlate();
+    }
+
+    @Test
+    void listActiveOrdersMatchesNormalizedPlateNewestFirst() {
+        when(dispatchOrderMapper.findActiveWithPlate()).thenReturn(List.of(
+                order(3L, "ACCEPTED", "粤B12345"),
+                order(2L, "PENDING", "粤b·12345"),
+                order(1L, "DISPATCHED", "粤A00000")
+        ));
+
+        List<ActiveDispatchSummary> list = service.listActiveOrdersByPlate(" 粤B.12345 ");
+
+        assertEquals(2, list.size());
+        assertEquals(3L, list.get(0).getId());
+        assertEquals(2L, list.get(1).getId());
+        assertEquals("粤b·12345", list.get(1).getPlateNo());
+    }
+
+    @Test
+    void listActiveOrdersReturnsEmptyWhenNoMatch() {
+        when(dispatchOrderMapper.findActiveWithPlate()).thenReturn(List.of(
+                order(1L, "PENDING", "粤A1")
+        ));
+        assertTrue(service.listActiveOrdersByPlate("粤B99999").isEmpty());
+    }
+
+    @Test
     void updateKeepsSameDisabledLotWithoutRequireEnabled() {
         DetainedVehicle v = inYard(7L, "粤B停用场");
         v.setParkingLotId(99L);
@@ -169,6 +205,17 @@ class DetainedVehicleServiceTest {
         assertNull(v.getDetainDept());
         assertEquals("新备注", v.getRemark());
         assertEquals(99L, v.getParkingLotId());
+    }
+
+    private static DispatchOrder order(long id, String status, String plate) {
+        DispatchOrder o = new DispatchOrder();
+        o.setId(id);
+        o.setOrderNo("RO" + id);
+        o.setStatus(status);
+        o.setPlateNo(plate);
+        o.setVehicleTypeName("小型汽车");
+        o.setAccidentAddress("测试路" + id);
+        return o;
     }
 
     private static DetainedVehicle inYard(Long id, String plate) {

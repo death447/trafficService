@@ -1,6 +1,7 @@
 package com.example.backend.service;
 
 import com.example.backend.common.PageParams;
+import com.example.backend.dto.ActiveDispatchSummary;
 import com.example.backend.dto.DetainInRequest;
 import com.example.backend.dto.DetainUpdateRequest;
 import com.example.backend.entity.DetainMedia;
@@ -12,6 +13,7 @@ import com.example.backend.mapper.DetainMediaMapper;
 import com.example.backend.mapper.DetainedVehicleMapper;
 import com.example.backend.mapper.DispatchOrderMapper;
 import com.example.backend.mapper.ParkingLotMapper;
+import com.example.backend.util.PlateNos;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +23,7 @@ import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -60,6 +63,28 @@ public class DetainedVehicleService {
                 plateNo, detainNo, status, parkingLotId, detainDept, pp.getOffset(), pp.getSize());
         vehicles.forEach(this::enrich);
         return pp.toResult(vehicles, total);
+    }
+
+    public List<ActiveDispatchSummary> listActiveOrdersByPlate(String plateNo) {
+        String needle = PlateNos.normalize(plateNo);
+        if (needle.length() < 2) {
+            throw new RuntimeException("请输入车牌");
+        }
+        List<DispatchOrder> rows = dispatchOrderMapper.findActiveWithPlate();
+        List<ActiveDispatchSummary> out = new ArrayList<>();
+        for (DispatchOrder row : rows) {
+            if (needle.equals(PlateNos.normalize(row.getPlateNo()))) {
+                ActiveDispatchSummary s = new ActiveDispatchSummary();
+                s.setId(row.getId());
+                s.setOrderNo(row.getOrderNo());
+                s.setStatus(row.getStatus());
+                s.setPlateNo(row.getPlateNo());
+                s.setVehicleTypeName(row.getVehicleTypeName());
+                s.setAccidentAddress(row.getAccidentAddress());
+                out.add(s);
+            }
+        }
+        return out;
     }
 
     public DetainedVehicle findById(Long id) {

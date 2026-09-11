@@ -11,6 +11,10 @@ public interface DispatchOrderMapper {
     @Select("SELECT COUNT(*) FROM dispatch_order WHERE vehicle_id = #{vehicleId} AND status IN ('PENDING','DISPATCHED','ACCEPTED')")
     int countActiveByVehicleId(Long vehicleId);
 
+    @Select("SELECT * FROM dispatch_order WHERE status IN ('PENDING','DISPATCHED','ACCEPTED') "
+            + "AND plate_no IS NOT NULL AND TRIM(plate_no) <> '' ORDER BY id DESC")
+    List<DispatchOrder> findActiveWithPlate();
+
     @Select("SELECT * FROM dispatch_order WHERE id = #{id}")
     DispatchOrder findById(Long id);
 
