@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "test:workspace": "node --test src/utils/workspace.test.cjs cjsNamedExportsToEsm.test.cjs",
+    "test:workspace": "node --test src/utils/workspace.test.cjs src/utils/plateOrder.test.cjs cjsNamedExportsToEsm.test.cjs",
     "dev:custom": "uni -p",
     "dev:h5": "uni",
     "dev:h5:ssr": "uni --ssr",
