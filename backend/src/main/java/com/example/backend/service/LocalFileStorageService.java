@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class LocalFileStorageService {
@@ -85,15 +86,20 @@ public class LocalFileStorageService {
                 return null;
             }
             Files.createDirectories(dir);
-            String destName = System.currentTimeMillis() + ext;
-            Path target = dir.resolve(destName).normalize();
-            if (!target.startsWith(dir)) {
-                return null;
-            }
+            Path target;
+            String destName;
+            do {
+                destName = System.currentTimeMillis() + "-"
+                        + UUID.randomUUID().toString().replace("-", "").substring(0, 8) + ext;
+                target = dir.resolve(destName).normalize();
+                if (!target.startsWith(dir)) {
+                    return null;
+                }
+            } while (Files.exists(target));
             Files.copy(source, target);
             return "detain/" + detainId + "/" + destName;
         } catch (IOException e) {
-            throw new RuntimeException("文件复制失败");
+            throw new RuntimeException("文件复制失败", e);
         }
     }
 

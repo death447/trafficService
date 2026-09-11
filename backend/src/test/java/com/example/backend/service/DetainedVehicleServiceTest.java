@@ -326,6 +326,37 @@ class DetainedVehicleServiceTest {
     }
 
     @Test
+    void checkInPropagatesCopyToDetainMediaFailure() {
+        DetainInRequest req = new DetainInRequest();
+        req.setDetainNo("DV-IO");
+        req.setPlateNo("粤B12345");
+        req.setParkingLotId(1L);
+        req.setDispatchOrderId(7L);
+        ParkingLot lot = new ParkingLot();
+        lot.setId(1L);
+        lot.setStatus("ENABLED");
+        when(parkingLotService.requireEnabled(1L)).thenReturn(lot);
+        when(detainedVehicleMapper.findByDetainNo("DV-IO")).thenReturn(null);
+        when(detainedVehicleMapper.countInYardByPlateNo("粤B12345")).thenReturn(0);
+        when(detainedVehicleMapper.countByEntryNoPrefix(org.mockito.ArgumentMatchers.anyString())).thenReturn(0);
+        when(dispatchOrderMapper.findById(7L)).thenReturn(order(7L, "ACCEPTED", "粤B12345"));
+        when(detainedVehicleMapper.insert(any(DetainedVehicle.class))).thenAnswer(inv -> {
+            DetainedVehicle v = inv.getArgument(0);
+            v.setId(101L);
+            return 1;
+        });
+        DispatchMedia dmg = new DispatchMedia();
+        dmg.setFilePath("dispatch/7/a.jpg");
+        when(dispatchMediaMapper.findByOrderIdAndBizType(7L, "DAMAGE")).thenReturn(List.of(dmg));
+        when(fileStorageService.copyToDetainMedia(101L, "dispatch/7/a.jpg"))
+                .thenThrow(new RuntimeException("文件复制失败"));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> service.checkIn(req, 4L));
+        assertEquals("文件复制失败", ex.getMessage());
+        verify(detainMediaMapper, never()).insert(any());
+    }
+
+    @Test
     void checkInWithoutOrderDoesNotCopyMedia() {
         DetainInRequest req = new DetainInRequest();
         req.setDetainNo("DV-NO");

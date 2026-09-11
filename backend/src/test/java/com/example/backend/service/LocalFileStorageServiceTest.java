@@ -41,4 +41,30 @@ class LocalFileStorageServiceTest {
         assertNull(storage.copyToDetainMedia(1L, null));
         assertNull(storage.copyToDetainMedia(1L, "dispatch/9/x.gif"));
     }
+
+    @Test
+    void copyToDetainMediaUsesDistinctDestNamesForBackToBackCopies() throws Exception {
+        Path src1 = tmp.resolve("dispatch/7/a.jpg");
+        Path src2 = tmp.resolve("dispatch/7/b.jpg");
+        Files.createDirectories(src1.getParent());
+        byte[] bytes1 = new byte[] {1, 2, 3};
+        byte[] bytes2 = new byte[] {4, 5, 6};
+        Files.write(src1, bytes1);
+        Files.write(src2, bytes2);
+
+        String dest1 = storage.copyToDetainMedia(88L, "dispatch/7/a.jpg");
+        String dest2 = storage.copyToDetainMedia(88L, "dispatch/7/b.jpg");
+
+        assertNotNull(dest1);
+        assertNotNull(dest2);
+        assertNotEquals(dest1, dest2);
+        assertTrue(dest1.startsWith("detain/88/"));
+        assertTrue(dest1.endsWith(".jpg"));
+        assertTrue(dest2.startsWith("detain/88/"));
+        assertTrue(dest2.endsWith(".jpg"));
+        assertTrue(Files.exists(tmp.resolve(dest1)));
+        assertTrue(Files.exists(tmp.resolve(dest2)));
+        assertArrayEquals(bytes1, Files.readAllBytes(tmp.resolve(dest1)));
+        assertArrayEquals(bytes2, Files.readAllBytes(tmp.resolve(dest2)));
+    }
 }
