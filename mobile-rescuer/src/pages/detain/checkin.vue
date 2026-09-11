@@ -185,7 +185,7 @@
       {{ primaryLabel }}
     </view>
 
-    <view v-if="pickerVisible" class="picker-mask" @click="pickerVisible = false">
+    <view v-if="pickerVisible" class="picker-mask" @click="dismissPicker">
       <view class="picker-sheet" @click.stop>
         <view class="picker-title">选择运行中工单</view>
         <view
@@ -197,7 +197,7 @@
           <text>{{ row.orderNo }} · {{ statusText(row.status) }}</text>
           <text class="picker-sub">{{ row.accidentAddress || '—' }}</text>
         </view>
-        <view class="picker-cancel" @click="pickerVisible = false">不关联</view>
+        <view class="picker-cancel" @click="dismissPicker">不关联</view>
       </view>
     </view>
   </view>
@@ -408,7 +408,13 @@ function statusText(status) {
   return ORDER_STATUS_TEXT[status] || status || ''
 }
 
+function dismissPicker() {
+  searchSeq++
+  pickerVisible.value = false
+}
+
 function clearLink() {
+  searchSeq++
   linkedOrder.value = null
   pickerVisible.value = false
 }
@@ -431,6 +437,7 @@ async function searchOrders() {
     clearTimeout(plateTimer)
     plateTimer = null
   }
+  if (linkedOrder.value) return
   if (!shouldSearchPlate(form.plateNo)) return
   const seq = ++searchSeq
   try {
