@@ -6,7 +6,10 @@ const {
   normalizePlate,
   shouldSearchPlate,
   classifyMatches,
-  applyEmptyOrderFields
+  applyEmptyOrderFields,
+  applyCheckedInAt,
+  damagePreviewUrls,
+  resetRescueTimeNow
 } = require('./plateOrder.js')
 
 test('normalizePlate strips space middle-dot dot and uppercases', () => {
@@ -38,4 +41,23 @@ test('applyEmptyOrderFields fills only blanks', () => {
   applyEmptyOrderFields(filled, { vehicleTypeName: '覆盖', accidentAddress: '覆盖地' })
   assert.equal(filled.vehicleType, '已填')
   assert.equal(filled.rescueAddress, '已有地点')
+})
+
+test('applyCheckedInAt overwrites only when checked in', () => {
+  const form = { rescueTime: '2026-09-11 10:00:00' }
+  applyCheckedInAt(form, {})
+  assert.equal(form.rescueTime, '2026-09-11 10:00:00')
+  applyCheckedInAt(form, { checkedInAt: '2026-09-09T16:38:15' })
+  assert.equal(form.rescueTime, '2026-09-09 16:38:15')
+})
+
+test('damagePreviewUrls maps paths', () => {
+  const urls = damagePreviewUrls(['dispatch/3/a.jpg', '', null], (p) => `/uploads/${p}`)
+  assert.deepEqual(urls, ['/uploads/dispatch/3/a.jpg'])
+})
+
+test('resetRescueTimeNow writes provided now', () => {
+  const form = { rescueTime: 'old' }
+  resetRescueTimeNow(form, '2026-09-11 11:00:00')
+  assert.equal(form.rescueTime, '2026-09-11 11:00:00')
 })
