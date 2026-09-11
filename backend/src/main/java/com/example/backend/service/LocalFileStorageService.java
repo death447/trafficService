@@ -64,6 +64,39 @@ public class LocalFileStorageService {
         return "detain/" + detainId + "/" + name;
     }
 
+    public String copyToDetainMedia(Long detainId, String sourceRelativePath) {
+        if (detainId == null || sourceRelativePath == null || sourceRelativePath.isBlank()) {
+            return null;
+        }
+        Path root = Paths.get(uploadDir).toAbsolutePath().normalize();
+        Path source = root.resolve(sourceRelativePath).normalize();
+        if (!source.startsWith(root) || !Files.isRegularFile(source)) {
+            return null;
+        }
+        String name = source.getFileName().toString();
+        int dot = name.lastIndexOf('.');
+        String ext = dot >= 0 ? name.substring(dot).toLowerCase() : "";
+        if (!List.of(".jpg", ".jpeg", ".png", ".webp").contains(ext)) {
+            return null;
+        }
+        try {
+            Path dir = root.resolve(Paths.get("detain", String.valueOf(detainId))).normalize();
+            if (!dir.startsWith(root)) {
+                return null;
+            }
+            Files.createDirectories(dir);
+            String destName = System.currentTimeMillis() + ext;
+            Path target = dir.resolve(destName).normalize();
+            if (!target.startsWith(dir)) {
+                return null;
+            }
+            Files.copy(source, target);
+            return "detain/" + detainId + "/" + destName;
+        } catch (IOException e) {
+            throw new RuntimeException("文件复制失败");
+        }
+    }
+
     public void deleteDispatchMedia(String relativePath) {
         if (relativePath == null || relativePath.isBlank()) {
             return;
