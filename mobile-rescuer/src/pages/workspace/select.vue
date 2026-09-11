@@ -2,6 +2,7 @@
   <view class="page">
     <view v-if="showRescuer" class="card choice" @click="choose('rescuer')">施救任务</view>
     <view v-if="showParking" class="card choice" @click="choose('parking')">停车场扣车</view>
+    <view v-if="showPolice" class="card choice" @click="choose('police')">交警任务</view>
     <view class="btn-danger" style="margin-top: 20rpx" @click="onLogout">退出登录</view>
   </view>
 </template>
@@ -11,16 +12,18 @@ import { ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { enterWorkspace, getUserState, logout } from '../../stores/user'
 import { requirePageAccess } from '../../utils/guard.js'
-import { hasRescuerAccess, hasParkingAccess } from '../../utils/workspace.js'
+import { hasRescuerAccess, hasParkingAccess, hasPoliceAccess } from '../../utils/workspace.js'
 
 const showRescuer = ref(false)
 const showParking = ref(false)
+const showPolice = ref(false)
 
 onShow(() => {
   if (!requirePageAccess('select')) return
   const permissions = getUserState().permissions
   showRescuer.value = hasRescuerAccess(permissions)
   showParking.value = hasParkingAccess(permissions)
+  showPolice.value = hasPoliceAccess(permissions)
 })
 
 function choose(name) {

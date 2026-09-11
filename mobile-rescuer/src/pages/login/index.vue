@@ -14,7 +14,7 @@
       <view class="btn-primary" :class="{ 'btn-disabled': loading }" @click="onLogin">
         {{ loading ? '登录中…' : '登录' }}
       </view>
-      <view class="hint muted">towdriver 或 parkingadmin / admin123</view>
+      <view class="hint muted">towdriver / parkingadmin / trafficpolice / admin123</view>
     </view>
   </view>
 </template>

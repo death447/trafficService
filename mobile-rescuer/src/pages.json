@@ -69,6 +69,14 @@
       }
     },
     {
+      "path": "pages/police/detail",
+      "style": { "navigationBarTitleText": "任务详情" }
+    },
+    {
+      "path": "pages/police/rate",
+      "style": { "navigationBarTitleText": "任务评价" }
+    },
+    {
       "path": "pages/detain/checkin",
       "style": {
         "navigationBarTitleText": "入库"
