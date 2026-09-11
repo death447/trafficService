@@ -42,17 +42,18 @@ VITE_API_BASE=http://localhost:8080/api
 
 ## 演示账号与工作台
 
-登录后按权限进入工作台（无 `rescuer:*`/`mobile:rescuer` 且无 `detain:query` 则提示「无移动端权限」）：
+登录后按权限进入工作台（无 `rescuer:*`/`mobile:rescuer`、无 `detain:query`、且无 `accident:*`/`accident:manage` 则提示「无移动端权限」）：
 
 | 用户名 | 密码 | 权限 | 登录后 |
 |--------|------|------|--------|
 | towdriver | admin123 | 仅施救 | 直接进入施救任务工作台 |
 | parkingadmin | admin123 | 仅扣车（`detain:query`） | 直接进入停车场在库列表 |
-| admin | admin123 | 两者都有 | 先到「选择工作台」页，点选后进入 |
+| trafficpolice | admin123 | 仅交警（`accident:*`） | 直接进入交警任务列表 |
+| admin | admin123 | 施救+扣车+交警 | 先到「选择工作台」页，点选后进入 |
 
 双权限账号一次只进一套工作台。**换工作台必须退出登录再选**；「我的」不提供切换入口。单权限账号跳过选择页。
 
-登录页提示：`towdriver 或 parkingadmin / admin123`。
+登录页提示：`towdriver / parkingadmin / trafficpolice / admin123`。
 
 ## 功能页
 
@@ -67,6 +68,13 @@ VITE_API_BASE=http://localhost:8080/api
 - 在库列表、入库、扣车详情与出库、扫吊牌（扣押编号原文，如 `DV202609070001`）
 - 我的：资料编辑；无绑车、不启动 GPS
 - 停车场 CRUD、扣车清理/吊牌打印仍走 PC
+
+**交警工作台**（`workspace=police`）
+
+- 全部任务列表（分页）；已完成未评可评价
+- 只读详情（过程时间、现场/入库照片、事故点地图）
+- 四维 5 星评价（默认好评，每单一次不可改）
+- 我的：资料编辑；无绑车、不启动 GPS
 
 `pages/mine/scan` 是共用摄像头页（绑车与吊牌查找都走它），不按施救工作台拦截。
 
