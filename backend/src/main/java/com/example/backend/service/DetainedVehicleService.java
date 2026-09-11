@@ -6,11 +6,13 @@ import com.example.backend.dto.DetainInRequest;
 import com.example.backend.dto.DetainUpdateRequest;
 import com.example.backend.entity.DetainMedia;
 import com.example.backend.entity.DetainedVehicle;
+import com.example.backend.entity.DispatchMedia;
 import com.example.backend.entity.DispatchOrder;
 import com.example.backend.entity.ParkingArea;
 import com.example.backend.entity.ParkingLot;
 import com.example.backend.mapper.DetainMediaMapper;
 import com.example.backend.mapper.DetainedVehicleMapper;
+import com.example.backend.mapper.DispatchMediaMapper;
 import com.example.backend.mapper.DispatchOrderMapper;
 import com.example.backend.mapper.ParkingLotMapper;
 import com.example.backend.util.PlateNos;
@@ -54,6 +56,9 @@ public class DetainedVehicleService {
     private DetainMediaMapper detainMediaMapper;
 
     @Autowired
+    private DispatchMediaMapper dispatchMediaMapper;
+
+    @Autowired
     private LocalFileStorageService fileStorageService;
 
     public Map<String, Object> list(String plateNo, String detainNo, String status,
@@ -81,6 +86,17 @@ public class DetainedVehicleService {
                 s.setPlateNo(row.getPlateNo());
                 s.setVehicleTypeName(row.getVehicleTypeName());
                 s.setAccidentAddress(row.getAccidentAddress());
+                s.setCheckedInAt(row.getCheckedInAt());
+                List<String> paths = new ArrayList<>();
+                List<DispatchMedia> medias = dispatchMediaMapper.findByOrderIdAndBizType(row.getId(), "DAMAGE");
+                if (medias != null) {
+                    for (DispatchMedia m : medias) {
+                        if (m != null && m.getFilePath() != null && !m.getFilePath().isBlank()) {
+                            paths.add(m.getFilePath());
+                        }
+                    }
+                }
+                s.setDamagePhotoPaths(paths);
                 out.add(s);
             }
         }

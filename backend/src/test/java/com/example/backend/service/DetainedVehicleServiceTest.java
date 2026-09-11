@@ -4,10 +4,12 @@ import com.example.backend.dto.ActiveDispatchSummary;
 import com.example.backend.dto.DetainInRequest;
 import com.example.backend.dto.DetainUpdateRequest;
 import com.example.backend.entity.DetainedVehicle;
+import com.example.backend.entity.DispatchMedia;
 import com.example.backend.entity.DispatchOrder;
 import com.example.backend.entity.ParkingLot;
 import com.example.backend.mapper.DetainMediaMapper;
 import com.example.backend.mapper.DetainedVehicleMapper;
+import com.example.backend.mapper.DispatchMediaMapper;
 import com.example.backend.mapper.DispatchOrderMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,6 +17,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -28,6 +31,7 @@ class DetainedVehicleServiceTest {
     @Mock ParkingAreaService parkingAreaService;
     @Mock DispatchOrderMapper dispatchOrderMapper;
     @Mock DetainMediaMapper detainMediaMapper;
+    @Mock DispatchMediaMapper dispatchMediaMapper;
     @Mock LocalFileStorageService fileStorageService;
     @InjectMocks DetainedVehicleService service;
 
@@ -179,6 +183,39 @@ class DetainedVehicleServiceTest {
                 order(1L, "PENDING", "粤A1")
         ));
         assertTrue(service.listActiveOrdersByPlate("粤B99999").isEmpty());
+    }
+
+    @Test
+    void listActiveOrdersIncludesCheckinAndDamagePathsNotPark() {
+        DispatchOrder row = order(3L, "ACCEPTED", "粤B12345");
+        row.setCheckedInAt(LocalDateTime.of(2026, 9, 9, 16, 38, 15));
+        when(dispatchOrderMapper.findActiveWithPlate()).thenReturn(List.of(row));
+        DispatchMedia dmg = new DispatchMedia();
+        dmg.setFilePath("dispatch/3/a.jpg");
+        dmg.setBizType("DAMAGE");
+        DispatchMedia park = new DispatchMedia();
+        park.setFilePath("dispatch/3/p.jpg");
+        park.setBizType("PARK");
+        when(dispatchMediaMapper.findByOrderIdAndBizType(3L, "DAMAGE")).thenReturn(List.of(dmg));
+
+        List<ActiveDispatchSummary> list = service.listActiveOrdersByPlate("粤B12345");
+
+        assertEquals(1, list.size());
+        assertEquals(LocalDateTime.of(2026, 9, 9, 16, 38, 15), list.get(0).getCheckedInAt());
+        assertEquals(List.of("dispatch/3/a.jpg"), list.get(0).getDamagePhotoPaths());
+    }
+
+    @Test
+    void listActiveOrdersNullCheckinAndEmptyPhotos() {
+        when(dispatchOrderMapper.findActiveWithPlate()).thenReturn(List.of(
+                order(2L, "PENDING", "粤B12345")
+        ));
+        when(dispatchMediaMapper.findByOrderIdAndBizType(2L, "DAMAGE")).thenReturn(List.of());
+
+        ActiveDispatchSummary s = service.listActiveOrdersByPlate("粤B12345").get(0);
+        assertNull(s.getCheckedInAt());
+        assertNotNull(s.getDamagePhotoPaths());
+        assertTrue(s.getDamagePhotoPaths().isEmpty());
     }
 
     @Test
