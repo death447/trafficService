@@ -116,6 +116,14 @@
         <view class="field-label">现场照片</view>
         <view class="media-grid">
           <image
+            v-for="(p, i) in orderSceneUrls"
+            :key="'o' + i"
+            class="thumb"
+            :src="p"
+            mode="aspectFill"
+            @click="previewLocal(orderSceneUrls, i)"
+          />
+          <image
             v-for="(p, i) in scenePhotos"
             :key="'s' + i"
             class="thumb"
@@ -210,9 +218,13 @@ import { checkInDetain, uploadDetainMedia, listActiveOrders } from '../../api/de
 import {
   ORDER_STATUS_TEXT,
   applyEmptyOrderFields,
+  applyCheckedInAt,
   classifyMatches,
+  damagePreviewUrls,
+  resetRescueTimeNow,
   shouldSearchPlate
 } from '../../utils/plateOrder.js'
+import { mediaUrl } from '../../utils/request.js'
 import { listParkings, listParkingAreas } from '../../api/parking'
 import { listEnabledVehicleTypes } from '../../api/vehicleType'
 import { getMe } from '../../api/auth'
@@ -257,6 +269,7 @@ const areas = ref([])
 const lotsFailed = ref(false)
 const vehicleTypes = ref([])
 const scenePhotos = ref([])
+const orderSceneUrls = ref([])
 const parkPhotos = ref([])
 const submitting = ref(false)
 const meLoaded = ref(false)
@@ -417,12 +430,16 @@ function clearLink() {
   searchSeq++
   linkedOrder.value = null
   pickerVisible.value = false
+  orderSceneUrls.value = []
+  resetRescueTimeNow(form, formatNow())
 }
 
 function bindOrder(order) {
   linkedOrder.value = order
   pickerVisible.value = false
   applyEmptyOrderFields(form, order)
+  applyCheckedInAt(form, order)
+  orderSceneUrls.value = damagePreviewUrls(order.damagePhotoPaths || [], mediaUrl)
 }
 
 function onPlateInput() {
