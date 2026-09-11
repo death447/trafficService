@@ -3,6 +3,7 @@ package com.example.backend.service;
 import com.example.backend.common.PageParams;
 import com.example.backend.dto.PoliceTaskDetail;
 import com.example.backend.dto.PoliceTaskItem;
+import com.example.backend.dto.RateTaskRequest;
 import com.example.backend.entity.DispatchFieldRecord;
 import com.example.backend.entity.DispatchMedia;
 import com.example.backend.entity.DispatchOrder;
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DuplicateKeyException;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -23,6 +25,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -101,5 +104,103 @@ class PoliceMobileServiceTest {
         when(dispatchOrderMapper.findById(9L)).thenReturn(null);
         RuntimeException ex = assertThrows(RuntimeException.class, () -> service.getTask(9L));
         assertEquals("工单不存在", ex.getMessage());
+    }
+
+    @Test
+    void rateCompletedUnratedInsertsRow() {
+        DispatchOrder order = new DispatchOrder();
+        order.setId(3L);
+        order.setStatus("COMPLETED");
+        when(dispatchOrderMapper.findById(3L)).thenReturn(order);
+        when(evaluationMapper.findByOrderId(3L)).thenReturn(null);
+        when(evaluationMapper.insert(any())).thenAnswer(inv -> {
+            DispatchOrderEvaluation row = inv.getArgument(0);
+            row.setId(99L);
+            return 1;
+        });
+        RateTaskRequest req = scores(5, 4, 5, 5, "  还行  ");
+        DispatchOrderEvaluation saved = service.rate(7L, 3L, req);
+        assertEquals(99L, saved.getId());
+        assertEquals(7L, saved.getRaterUserId());
+        assertEquals(4, saved.getScoreStandard());
+        assertEquals("还行", saved.getComment());
+    }
+
+    @Test
+    void rateRejectsNonCompleted() {
+        DispatchOrder order = new DispatchOrder();
+        order.setId(3L);
+        order.setStatus("ACCEPTED");
+        when(dispatchOrderMapper.findById(3L)).thenReturn(order);
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> service.rate(7L, 3L, scores(5, 5, 5, 5, null)));
+        assertEquals("仅已完成工单可评价", ex.getMessage());
+    }
+
+    @Test
+    void rateRejectsAlreadyRated() {
+        DispatchOrder order = new DispatchOrder();
+        order.setId(3L);
+        order.setStatus("COMPLETED");
+        when(dispatchOrderMapper.findById(3L)).thenReturn(order);
+        when(evaluationMapper.findByOrderId(3L)).thenReturn(new DispatchOrderEvaluation());
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> service.rate(7L, 3L, scores(5, 5, 5, 5, null)));
+        assertEquals("该工单已评价", ex.getMessage());
+    }
+
+    @Test
+    void rateRejectsOutOfRangeScore() {
+        DispatchOrder order = new DispatchOrder();
+        order.setId(3L);
+        order.setStatus("COMPLETED");
+        when(dispatchOrderMapper.findById(3L)).thenReturn(order);
+        when(evaluationMapper.findByOrderId(3L)).thenReturn(null);
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> service.rate(7L, 3L, scores(5, 0, 5, 5, null)));
+        assertEquals("每个维度须为 1 至 5 星", ex.getMessage());
+    }
+
+    @Test
+    void rateRejectsMissingOrder() {
+        when(dispatchOrderMapper.findById(3L)).thenReturn(null);
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> service.rate(7L, 3L, scores(5, 5, 5, 5, null)));
+        assertEquals("工单不存在", ex.getMessage());
+    }
+
+    @Test
+    void rateDuplicateKeyBecomesAlreadyRated() {
+        DispatchOrder order = new DispatchOrder();
+        order.setId(3L);
+        order.setStatus("COMPLETED");
+        when(dispatchOrderMapper.findById(3L)).thenReturn(order);
+        when(evaluationMapper.findByOrderId(3L)).thenReturn(null);
+        when(evaluationMapper.insert(any())).thenThrow(new DuplicateKeyException("dup"));
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> service.rate(7L, 3L, scores(5, 5, 5, 5, null)));
+        assertEquals("该工单已评价", ex.getMessage());
+    }
+
+    @Test
+    void rateRejectsCommentOver500() {
+        DispatchOrder order = new DispatchOrder();
+        order.setId(3L);
+        order.setStatus("COMPLETED");
+        when(dispatchOrderMapper.findById(3L)).thenReturn(order);
+        when(evaluationMapper.findByOrderId(3L)).thenReturn(null);
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> service.rate(7L, 3L, scores(5, 5, 5, 5, "x".repeat(501))));
+        assertEquals("反馈意见不能超过500字", ex.getMessage());
+    }
+
+    private RateTaskRequest scores(int p, int st, int sa, int at, String comment) {
+        RateTaskRequest req = new RateTaskRequest();
+        req.setScorePunctual(p);
+        req.setScoreStandard(st);
+        req.setScoreSafety(sa);
+        req.setScoreAttitude(at);
+        req.setComment(comment);
+        return req;
     }
 }
