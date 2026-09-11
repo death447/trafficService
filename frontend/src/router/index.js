@@ -90,6 +90,12 @@ const routes = [
     meta: { permissions: ['schedule:manage'] }
   },
   {
+    path: '/reports',
+    name: 'Report',
+    component: () => import('../views/report/Report.vue'),
+    meta: { permissions: ['report:manage'] }
+  },
+  {
     path: '/vehicle-types',
     name: 'VehicleTypeList',
     component: () => import('../views/vehicleType/VehicleTypeList.vue'),

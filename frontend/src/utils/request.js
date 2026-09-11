@@ -17,6 +17,9 @@ request.interceptors.request.use((config) => {
 
 request.interceptors.response.use(
   (res) => {
+    if (res.config.responseType === 'blob') {
+      return res
+    }
     const data = res.data
     if (data.code !== 200) {
       return Promise.reject(new Error(data.message || '请求失败'))

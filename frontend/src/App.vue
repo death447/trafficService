@@ -23,6 +23,15 @@
           <span class="nav-ico">⌂</span>
           概览
         </router-link>
+        <router-link
+          v-auth="'report:manage'"
+          to="/reports"
+          class="nav-item"
+          active-class="active"
+        >
+          <span class="nav-ico">表</span>
+          报表
+        </router-link>
 
         <p class="nav-section">业务调度</p>
         <router-link
@@ -180,6 +189,7 @@ const pageTitle = computed(() => {
     '/detained-vehicles': '扣留车辆',
     '/schedules': '排班管理',
     '/vehicle-types': '车型管理',
+    '/reports': '报表',
     '/403': '访问受限'
   }
   return map[path] || '救援派单系统'
