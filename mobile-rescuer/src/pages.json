@@ -10,7 +10,8 @@
     {
       "path": "pages/workbench/index",
       "style": {
-        "navigationBarTitleText": "工作台"
+        "navigationBarTitleText": "工作台",
+        "onReachBottomDistance": 80
       }
     },
     {

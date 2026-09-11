@@ -7,7 +7,7 @@
 
 <script setup>
 import { nextTick, ref } from 'vue'
-import { onShow } from '@dcloudio/uni-app'
+import { onReachBottom, onShow } from '@dcloudio/uni-app'
 import { getUserState } from '../../stores/user'
 import { applyWorkbenchTabText, requirePageAccess } from '../../utils/guard.js'
 import { startLocationReporter, stopLocationReporter } from '../../utils/locationReporter'
@@ -29,5 +29,10 @@ onShow(() => {
     taskRef.value?.reload()
     detainRef.value?.reload()
   })
+})
+
+onReachBottom(() => {
+  if (workspace.value !== 'parking') return
+  detainRef.value?.loadMore?.()
 })
 </script>

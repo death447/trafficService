@@ -8,17 +8,17 @@
     <view class="card filters">
       <view class="field">
         <view class="field-label">车牌</view>
-        <input class="field-input" v-model="plateNo" placeholder="车牌号" confirm-type="search" @confirm="onQuery" />
+        <input class="field-input" v-model="plateNo" placeholder="车牌号" confirm-type="search" @confirm="onConfirmPlate" />
       </view>
       <view class="field">
         <view class="field-label">扣押编号</view>
-        <input class="field-input" v-model="detainNo" placeholder="DV…" confirm-type="search" @confirm="onQuery" />
+        <input class="field-input" v-model="detainNo" placeholder="请输入扣押编号" confirm-type="search" @confirm="onConfirmDetain" />
       </view>
       <view class="btn-ghost" @click="onQuery">查询</view>
     </view>
 
-    <view v-if="loading" class="muted center">加载中…</view>
-    <view v-else-if="loadFailed" class="muted center">加载失败</view>
+    <view v-if="loading && !list.length" class="muted center">加载中…</view>
+    <view v-else-if="loadFailed && !list.length" class="muted center">加载失败</view>
     <view v-else-if="!list.length" class="muted center">暂无在库车辆，可点右上角入库</view>
     <view v-else>
       <view class="card item" v-for="item in list" :key="item.id" @click="goDetail(item.id)">
@@ -29,48 +29,29 @@
         <view class="line">停车场：{{ item.parkingLotName || '-' }}</view>
         <view class="muted">入库时间：{{ formatTime(item.inTime) }}</view>
       </view>
-    </view>
-
-    <view v-if="!loading" class="pager">
-      <view class="sizes">
-        <text
-          v-for="s in pageSizes"
-          :key="s"
-          class="size"
-          :class="{ active: size === s }"
-          @click="changeSize(s)"
-        >{{ s }}</text>
-      </view>
-      <view class="row-between">
-        <text class="muted">共 {{ total }} 条</text>
-        <view class="pager-btns">
-          <text class="link" :class="{ disabled: page <= 1 }" @click="prevPage">上一页</text>
-          <text class="muted page-num">{{ page }}</text>
-          <text class="link" :class="{ disabled: page >= totalPages }" @click="nextPage">下一页</text>
-        </view>
+      <view class="muted load-tip">
+        {{ loading ? '加载中…' : (list.length >= total ? '没有更多了' : '上滑加载更多') }}
       </view>
     </view>
   </view>
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { listDetains } from '../api/detain'
 import { getUserState } from '../stores/user'
+import { confirmInputValue, normalizeHangtagText } from '../utils/workspace.js'
 
-const pageSizes = [10, 20, 50, 100]
+const PAGE_SIZE = 10
 
 const plateNo = ref('')
 const detainNo = ref('')
 const page = ref(1)
-const size = ref(10)
 const total = ref(0)
 const list = ref([])
 const loading = ref(false)
 const loadFailed = ref(false)
 const canAdd = ref(false)
-
-const totalPages = computed(() => Math.max(1, Math.ceil((total.value || 0) / size.value)))
 
 function formatTime(value) {
   if (!value) return '-'
@@ -84,52 +65,57 @@ function refreshPerms() {
 
 refreshPerms()
 
-async function load() {
+async function load(append = false) {
   refreshPerms()
   loading.value = true
   try {
-    const params = { page: page.value, size: size.value, status: 'IN_YARD' }
+    const params = { page: page.value, size: PAGE_SIZE, status: 'IN_YARD' }
     const plate = String(plateNo.value || '').trim()
-    const no = String(detainNo.value || '').trim()
+    const no = normalizeHangtagText(detainNo.value)
     if (plate) params.plateNo = plate
     if (no) params.detainNo = no
     const res = await listDetains(params)
-    list.value = res.data?.list || []
+    const rows = res.data?.list || []
     total.value = res.data?.total ?? 0
-    if (res.data?.page) page.value = res.data.page
-    if (res.data?.size) size.value = res.data.size
+    list.value = append ? list.value.concat(rows) : rows
     loadFailed.value = false
   } catch (_) {
-    list.value = []
-    total.value = 0
-    loadFailed.value = true
+    if (append) {
+      page.value = Math.max(1, page.value - 1)
+      uni.showToast({ title: '加载失败', icon: 'none' })
+    } else {
+      list.value = []
+      total.value = 0
+      loadFailed.value = true
+    }
   } finally {
     loading.value = false
   }
 }
 
-function onQuery() {
+function reload() {
   page.value = 1
-  load()
+  return load(false)
 }
 
-function changeSize(s) {
-  if (size.value === s) return
-  size.value = s
-  page.value = 1
-  load()
-}
-
-function prevPage() {
-  if (page.value <= 1) return
-  page.value -= 1
-  load()
-}
-
-function nextPage() {
-  if (page.value >= totalPages.value) return
+async function loadMore() {
+  if (loading.value || list.value.length >= total.value) return
   page.value += 1
-  load()
+  await load(true)
+}
+
+function onConfirmPlate(e) {
+  plateNo.value = confirmInputValue(e, plateNo.value)
+  onQuery()
+}
+
+function onConfirmDetain(e) {
+  detainNo.value = confirmInputValue(e, detainNo.value)
+  onQuery()
+}
+
+function onQuery() {
+  reload()
 }
 
 function goScan() {
@@ -144,7 +130,24 @@ function goDetail(id) {
   uni.navigateTo({ url: `/pages/detain/detail?id=${id}` })
 }
 
-defineExpose({ reload: load })
+defineExpose({ reload, loadMore })
+
+function onWindowScroll() {
+  if (typeof document === 'undefined') return
+  const doc = document.documentElement
+  const remain = doc.scrollHeight - window.innerHeight - window.scrollY
+  if (remain < 80) loadMore()
+}
+
+onMounted(() => {
+  if (typeof window === 'undefined') return
+  window.addEventListener('scroll', onWindowScroll, { passive: true })
+})
+
+onUnmounted(() => {
+  if (typeof window === 'undefined') return
+  window.removeEventListener('scroll', onWindowScroll)
+})
 </script>
 
 <style scoped>
@@ -178,43 +181,8 @@ defineExpose({ reload: load })
   text-align: center;
   padding: 80rpx 0;
 }
-.pager {
-  margin-top: 8rpx;
-  padding: 16rpx 8rpx 32rpx;
-}
-.sizes {
-  display: flex;
-  gap: 16rpx;
-  margin-bottom: 16rpx;
-}
-.size {
-  flex: 1;
+.load-tip {
   text-align: center;
-  padding: 12rpx 0;
-  border-radius: 12rpx;
-  background: #fff;
-  color: #666;
-  font-size: 24rpx;
-}
-.size.active {
-  color: #2979ff;
-  font-weight: 600;
-  background: #eef4ff;
-}
-.pager-btns {
-  display: flex;
-  align-items: center;
-  gap: 20rpx;
-}
-.link {
-  color: #2979ff;
-  font-size: 26rpx;
-}
-.link.disabled {
-  color: #ccc;
-}
-.page-num {
-  min-width: 40rpx;
-  text-align: center;
+  padding: 24rpx 0 80rpx;
 }
 </style>

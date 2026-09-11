@@ -5,7 +5,9 @@ const {
   hasParkingAccess,
   resolveLoginTarget,
   shouldStartGps,
-  matchHangtag
+  matchHangtag,
+  confirmInputValue,
+  normalizeHangtagText
 } = require('./workspace.js')
 const { httpErrorMessage } = require('./httpError.js')
 
@@ -43,6 +45,20 @@ test('matchHangtag exact detainNo', () => {
   assert.equal(matchHangtag(rows, 'DV202609070001').kind, 'in-yard')
   assert.equal(matchHangtag(rows, 'DV202609070002').kind, 'not-in-yard')
   assert.equal(matchHangtag(rows, 'NOPE').kind, 'not-found')
+  assert.equal(matchHangtag(rows, 'ＤＶ202609070001').kind, 'in-yard')
+  assert.equal(matchHangtag(rows, '\u200bDV202609070001').kind, 'in-yard')
+})
+
+test('confirmInputValue prefers confirm event over stale v-model', () => {
+  assert.equal(confirmInputValue({ detail: { value: '1231231231' } }, ''), '1231231231')
+  assert.equal(confirmInputValue({ detail: { value: '1231231231' } }, 'old'), '1231231231')
+  assert.equal(confirmInputValue(undefined, 'typed'), 'typed')
+  assert.equal(confirmInputValue({ detail: {} }, 'typed'), 'typed')
+})
+
+test('normalizeHangtagText maps fullwidth digits and strips zwsp', () => {
+  assert.equal(normalizeHangtagText('１２３１２３１２３１'), '1231231231')
+  assert.equal(normalizeHangtagText('\u200bDV202609070001\u200b'), 'DV202609070001')
 })
 
 test('httpErrorMessage uses body.message or 无权限 for 403', () => {

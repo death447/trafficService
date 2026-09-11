@@ -24,7 +24,7 @@ import { ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { listDetains } from '../../api/detain'
 import { requirePageAccess } from '../../utils/guard.js'
-import { matchHangtag } from '../../utils/workspace.js'
+import { confirmInputValue, matchHangtag, normalizeHangtagText } from '../../utils/workspace.js'
 import { scanQrCode } from '../../utils/scanCode'
 
 const payload = ref('')
@@ -35,7 +35,7 @@ onShow(() => {
 })
 
 async function lookup(raw) {
-  const text = String(raw || '').trim()
+  const text = normalizeHangtagText(raw)
   const pre = matchHangtag([], text)
   if (pre.kind === 'empty') {
     uni.showToast({ title: '请输入或扫描扣押编号', icon: 'none' })
@@ -61,15 +61,17 @@ async function lookup(raw) {
   } catch (_) {}
 }
 
-function onFind() {
-  lookup(payload.value)
+function onFind(e) {
+  const text = confirmInputValue(e, payload.value)
+  payload.value = text
+  lookup(text)
 }
 
 async function onScan() {
   if (scanning.value) return
   scanning.value = true
   try {
-    const text = await scanQrCode()
+    const text = normalizeHangtagText(await scanQrCode())
     payload.value = text
     await lookup(text)
   } catch (e) {
