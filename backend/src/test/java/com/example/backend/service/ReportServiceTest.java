@@ -8,6 +8,10 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.WorkbookFactory;
+
+import java.io.ByteArrayInputStream;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -125,6 +129,72 @@ class ReportServiceTest {
         assertNull(s.getQuality().getAvgPunctual());
         assertEquals(1, s.getDispatch().getTrend().size());
         assertEquals(0, s.getDispatch().getTrend().get(0).getCount());
+    }
+
+    @Test
+    void exportWritesFourSheetsAndSummaryHeader() throws Exception {
+        stubEmptySummaryWindow();
+        byte[] bytes = service.export("2026-09-01", "2026-09-01");
+        try (Workbook wb = WorkbookFactory.create(new ByteArrayInputStream(bytes))) {
+            assertEquals(4, wb.getNumberOfSheets());
+            assertEquals("汇总", wb.getSheetName(0));
+            assertEquals("工单明细", wb.getSheetName(1));
+            assertEquals("评价按施救员", wb.getSheetName(2));
+            assertEquals("扣留按停车场", wb.getSheetName(3));
+            assertEquals("指标", wb.getSheetAt(0).getRow(0).getCell(0).getStringCellValue());
+            assertEquals("数值", wb.getSheetAt(0).getRow(0).getCell(1).getStringCellValue());
+            assertEquals("工单总数", wb.getSheetAt(0).getRow(1).getCell(0).getStringCellValue());
+            assertEquals("已完成", wb.getSheetAt(0).getRow(2).getCell(0).getStringCellValue());
+            assertEquals("处置中", wb.getSheetAt(0).getRow(3).getCell(0).getStringCellValue());
+            assertEquals("中止", wb.getSheetAt(0).getRow(4).getCell(0).getStringCellValue());
+            assertEquals("已评价数", wb.getSheetAt(0).getRow(5).getCell(0).getStringCellValue());
+            assertEquals("到达及时均分", wb.getSheetAt(0).getRow(6).getCell(0).getStringCellValue());
+            assertEquals("处置规范均分", wb.getSheetAt(0).getRow(7).getCell(0).getStringCellValue());
+            assertEquals("操作安全均分", wb.getSheetAt(0).getRow(8).getCell(0).getStringCellValue());
+            assertEquals("服务态度均分", wb.getSheetAt(0).getRow(9).getCell(0).getStringCellValue());
+            assertEquals("入库", wb.getSheetAt(0).getRow(10).getCell(0).getStringCellValue());
+            assertEquals("在场", wb.getSheetAt(0).getRow(11).getCell(0).getStringCellValue());
+            assertEquals("出库", wb.getSheetAt(0).getRow(12).getCell(0).getStringCellValue());
+
+            assertEquals("单号", wb.getSheetAt(1).getRow(0).getCell(0).getStringCellValue());
+            assertEquals("事故地址", wb.getSheetAt(1).getRow(0).getCell(1).getStringCellValue());
+            assertEquals("状态", wb.getSheetAt(1).getRow(0).getCell(2).getStringCellValue());
+            assertEquals("车牌", wb.getSheetAt(1).getRow(0).getCell(3).getStringCellValue());
+            assertEquals("施救员", wb.getSheetAt(1).getRow(0).getCell(4).getStringCellValue());
+            assertEquals("创建时间", wb.getSheetAt(1).getRow(0).getCell(5).getStringCellValue());
+            assertEquals("派单时间", wb.getSheetAt(1).getRow(0).getCell(6).getStringCellValue());
+            assertEquals("完成时间", wb.getSheetAt(1).getRow(0).getCell(7).getStringCellValue());
+
+            assertEquals("施救员", wb.getSheetAt(2).getRow(0).getCell(0).getStringCellValue());
+            assertEquals("评价单数", wb.getSheetAt(2).getRow(0).getCell(1).getStringCellValue());
+            assertEquals("到达及时", wb.getSheetAt(2).getRow(0).getCell(2).getStringCellValue());
+            assertEquals("处置规范", wb.getSheetAt(2).getRow(0).getCell(3).getStringCellValue());
+            assertEquals("操作安全", wb.getSheetAt(2).getRow(0).getCell(4).getStringCellValue());
+            assertEquals("服务态度", wb.getSheetAt(2).getRow(0).getCell(5).getStringCellValue());
+            assertEquals("综合均分", wb.getSheetAt(2).getRow(0).getCell(6).getStringCellValue());
+
+            assertEquals("停车场", wb.getSheetAt(3).getRow(0).getCell(0).getStringCellValue());
+            assertEquals("入库", wb.getSheetAt(3).getRow(0).getCell(1).getStringCellValue());
+            assertEquals("在场", wb.getSheetAt(3).getRow(0).getCell(2).getStringCellValue());
+            assertEquals("出库", wb.getSheetAt(3).getRow(0).getCell(3).getStringCellValue());
+        }
+    }
+
+    private void stubEmptySummaryWindow() {
+        LocalDateTime start = LocalDateTime.of(2026, 9, 1, 0, 0);
+        LocalDateTime end = LocalDateTime.of(2026, 9, 2, 0, 0);
+        when(reportMapper.countOrders(start, end)).thenReturn(0L);
+        when(reportMapper.countOrdersByStatus(start, end)).thenReturn(List.of());
+        when(reportMapper.countOrdersByDay(start, end)).thenReturn(List.of());
+        when(reportMapper.listOrders(start, end)).thenReturn(List.of());
+        ReportQualityAvg avg = new ReportQualityAvg();
+        avg.setRatedCount(0);
+        when(reportMapper.selectQualityAvg(start, end)).thenReturn(avg);
+        when(reportMapper.listQualityByRescuer(start, end)).thenReturn(List.of());
+        when(reportMapper.countDetainInbound(start, end)).thenReturn(0L);
+        when(reportMapper.countDetainInYard(start, end)).thenReturn(0L);
+        when(reportMapper.countDetainOutbound(start, end)).thenReturn(0L);
+        when(reportMapper.listDetainByLot(start, end)).thenReturn(List.of());
     }
 
     private static ReportStatusCount status(String st, long n) {

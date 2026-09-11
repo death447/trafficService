@@ -11,13 +11,19 @@ import com.example.backend.dto.ReportSummary.DetainBlock;
 import com.example.backend.dto.ReportSummary.DispatchBlock;
 import com.example.backend.dto.ReportSummary.QualityBlock;
 import com.example.backend.mapper.ReportMapper;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -32,6 +38,14 @@ public class ReportService {
     private static final String[] STATUS_ORDER = {
             "PENDING", "DISPATCHED", "ACCEPTED", "COMPLETED", "ABORTED"
     };
+    private static final DateTimeFormatter EXPORT_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+    private static final Map<String, String> STATUS_ZH = Map.of(
+            "PENDING", "待派单",
+            "DISPATCHED", "已派单",
+            "ACCEPTED", "已接单",
+            "COMPLETED", "已完成",
+            "ABORTED", "已中止"
+    );
 
     @Autowired
     private ReportMapper reportMapper;
@@ -53,7 +67,17 @@ public class ReportService {
     }
 
     public byte[] export(String from, String to) {
-        throw new UnsupportedOperationException("export");
+        ReportSummary s = summary(from, to);
+        try (XSSFWorkbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            writeSummarySheet(wb.createSheet("汇总"), s);
+            writeOrdersSheet(wb.createSheet("工单明细"), s);
+            writeQualitySheet(wb.createSheet("评价按施救员"), s);
+            writeDetainSheet(wb.createSheet("扣留按停车场"), s);
+            wb.write(out);
+            return out.toByteArray();
+        } catch (IOException e) {
+            throw new RuntimeException("导出失败", e);
+        }
     }
 
     LocalDate[] parseRange(String from, String to) {
@@ -193,5 +217,108 @@ public class ReportService {
             return UNSPECIFIED_RESCUER;
         }
         return name;
+    }
+
+    private static void writeSummarySheet(Sheet sheet, ReportSummary s) {
+        Row header = sheet.createRow(0);
+        header.createCell(0).setCellValue("指标");
+        header.createCell(1).setCellValue("数值");
+        writeMetric(sheet, 1, "工单总数", s.getDispatch().getTotal());
+        writeMetric(sheet, 2, "已完成", s.getDispatch().getCompleted());
+        writeMetric(sheet, 3, "处置中", s.getDispatch().getInProgress());
+        writeMetric(sheet, 4, "中止", s.getDispatch().getAborted());
+        writeMetric(sheet, 5, "已评价数", s.getQuality().getRatedCount());
+        writeMetric(sheet, 6, "到达及时均分", s.getQuality().getAvgPunctual());
+        writeMetric(sheet, 7, "处置规范均分", s.getQuality().getAvgStandard());
+        writeMetric(sheet, 8, "操作安全均分", s.getQuality().getAvgSafety());
+        writeMetric(sheet, 9, "服务态度均分", s.getQuality().getAvgAttitude());
+        writeMetric(sheet, 10, "入库", s.getDetain().getInbound());
+        writeMetric(sheet, 11, "在场", s.getDetain().getInYard());
+        writeMetric(sheet, 12, "出库", s.getDetain().getOutbound());
+    }
+
+    private static void writeOrdersSheet(Sheet sheet, ReportSummary s) {
+        writeHeader(sheet, "单号", "事故地址", "状态", "车牌", "施救员", "创建时间", "派单时间", "完成时间");
+        int r = 1;
+        for (ReportOrderRow order : s.getDispatch().getOrders()) {
+            Row row = sheet.createRow(r++);
+            row.createCell(0).setCellValue(nullToEmpty(order.getOrderNo()));
+            row.createCell(1).setCellValue(nullToEmpty(order.getAccidentAddress()));
+            row.createCell(2).setCellValue(statusZh(order.getStatus()));
+            row.createCell(3).setCellValue(nullToEmpty(order.getPlateNo()));
+            row.createCell(4).setCellValue(nullToEmpty(order.getRescuerName()));
+            row.createCell(5).setCellValue(formatTime(order.getCreateTime()));
+            row.createCell(6).setCellValue(formatTime(order.getDispatchedAt()));
+            row.createCell(7).setCellValue(formatTime(order.getCompletedAt()));
+        }
+    }
+
+    private static void writeQualitySheet(Sheet sheet, ReportSummary s) {
+        writeHeader(sheet, "施救员", "评价单数", "到达及时", "处置规范", "操作安全", "服务态度", "综合均分");
+        int r = 1;
+        for (ReportRescuerQuality q : s.getQuality().getByRescuer()) {
+            Row row = sheet.createRow(r++);
+            row.createCell(0).setCellValue(nullToEmpty(q.getRescuerName()));
+            row.createCell(1).setCellValue(q.getRatedCount());
+            writeNumberOrBlank(row, 2, q.getAvgPunctual());
+            writeNumberOrBlank(row, 3, q.getAvgStandard());
+            writeNumberOrBlank(row, 4, q.getAvgSafety());
+            writeNumberOrBlank(row, 5, q.getAvgAttitude());
+            writeNumberOrBlank(row, 6, q.getAvgOverall());
+        }
+    }
+
+    private static void writeDetainSheet(Sheet sheet, ReportSummary s) {
+        writeHeader(sheet, "停车场", "入库", "在场", "出库");
+        int r = 1;
+        for (ReportLotDetain lot : s.getDetain().getByLot()) {
+            Row row = sheet.createRow(r++);
+            row.createCell(0).setCellValue(nullToEmpty(lot.getParkingLotName()));
+            row.createCell(1).setCellValue(lot.getInbound());
+            row.createCell(2).setCellValue(lot.getInYard());
+            row.createCell(3).setCellValue(lot.getOutbound());
+        }
+    }
+
+    private static void writeHeader(Sheet sheet, String... titles) {
+        Row row = sheet.createRow(0);
+        for (int i = 0; i < titles.length; i++) {
+            row.createCell(i).setCellValue(titles[i]);
+        }
+    }
+
+    private static void writeMetric(Sheet sheet, int rowIndex, String name, long value) {
+        Row row = sheet.createRow(rowIndex);
+        row.createCell(0).setCellValue(name);
+        row.createCell(1).setCellValue(value);
+    }
+
+    private static void writeMetric(Sheet sheet, int rowIndex, String name, Double value) {
+        Row row = sheet.createRow(rowIndex);
+        row.createCell(0).setCellValue(name);
+        writeNumberOrBlank(row, 1, value);
+    }
+
+    private static void writeNumberOrBlank(Row row, int col, Double value) {
+        if (value == null) {
+            row.createCell(col);
+        } else {
+            row.createCell(col).setCellValue(value);
+        }
+    }
+
+    private static String statusZh(String status) {
+        if (status == null) {
+            return "";
+        }
+        return STATUS_ZH.getOrDefault(status, status);
+    }
+
+    private static String formatTime(LocalDateTime time) {
+        return time == null ? "" : time.format(EXPORT_TIME);
+    }
+
+    private static String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 }
