@@ -52,6 +52,7 @@ import { useUserStore } from '../stores/user'
 import { getDispatchOverview } from '../api/dispatch'
 import { listVehicles } from '../api/vehicle'
 import { createVehicleMapIcon, hasAmapKey, loadAmap } from '../utils/amap'
+import { computeOverlappingMarkerOffsets } from '../utils/markerOffset'
 
 const JIAXING_CENTER = [120.755486, 30.746849]
 const JIAXING_ZOOM = 13
@@ -158,15 +159,17 @@ function syncMarkers() {
   })
 
   const icon = createVehicleMapIcon(AMap)
+  const markerOffsets = computeOverlappingMarkerOffsets(idleVehicles.value)
   idleVehicles.value.forEach((v) => {
     const lng = Number(v.longitude)
     const lat = Number(v.latitude)
     if (!Number.isFinite(lng) || !Number.isFinite(lat)) return
+    const [ox, oy] = markerOffsets.get(v.id) || [-22, -18]
     const marker = new AMap.Marker({
       position: [lng, lat],
       map: mapInstance,
       icon,
-      offset: new AMap.Pixel(-22, -18),
+      offset: new AMap.Pixel(ox, oy),
       title: v.plateNo || '',
       label: {
         content: v.plateNo || '空闲',
