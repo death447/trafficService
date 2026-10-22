@@ -70,6 +70,16 @@
                 <span class="label">车辆</span>
                 <strong>{{ order.vehiclePlate || order.vehicleId || '—' }}</strong>
               </div>
+              <div v-if="order.assignments?.length" class="span-2">
+                <span class="label">已派车辆</span>
+                <ul class="assignment-list">
+                  <li v-for="a in order.assignments" :key="a.id">
+                    {{ a.vehiclePlate || a.vehicleId }}
+                    · {{ a.rescuerName || a.rescuerId || '—' }}
+                    · {{ assignmentStatusLabel(a.status) }}
+                  </li>
+                </ul>
+              </div>
               <div v-if="order.abortReason" class="span-2">
                 <span class="label">中止原因</span>
                 <strong>{{ order.abortReason }}</strong>
@@ -125,9 +135,11 @@
             </div>
           </div>
 
-          <!-- PENDING: edit + nearby vehicles + assign -->
-          <template v-if="order.status === 'PENDING'">
-            <div class="panel edit-panel">
+          <!-- PENDING edit; PENDING/DISPATCHED/ACCEPTED: nearby + assign/add -->
+          <template
+            v-if="order.status === 'PENDING' || order.status === 'DISPATCHED' || order.status === 'ACCEPTED'"
+          >
+            <div v-if="order.status === 'PENDING'" class="panel edit-panel">
               <h2 class="section-title">车牌、车型与当事人</h2>
               <div class="edit-form">
                 <label>
@@ -159,7 +171,7 @@
             </div>
 
             <div class="panel vehicle-panel">
-              <h2 class="section-title">附近空闲车辆</h2>
+              <h2 class="section-title">附近可派车辆</h2>
               <p v-if="matchedDistrict" class="hint-inline">
                 所属片区：{{ matchedDistrict.name }}（{{ matchedDistrict.code }}）
               </p>
@@ -200,7 +212,11 @@
                         <span class="muted">{{ vehicleTypeLabel(item.vehicle.vehicleType) }}</span>
                       </div>
                       <div class="vehicle-meta">
-                        <span :class="['badge', 'badge-success']">空闲</span>
+                        <span
+                          :class="['badge', item.hasActiveAssignment ? 'badge-warn' : 'badge-success']"
+                        >
+                          {{ item.hasActiveAssignment ? '已有任务' : '可派' }}
+                        </span>
                         <span class="distance">{{ formatDistance(item.distanceMeters) }}</span>
                       </div>
                     </li>
@@ -224,7 +240,13 @@
                   :disabled="!selectedVehicleId || assigning"
                   @click="onAssign"
                 >
-                  {{ assigning ? '派单中…' : '确认派单' }}
+                  {{
+                    assigning
+                      ? '派单中…'
+                      : order.status === 'PENDING'
+                        ? '确认派单'
+                        : '加派车辆'
+                  }}
                 </button>
               </div>
               <p v-if="actionError" class="error">{{ actionError }}</p>
@@ -480,9 +502,9 @@ function mediaUrl(filePath) {
 const vehicleSections = computed(() => [
   {
     key: 'fresh',
-    title: '附近空闲（实时）',
+    title: '附近可派（实时）',
     items: nearby.value,
-    emptyText: '暂无实时定位的空闲车辆',
+    emptyText: '暂无实时定位的可派车辆',
     collapsible: false
   },
   {
@@ -533,6 +555,10 @@ const hasCoords = computed(() => {
 const canShowMap = computed(() => amapReady && hasCoords.value)
 
 function statusLabel(status) {
+  return statusLabels[status] || status || '—'
+}
+
+function assignmentStatusLabel(status) {
   return statusLabels[status] || status || '—'
 }
 
@@ -943,11 +969,13 @@ watch(
     trackHint.value = ''
     trackPollHint.value = ''
     if (!status) return
-    if (status === 'PENDING') {
+    if (status === 'PENDING' || status === 'DISPATCHED' || status === 'ACCEPTED') {
       await loadNearby()
+      startNearbyPoll()
+    }
+    if (status === 'PENDING') {
       await nextTick()
       await initMap()
-      startNearbyPoll()
     } else {
       await loadTrackedVehicle()
       await nextTick()
@@ -975,11 +1003,13 @@ watch(
     // Status watcher may not re-fire when both orders share the same status
     const status = order.value?.status
     if (!status) return
-    if (status === 'PENDING') {
+    if (status === 'PENDING' || status === 'DISPATCHED' || status === 'ACCEPTED') {
       await loadNearby()
+      startNearbyPoll()
+    }
+    if (status === 'PENDING') {
       await nextTick()
       await initMap()
-      startNearbyPoll()
     } else {
       await loadTrackedVehicle()
       await nextTick()
@@ -1333,6 +1363,18 @@ onBeforeUnmount(() => {
 .distance {
   font-size: 0.8rem;
   color: var(--text-secondary);
+}
+
+.assignment-list {
+  margin: 0.25rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.875rem;
+  color: var(--text);
+}
+
+.badge-warn {
+  background: #fff3cd;
+  color: #856404;
 }
 
 .muted {

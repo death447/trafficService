@@ -7,11 +7,13 @@ import com.example.backend.dto.SceneRequest;
 import com.example.backend.entity.DispatchMedia;
 import com.example.backend.entity.DispatchOrder;
 import com.example.backend.entity.DispatchOrderEvaluation;
+import com.example.backend.entity.DispatchVehicleAssignment;
 import com.example.backend.entity.RescueVehicle;
 import com.example.backend.mapper.DispatchFieldRecordMapper;
 import com.example.backend.mapper.DispatchMediaMapper;
 import com.example.backend.mapper.DispatchOrderEvaluationMapper;
 import com.example.backend.mapper.DispatchOrderMapper;
+import com.example.backend.mapper.DispatchVehicleAssignmentMapper;
 import com.example.backend.mapper.RescueVehicleMapper;
 import com.example.backend.mapper.UserMapper;
 import org.junit.jupiter.api.Test;
@@ -32,6 +34,7 @@ import static org.mockito.Mockito.*;
 class RescuerMobileServiceTest {
 
     @Mock DispatchOrderMapper dispatchOrderMapper;
+    @Mock DispatchVehicleAssignmentMapper assignmentMapper;
     @Mock DispatchFieldRecordMapper fieldRecordMapper;
     @Mock DispatchMediaMapper mediaMapper;
     @Mock DispatchOrderEvaluationMapper evaluationMapper;
@@ -39,6 +42,16 @@ class RescuerMobileServiceTest {
     @Mock UserMapper userMapper;
     @Mock LocalFileStorageService fileStorageService;
     @InjectMocks RescuerMobileService service;
+
+    private DispatchVehicleAssignment assignment(String status) {
+        DispatchVehicleAssignment a = new DispatchVehicleAssignment();
+        a.setId(50L);
+        a.setDispatchOrderId(1L);
+        a.setVehicleId(5L);
+        a.setRescuerId(9L);
+        a.setStatus(status);
+        return a;
+    }
 
     @Test
     void bindVehicleParsesRvPayloadAndClearsOldBind() {
@@ -67,6 +80,7 @@ class RescuerMobileServiceTest {
         order.setRescuerId(9L);
         order.setStatus("DISPATCHED");
         when(dispatchOrderMapper.findById(1L)).thenReturn(order);
+        when(assignmentMapper.findByOrderIdAndRescuerId(1L, 9L)).thenReturn(assignment("DISPATCHED"));
 
         SceneRequest req = new SceneRequest();
         req.setPlateNo("粤B12345");
@@ -83,6 +97,7 @@ class RescuerMobileServiceTest {
         order.setRescuerId(9L);
         order.setStatus("ACCEPTED");
         when(dispatchOrderMapper.findById(1L)).thenReturn(order);
+        when(assignmentMapper.findByOrderIdAndRescuerId(1L, 9L)).thenReturn(assignment("ACCEPTED"));
 
         MockMultipartFile file = new MockMultipartFile(
                 "file", "a.jpg", "image/jpeg", new byte[]{1, 2, 3});
@@ -100,6 +115,7 @@ class RescuerMobileServiceTest {
         order.setRescuerId(9L);
         order.setStatus("ACCEPTED");
         when(dispatchOrderMapper.findById(1L)).thenReturn(order);
+        when(assignmentMapper.findByOrderIdAndRescuerId(1L, 9L)).thenReturn(assignment("ACCEPTED"));
         DispatchMedia media = new DispatchMedia();
         media.setId(5L);
         media.setDispatchOrderId(1L);
@@ -120,6 +136,7 @@ class RescuerMobileServiceTest {
         order.setRescuerId(9L);
         order.setStatus("DISPATCHED");
         when(dispatchOrderMapper.findById(1L)).thenReturn(order);
+        when(assignmentMapper.findByOrderIdAndRescuerId(1L, 9L)).thenReturn(assignment("DISPATCHED"));
 
         RuntimeException ex = assertThrows(RuntimeException.class,
                 () -> service.deleteMedia(9L, 1L, 5L));
@@ -148,6 +165,10 @@ class RescuerMobileServiceTest {
         order.setStatus("DISPATCHED");
         order.setVehicleId(7L);
         when(dispatchOrderMapper.findById(1L)).thenReturn(order);
+        DispatchVehicleAssignment a = assignment("DISPATCHED");
+        a.setVehicleId(7L);
+        when(assignmentMapper.findByOrderIdAndRescuerId(1L, 9L)).thenReturn(a);
+        when(fieldRecordMapper.findByAssignmentId(50L)).thenReturn(null);
         when(fieldRecordMapper.findByOrderId(1L)).thenReturn(null);
 
         RescueVehicle vehicle = new RescueVehicle();
@@ -169,22 +190,6 @@ class RescuerMobileServiceTest {
     }
 
     @Test
-    void getTaskAssignedVehicleNullWhenNoVehicleId() {
-        DispatchOrder order = new DispatchOrder();
-        order.setId(1L);
-        order.setRescuerId(9L);
-        order.setStatus("DISPATCHED");
-        order.setVehicleId(null);
-        when(dispatchOrderMapper.findById(1L)).thenReturn(order);
-        when(fieldRecordMapper.findByOrderId(1L)).thenReturn(null);
-
-        var detail = service.getTask(9L, 1L);
-
-        assertNull(detail.getAssignedVehicle());
-        verify(rescueVehicleMapper, never()).findById(any());
-    }
-
-    @Test
     void getTaskAssignedVehicleNullWhenVehicleMissing() {
         DispatchOrder order = new DispatchOrder();
         order.setId(1L);
@@ -192,6 +197,10 @@ class RescuerMobileServiceTest {
         order.setStatus("ACCEPTED");
         order.setVehicleId(99L);
         when(dispatchOrderMapper.findById(1L)).thenReturn(order);
+        DispatchVehicleAssignment a = assignment("ACCEPTED");
+        a.setVehicleId(99L);
+        when(assignmentMapper.findByOrderIdAndRescuerId(1L, 9L)).thenReturn(a);
+        when(fieldRecordMapper.findByAssignmentId(50L)).thenReturn(null);
         when(fieldRecordMapper.findByOrderId(1L)).thenReturn(null);
         when(rescueVehicleMapper.findById(99L)).thenReturn(null);
 
@@ -207,7 +216,10 @@ class RescuerMobileServiceTest {
         order.setRescuerId(9L);
         order.setStatus("COMPLETED");
         when(dispatchOrderMapper.findById(1L)).thenReturn(order);
+        when(assignmentMapper.findByOrderIdAndRescuerId(1L, 9L)).thenReturn(assignment("COMPLETED"));
+        when(fieldRecordMapper.findByAssignmentId(50L)).thenReturn(null);
         when(fieldRecordMapper.findByOrderId(1L)).thenReturn(null);
+        when(rescueVehicleMapper.findById(5L)).thenReturn(null);
         DispatchOrderEvaluation evaluation = new DispatchOrderEvaluation();
         evaluation.setDispatchOrderId(1L);
         evaluation.setScorePunctual(5);

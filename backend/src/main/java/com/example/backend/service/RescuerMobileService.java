@@ -11,12 +11,14 @@ import com.example.backend.dto.SceneRequest;
 import com.example.backend.entity.DispatchFieldRecord;
 import com.example.backend.entity.DispatchMedia;
 import com.example.backend.entity.DispatchOrder;
+import com.example.backend.entity.DispatchVehicleAssignment;
 import com.example.backend.entity.RescueVehicle;
 import com.example.backend.entity.User;
 import com.example.backend.mapper.DispatchFieldRecordMapper;
 import com.example.backend.mapper.DispatchMediaMapper;
 import com.example.backend.mapper.DispatchOrderEvaluationMapper;
 import com.example.backend.mapper.DispatchOrderMapper;
+import com.example.backend.mapper.DispatchVehicleAssignmentMapper;
 import com.example.backend.mapper.RescueVehicleMapper;
 import com.example.backend.mapper.UserMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,6 +42,9 @@ public class RescuerMobileService {
 
     @Autowired
     private DispatchOrderMapper dispatchOrderMapper;
+
+    @Autowired
+    private DispatchVehicleAssignmentMapper assignmentMapper;
 
     @Autowired
     private DispatchFieldRecordMapper fieldRecordMapper;
@@ -66,41 +71,56 @@ public class RescuerMobileService {
         } else if ("done".equals(tab)) {
             statuses = Set.of("COMPLETED");
         } else if ("aborted".equals(tab)) {
-            statuses = Set.of("ABORTED");
+            statuses = Set.of("ABORTED", "REJECTED");
         } else {
             throw new RuntimeException("无效的任务分类");
         }
-        return dispatchOrderMapper.findAll().stream()
-                .filter(o -> userId.equals(o.getRescuerId()))
-                .filter(o -> statuses.contains(o.getStatus()))
+        return assignmentMapper.findByRescuerId(userId).stream()
+                .filter(a -> statuses.contains(a.getStatus()))
+                .map(a -> {
+                    DispatchOrder order = dispatchOrderMapper.findById(a.getDispatchOrderId());
+                    if (order == null) {
+                        return null;
+                    }
+                    projectAssignmentOntoOrder(order, a);
+                    return order;
+                })
+                .filter(o -> o != null)
                 .collect(Collectors.toList());
     }
 
     public RescuerTaskDetail getTask(Long userId, Long orderId) {
-        DispatchOrder order = requireOwned(orderId, userId);
+        DispatchVehicleAssignment assignment = requireAssignment(orderId, userId);
+        DispatchOrder order = dispatchOrderMapper.findById(orderId);
+        if (order == null) {
+            throw new RuntimeException("工单不存在");
+        }
+        projectAssignmentOntoOrder(order, assignment);
         RescuerTaskDetail detail = new RescuerTaskDetail();
         detail.setOrder(order);
-        detail.setFieldRecord(fieldRecordMapper.findByOrderId(orderId));
+        DispatchFieldRecord fr = fieldRecordMapper.findByAssignmentId(assignment.getId());
+        if (fr == null) {
+            fr = fieldRecordMapper.findByOrderId(orderId);
+        }
+        detail.setFieldRecord(fr);
         detail.setEvaluation(evaluationMapper.findByOrderId(orderId));
-        if (order.getVehicleId() != null) {
-            RescueVehicle vehicle = rescueVehicleMapper.findById(order.getVehicleId());
-            if (vehicle != null) {
-                AssignedVehicleSnapshot snap = new AssignedVehicleSnapshot();
-                snap.setId(vehicle.getId());
-                snap.setPlateNo(vehicle.getPlateNo());
-                snap.setLongitude(vehicle.getLongitude());
-                snap.setLatitude(vehicle.getLatitude());
-                snap.setLocationUpdatedAt(vehicle.getLocationUpdatedAt());
-                detail.setAssignedVehicle(snap);
-            }
+        RescueVehicle vehicle = rescueVehicleMapper.findById(assignment.getVehicleId());
+        if (vehicle != null) {
+            AssignedVehicleSnapshot snap = new AssignedVehicleSnapshot();
+            snap.setId(vehicle.getId());
+            snap.setPlateNo(vehicle.getPlateNo());
+            snap.setLongitude(vehicle.getLongitude());
+            snap.setLatitude(vehicle.getLatitude());
+            snap.setLocationUpdatedAt(vehicle.getLocationUpdatedAt());
+            detail.setAssignedVehicle(snap);
         }
         return detail;
     }
 
     @Transactional
     public void saveScene(Long userId, Long orderId, SceneRequest req) {
-        requireOwnedAccepted(orderId, userId);
-        DispatchFieldRecord record = getOrCreateRecord(orderId);
+        DispatchVehicleAssignment assignment = requireAssignmentAccepted(orderId, userId);
+        DispatchFieldRecord record = getOrCreateRecord(orderId, assignment.getId());
         if (req != null) {
             record.setPlateNo(req.getPlateNo());
             record.setVehicleType(req.getVehicleType());
@@ -113,8 +133,8 @@ public class RescuerMobileService {
 
     @Transactional
     public void savePark(Long userId, Long orderId, ParkRequest req) {
-        requireOwnedAccepted(orderId, userId);
-        DispatchFieldRecord record = getOrCreateRecord(orderId);
+        DispatchVehicleAssignment assignment = requireAssignmentAccepted(orderId, userId);
+        DispatchFieldRecord record = getOrCreateRecord(orderId, assignment.getId());
         if (req != null) {
             record.setParkAddress(req.getParkAddress());
             record.setParkRemark(req.getParkRemark());
@@ -125,7 +145,7 @@ public class RescuerMobileService {
 
     @Transactional
     public DispatchMedia addMedia(Long userId, Long orderId, String bizType, MultipartFile file) {
-        requireOwnedAccepted(orderId, userId);
+        DispatchVehicleAssignment assignment = requireAssignmentAccepted(orderId, userId);
         if (bizType == null || !MEDIA_BIZ_TYPES.contains(bizType)) {
             throw new RuntimeException("媒体类型无效，仅支持 DAMAGE/PARK");
         }
@@ -140,6 +160,7 @@ public class RescuerMobileService {
         }
         DispatchMedia media = new DispatchMedia();
         media.setDispatchOrderId(orderId);
+        media.setAssignmentId(assignment.getId());
         media.setBizType(bizType);
         media.setFilePath(relativePath);
         media.setSortOrder(0);
@@ -158,16 +179,23 @@ public class RescuerMobileService {
     }
 
     public DispatchMedia getOwnedMedia(Long userId, Long orderId, Long mediaId) {
-        requireOwnedAccepted(orderId, userId);
+        DispatchVehicleAssignment assignment = requireAssignmentAccepted(orderId, userId);
         DispatchMedia media = mediaMapper.findById(mediaId);
         if (media == null || !orderId.equals(media.getDispatchOrderId())) {
+            throw new RuntimeException("照片不存在");
+        }
+        if (media.getAssignmentId() != null && !assignment.getId().equals(media.getAssignmentId())) {
             throw new RuntimeException("照片不存在");
         }
         return media;
     }
 
     public List<DispatchMedia> listMedia(Long userId, Long orderId) {
-        requireOwned(orderId, userId);
+        DispatchVehicleAssignment assignment = requireAssignment(orderId, userId);
+        List<DispatchMedia> byAssignment = mediaMapper.findByAssignmentId(assignment.getId());
+        if (byAssignment != null && !byAssignment.isEmpty()) {
+            return byAssignment;
+        }
         return mediaMapper.findByOrderId(orderId);
     }
 
@@ -252,32 +280,53 @@ public class RescuerMobileService {
         return resp;
     }
 
-    private DispatchOrder requireOwned(Long orderId, Long userId) {
-        DispatchOrder order = dispatchOrderMapper.findById(orderId);
-        if (order == null) {
+    private void projectAssignmentOntoOrder(DispatchOrder order, DispatchVehicleAssignment a) {
+        order.setVehicleId(a.getVehicleId());
+        order.setRescuerId(a.getRescuerId());
+        order.setStatus(a.getStatus());
+        order.setAcceptedAt(a.getAcceptedAt());
+        order.setCheckedInAt(a.getCheckedInAt());
+        order.setCheckinLng(a.getCheckinLng());
+        order.setCheckinLat(a.getCheckinLat());
+        order.setCheckinMode(a.getCheckinMode());
+        order.setCheckinRemark(a.getCheckinRemark());
+        order.setRejectReason(a.getRejectReason());
+        RescueVehicle v = rescueVehicleMapper.findById(a.getVehicleId());
+        if (v != null) {
+            order.setVehiclePlate(v.getPlateNo());
+        }
+    }
+
+    private DispatchVehicleAssignment requireAssignment(Long orderId, Long userId) {
+        if (dispatchOrderMapper.findById(orderId) == null) {
             throw new RuntimeException("工单不存在");
         }
-        if (userId == null || !userId.equals(order.getRescuerId())) {
+        if (userId == null) {
             throw new RuntimeException("无权操作该工单");
         }
-        return order;
+        DispatchVehicleAssignment a = assignmentMapper.findByOrderIdAndRescuerId(orderId, userId);
+        if (a == null) {
+            throw new RuntimeException("无权操作该工单");
+        }
+        return a;
     }
 
-    private DispatchOrder requireOwnedAccepted(Long orderId, Long userId) {
-        DispatchOrder order = requireOwned(orderId, userId);
-        if (!"ACCEPTED".equals(order.getStatus())) {
+    private DispatchVehicleAssignment requireAssignmentAccepted(Long orderId, Long userId) {
+        DispatchVehicleAssignment a = requireAssignment(orderId, userId);
+        if (!"ACCEPTED".equals(a.getStatus())) {
             throw new RuntimeException("仅已接单状态可操作");
         }
-        return order;
+        return a;
     }
 
-    private DispatchFieldRecord getOrCreateRecord(Long orderId) {
-        DispatchFieldRecord existing = fieldRecordMapper.findByOrderId(orderId);
+    private DispatchFieldRecord getOrCreateRecord(Long orderId, Long assignmentId) {
+        DispatchFieldRecord existing = fieldRecordMapper.findByAssignmentId(assignmentId);
         if (existing != null) {
             return existing;
         }
         DispatchFieldRecord created = new DispatchFieldRecord();
         created.setDispatchOrderId(orderId);
+        created.setAssignmentId(assignmentId);
         return created;
     }
 

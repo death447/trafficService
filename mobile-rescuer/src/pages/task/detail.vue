@@ -590,8 +590,13 @@ async function onComplete() {
     return
   }
   try {
-    await completeTask(id.value)
-    uni.showToast({ title: '已完成', icon: 'success' })
+    const res = await completeTask(id.value)
+    const st = res?.data?.status || res?.status
+    if (st && st !== 'COMPLETED') {
+      uni.showToast({ title: '本车已完成，整单尚有其他车辆未完成', icon: 'none', duration: 2500 })
+    } else {
+      uni.showToast({ title: '已完成', icon: 'success' })
+    }
     load()
   } catch (_) {}
 }
