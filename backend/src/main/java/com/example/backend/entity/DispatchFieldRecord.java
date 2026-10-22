@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 public class DispatchFieldRecord {
     private Long id;
     private Long dispatchOrderId;
+    private Long assignmentId;
     private String plateNo;
     private String vehicleType;
     private String damageDesc;

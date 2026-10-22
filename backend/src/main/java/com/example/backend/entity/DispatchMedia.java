@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 public class DispatchMedia {
     private Long id;
     private Long dispatchOrderId;
+    private Long assignmentId;
     private String bizType;
     private String filePath;
     private Integer sortOrder;

@@ -7,6 +7,7 @@ DROP TABLE IF EXISTS `duty_schedule`;
 DROP TABLE IF EXISTS `district`;
 DROP TABLE IF EXISTS `dispatch_media`;
 DROP TABLE IF EXISTS `dispatch_field_record`;
+DROP TABLE IF EXISTS `dispatch_vehicle_assignment`;
 DROP TABLE IF EXISTS `accident_vehicle_type`;
 DROP TABLE IF EXISTS `dispatch_order`;
 DROP TABLE IF EXISTS `rescue_vehicle`;
@@ -136,6 +137,30 @@ CREATE TABLE `dispatch_order` (
   KEY `idx_vehicle_id` (`vehicle_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='救援工单';
 
+CREATE TABLE `dispatch_vehicle_assignment` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `dispatch_order_id` BIGINT NOT NULL,
+  `vehicle_id` BIGINT NOT NULL,
+  `rescuer_id` BIGINT NOT NULL COMMENT '派单时车辆绑定司机',
+  `status` VARCHAR(20) NOT NULL COMMENT 'DISPATCHED/ACCEPTED/COMPLETED/REJECTED/ABORTED',
+  `dispatched_at` DATETIME DEFAULT NULL,
+  `accepted_at` DATETIME DEFAULT NULL,
+  `checked_in_at` DATETIME DEFAULT NULL,
+  `checkin_lng` DECIMAL(10,7) DEFAULT NULL,
+  `checkin_lat` DECIMAL(10,7) DEFAULT NULL,
+  `checkin_mode` VARCHAR(20) DEFAULT NULL,
+  `checkin_remark` VARCHAR(500) DEFAULT NULL,
+  `reject_reason` VARCHAR(500) DEFAULT NULL,
+  `completed_at` DATETIME DEFAULT NULL,
+  `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_order_vehicle` (`dispatch_order_id`, `vehicle_id`),
+  KEY `idx_rescuer_status` (`rescuer_id`, `status`),
+  KEY `idx_vehicle_status` (`vehicle_id`, `status`),
+  KEY `idx_order_id` (`dispatch_order_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='工单-施救车赋值';
+
 CREATE TABLE `accident_vehicle_type` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
   `name` VARCHAR(50) NOT NULL COMMENT '车型名称',
@@ -152,6 +177,7 @@ CREATE TABLE `accident_vehicle_type` (
 CREATE TABLE `dispatch_field_record` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
   `dispatch_order_id` BIGINT NOT NULL,
+  `assignment_id` BIGINT DEFAULT NULL COMMENT '所属赋值',
   `plate_no` VARCHAR(20) DEFAULT NULL,
   `vehicle_type` VARCHAR(50) DEFAULT NULL,
   `damage_desc` VARCHAR(1000) DEFAULT NULL,
@@ -163,19 +189,22 @@ CREATE TABLE `dispatch_field_record` (
   `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
   `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_dispatch_order_id` (`dispatch_order_id`)
+  UNIQUE KEY `uk_assignment_id` (`assignment_id`),
+  KEY `idx_dispatch_order_id` (`dispatch_order_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='工单现场与入库登记';
 
 CREATE TABLE `dispatch_media` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
   `dispatch_order_id` BIGINT NOT NULL,
+  `assignment_id` BIGINT DEFAULT NULL COMMENT '所属赋值',
   `biz_type` VARCHAR(20) NOT NULL COMMENT 'DAMAGE/PARK',
   `file_path` VARCHAR(500) NOT NULL,
   `sort_order` INT DEFAULT 0,
   `uploaded_by` BIGINT NOT NULL,
   `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  KEY `idx_order_biz` (`dispatch_order_id`, `biz_type`)
+  KEY `idx_order_biz` (`dispatch_order_id`, `biz_type`),
+  KEY `idx_assignment_id` (`assignment_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='工单现场媒体';
 
 CREATE TABLE `district` (

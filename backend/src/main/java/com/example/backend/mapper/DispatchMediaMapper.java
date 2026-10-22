@@ -8,13 +8,16 @@ import java.util.List;
 @Mapper
 public interface DispatchMediaMapper {
 
-    @Insert("INSERT INTO dispatch_media (dispatch_order_id, biz_type, file_path, sort_order, uploaded_by) " +
-            "VALUES (#{dispatchOrderId}, #{bizType}, #{filePath}, #{sortOrder}, #{uploadedBy})")
+    @Insert("INSERT INTO dispatch_media (dispatch_order_id, assignment_id, biz_type, file_path, sort_order, uploaded_by) " +
+            "VALUES (#{dispatchOrderId}, #{assignmentId}, #{bizType}, #{filePath}, #{sortOrder}, #{uploadedBy})")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(DispatchMedia media);
 
     @Select("SELECT * FROM dispatch_media WHERE dispatch_order_id = #{dispatchOrderId} ORDER BY sort_order, id")
     List<DispatchMedia> findByOrderId(Long dispatchOrderId);
+
+    @Select("SELECT * FROM dispatch_media WHERE assignment_id = #{assignmentId} ORDER BY sort_order, id")
+    List<DispatchMedia> findByAssignmentId(Long assignmentId);
 
     @Select("SELECT * FROM dispatch_media WHERE dispatch_order_id = #{dispatchOrderId} AND biz_type = #{bizType} ORDER BY sort_order, id")
     List<DispatchMedia> findByOrderIdAndBizType(@Param("dispatchOrderId") Long dispatchOrderId,
