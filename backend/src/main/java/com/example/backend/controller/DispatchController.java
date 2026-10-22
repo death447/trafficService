@@ -88,7 +88,14 @@ public class DispatchController {
     @PreAuthorize("hasAuthority('dispatch:dispatch')")
     public Result<DispatchOrder> assign(@PathVariable Long id, @Valid @RequestBody AssignDispatchRequest request) {
         try {
-            dispatchOrderService.assign(id, request.getVehicleId(), request.getRescuerId());
+            java.util.LinkedHashSet<Long> ids = new java.util.LinkedHashSet<>();
+            if (request.getVehicleIds() != null) {
+                ids.addAll(request.getVehicleIds());
+            }
+            if (request.getVehicleId() != null) {
+                ids.add(request.getVehicleId());
+            }
+            dispatchOrderService.assign(id, new java.util.ArrayList<>(ids));
             return Result.success(dispatchOrderService.findById(id));
         } catch (RuntimeException e) {
             return Result.error(e.getMessage());

@@ -5,6 +5,7 @@ import com.example.backend.dto.NearbyVehiclesResponse;
 import com.example.backend.entity.District;
 import com.example.backend.entity.RescueVehicle;
 import com.example.backend.mapper.DispatchOrderMapper;
+import com.example.backend.mapper.DispatchVehicleAssignmentMapper;
 import com.example.backend.mapper.DistrictMapper;
 import com.example.backend.mapper.RescueVehicleMapper;
 import org.junit.jupiter.api.Test;
@@ -25,13 +26,14 @@ class RescueVehicleServiceTest {
 
     @Mock RescueVehicleMapper vehicleMapper;
     @Mock DispatchOrderMapper dispatchOrderMapper;
+    @Mock DispatchVehicleAssignmentMapper assignmentMapper;
     @Mock DistrictMapper districtMapper;
     @Mock DistrictService districtService;
     @InjectMocks RescueVehicleService service;
 
     @Test
     void deleteRejectsWhenActiveOrdersExist() {
-        when(dispatchOrderMapper.countActiveByVehicleId(1L)).thenReturn(2);
+        when(assignmentMapper.countActiveByVehicleId(1L)).thenReturn(2);
         RuntimeException ex = assertThrows(RuntimeException.class, () -> service.deleteVehicle(1L));
         assertTrue(ex.getMessage().contains("进行中"));
         verify(vehicleMapper, never()).deleteById(any());
@@ -42,7 +44,7 @@ class RescueVehicleServiceTest {
         RescueVehicle v = vehicle(1L, "粤B1", "114.058", "22.543");
         v.setStatus("IDLE");
         when(vehicleMapper.findByPlateNo("粤B1")).thenReturn(null);
-        when(dispatchOrderMapper.countDispatchedByVehicleId(1L)).thenReturn(1);
+        when(assignmentMapper.countActiveByVehicleId(1L)).thenReturn(1);
 
         RuntimeException ex = assertThrows(RuntimeException.class, () -> service.updateVehicle(v));
         assertTrue(ex.getMessage().contains("派单"));
@@ -54,7 +56,7 @@ class RescueVehicleServiceTest {
         RescueVehicle v = vehicle(1L, "粤B1", "114.058", "22.543");
         v.setStatus("OFFLINE");
         when(vehicleMapper.findByPlateNo("粤B1")).thenReturn(null);
-        when(dispatchOrderMapper.countDispatchedByVehicleId(1L)).thenReturn(2);
+        when(assignmentMapper.countActiveByVehicleId(1L)).thenReturn(2);
 
         RuntimeException ex = assertThrows(RuntimeException.class, () -> service.updateVehicle(v));
         assertTrue(ex.getMessage().contains("空闲或离线"));
@@ -78,7 +80,7 @@ class RescueVehicleServiceTest {
         RescueVehicle v = vehicle(1L, "粤B1", "114.058", "22.543");
         v.setStatus("IDLE");
         when(vehicleMapper.findByPlateNo("粤B1")).thenReturn(null);
-        when(dispatchOrderMapper.countDispatchedByVehicleId(1L)).thenReturn(0);
+        when(assignmentMapper.countActiveByVehicleId(1L)).thenReturn(0);
         when(vehicleMapper.update(v)).thenReturn(1);
 
         assertTrue(service.updateVehicle(v));

@@ -213,7 +213,7 @@ public class RescuerMobileController {
         try {
             Long userId = currentUserId();
             rescuerMobileService.getTask(userId, id);
-            dispatchOrderService.complete(id);
+            dispatchOrderService.complete(id, userId);
             return Result.success(rescuerMobileService.getTask(userId, id).getOrder());
         } catch (RuntimeException e) {
             return Result.error(e.getMessage());

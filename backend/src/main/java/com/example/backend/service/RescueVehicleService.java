@@ -9,6 +9,7 @@ import com.example.backend.entity.RescueVehicle;
 import com.example.backend.entity.Role;
 import com.example.backend.entity.User;
 import com.example.backend.mapper.DispatchOrderMapper;
+import com.example.backend.mapper.DispatchVehicleAssignmentMapper;
 import com.example.backend.mapper.DistrictMapper;
 import com.example.backend.mapper.RescueVehicleMapper;
 import com.example.backend.mapper.UserMapper;
@@ -36,6 +37,9 @@ public class RescueVehicleService {
     private DispatchOrderMapper dispatchOrderMapper;
 
     @Autowired
+    private DispatchVehicleAssignmentMapper assignmentMapper;
+
+    @Autowired
     private DistrictMapper districtMapper;
 
     @Autowired
@@ -60,6 +64,21 @@ public class RescueVehicleService {
         }
         if (!"IDLE".equals(vehicle.getStatus())) {
             throw new RuntimeException("车辆非空闲，无法派单");
+        }
+        return vehicle;
+    }
+
+    /** Assignable: exists, not OFFLINE, has bound driver. BUSY is allowed. */
+    public RescueVehicle requireAssignable(Long id) {
+        RescueVehicle vehicle = vehicleMapper.findById(id);
+        if (vehicle == null) {
+            throw new RuntimeException("车辆不存在");
+        }
+        if ("OFFLINE".equals(vehicle.getStatus())) {
+            throw new RuntimeException("车辆已离线，无法派单");
+        }
+        if (vehicle.getDriverUserId() == null) {
+            throw new RuntimeException("该车辆未绑定施救员");
         }
         return vehicle;
     }
@@ -110,7 +129,7 @@ public class RescueVehicleService {
         }
         String status = vehicle.getStatus();
         if (("IDLE".equals(status) || "OFFLINE".equals(status))
-                && dispatchOrderMapper.countDispatchedByVehicleId(vehicle.getId()) > 0) {
+                && assignmentMapper.countActiveByVehicleId(vehicle.getId()) > 0) {
             throw new RuntimeException("该车辆有进行中的派单，不能改为空闲或离线");
         }
         return vehicleMapper.update(vehicle) > 0;
@@ -118,8 +137,7 @@ public class RescueVehicleService {
 
     @Transactional
     public boolean deleteVehicle(Long id) {
-        int activeCount = dispatchOrderMapper.countActiveByVehicleId(id);
-        if (activeCount > 0) {
+        if (assignmentMapper.countActiveByVehicleId(id) > 0) {
             throw new RuntimeException("该车辆有进行中的工单，无法删除");
         }
         return vehicleMapper.deleteById(id) > 0;

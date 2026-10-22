@@ -1,11 +1,15 @@
 package com.example.backend.dto;
 
-import jakarta.validation.constraints.NotNull;
 import lombok.Data;
+
+import java.util.List;
 
 @Data
 public class AssignDispatchRequest {
-    @NotNull
+    /** Single vehicle (backward compatible). */
     private Long vehicleId;
+    /** Optional batch; merged with vehicleId. */
+    private List<Long> vehicleIds;
+    /** Ignored; rescuer always comes from vehicle binding. */
     private Long rescuerId;
 }

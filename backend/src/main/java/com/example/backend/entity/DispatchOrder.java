@@ -43,4 +43,5 @@ public class DispatchOrder {
     private DispatchFieldRecord fieldRecord;
     private List<DispatchMedia> medias;
     private DispatchOrderEvaluation evaluation;
+    private List<DispatchVehicleAssignment> assignments;
 }

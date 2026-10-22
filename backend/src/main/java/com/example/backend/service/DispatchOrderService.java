@@ -4,6 +4,7 @@ import com.example.backend.common.PageParams;
 import com.example.backend.dto.DispatchOverview;
 import com.example.backend.entity.AccidentVehicleType;
 import com.example.backend.entity.DispatchOrder;
+import com.example.backend.entity.DispatchVehicleAssignment;
 import com.example.backend.entity.RescueVehicle;
 import com.example.backend.entity.Role;
 import com.example.backend.entity.User;
@@ -11,6 +12,7 @@ import com.example.backend.mapper.DispatchFieldRecordMapper;
 import com.example.backend.mapper.DispatchMediaMapper;
 import com.example.backend.mapper.DispatchOrderEvaluationMapper;
 import com.example.backend.mapper.DispatchOrderMapper;
+import com.example.backend.mapper.DispatchVehicleAssignmentMapper;
 import com.example.backend.mapper.RescueVehicleMapper;
 import com.example.backend.mapper.UserMapper;
 import com.example.backend.util.GeoUtils;
@@ -24,6 +26,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -55,6 +58,9 @@ public class DispatchOrderService {
 
     @Autowired
     private DispatchOrderEvaluationMapper evaluationMapper;
+
+    @Autowired
+    private DispatchVehicleAssignmentMapper assignmentMapper;
 
     public DispatchOrder findById(Long id) {
         DispatchOrder order = dispatchOrderMapper.findById(id);
@@ -184,8 +190,8 @@ public class DispatchOrderService {
         order.setDispatcherId(dispatcherId);
 
         if (order.getVehicleId() != null) {
-            RescueVehicle vehicle = rescueVehicleService.requireIdle(order.getVehicleId());
-            // 施救员由车辆绑定关系带出，不允许单独指定
+            RescueVehicle vehicle = rescueVehicleService.requireAssignable(order.getVehicleId());
+            // 施救员由车辆绑定关系带出，不允许单独指定；预填不建赋值、不占车
             order.setRescuerId(vehicle.getDriverUserId());
         }
         if (order.getRescuerId() != null) {
@@ -211,74 +217,104 @@ public class DispatchOrderService {
     }
 
     @Transactional
-    public void assign(Long orderId, Long vehicleId, Long rescuerId) {
-        DispatchOrder order = dispatchOrderMapper.findById(orderId);
-        if (order == null) {
-            throw new RuntimeException("工单不存在");
+    public void assign(Long orderId, List<Long> vehicleIds) {
+        if (vehicleIds == null || vehicleIds.isEmpty()) {
+            throw new RuntimeException("请选择施救车辆");
         }
-        if (!"PENDING".equals(order.getStatus())) {
-            throw new RuntimeException("仅待派单状态可派车");
+        LinkedHashSet<Long> unique = new LinkedHashSet<>();
+        for (Long id : vehicleIds) {
+            if (id != null) {
+                unique.add(id);
+            }
         }
-        RescueVehicle vehicle = rescueVehicleService.requireIdle(vehicleId);
+        if (unique.isEmpty()) {
+            throw new RuntimeException("请选择施救车辆");
+        }
+        for (Long vehicleId : unique) {
+            assignOne(orderId, vehicleId);
+        }
+    }
+
+    @Transactional
+    public void assign(Long orderId, Long vehicleId, Long rescuerIdIgnored) {
+        assign(orderId, List.of(vehicleId));
+    }
+
+    private void assignOne(Long orderId, Long vehicleId) {
+        DispatchOrder order = requireOrder(orderId);
+        String st = order.getStatus();
+        if ("COMPLETED".equals(st) || "ABORTED".equals(st)) {
+            throw new RuntimeException("当前状态不可派车");
+        }
+        if (assignmentMapper.countByOrderIdAndVehicleId(orderId, vehicleId) > 0) {
+            throw new RuntimeException("该车辆已派到本工单");
+        }
+        RescueVehicle vehicle = rescueVehicleService.requireAssignable(vehicleId);
         Long driverId = vehicle.getDriverUserId();
-        if (driverId == null) {
-            throw new RuntimeException("该车辆未绑定施救员");
-        }
         assertHasRole(driverId, "TOW_DRIVER");
-        order.setVehicleId(vehicleId);
-        // 施救员由车辆绑定带出；退单后再派时工单上的 rescuerId 已清空，不能沿用请求里的空值
-        order.setRescuerId(driverId);
-        order.setStatus("DISPATCHED");
-        order.setDispatchedAt(LocalDateTime.now());
+
+        DispatchVehicleAssignment a = new DispatchVehicleAssignment();
+        a.setDispatchOrderId(orderId);
+        a.setVehicleId(vehicleId);
+        a.setRescuerId(driverId);
+        a.setStatus("DISPATCHED");
+        a.setDispatchedAt(LocalDateTime.now());
+        assignmentMapper.insert(a);
+
+        if (order.getDispatchedAt() == null) {
+            order.setDispatchedAt(LocalDateTime.now());
+        }
         order.setRejectReason(null);
+        // 兼容列：指向最近一次派车
+        order.setVehicleId(vehicleId);
+        order.setRescuerId(driverId);
         dispatchOrderMapper.update(order);
         rescueVehicleService.markBusy(vehicleId);
+        refreshOrderStatus(orderId);
     }
 
     @Transactional
     public void accept(Long orderId, Long rescuerId) {
-        DispatchOrder order = requireOrder(orderId);
-        assertRescuer(order, rescuerId);
-        if (!"DISPATCHED".equals(order.getStatus())) {
+        requireOrder(orderId);
+        DispatchVehicleAssignment a = requireAssignmentForRescuer(orderId, rescuerId);
+        if (!"DISPATCHED".equals(a.getStatus())) {
             throw new RuntimeException("仅已派单状态可接单");
         }
-        order.setStatus("ACCEPTED");
-        order.setAcceptedAt(LocalDateTime.now());
-        dispatchOrderMapper.update(order);
+        a.setStatus("ACCEPTED");
+        a.setAcceptedAt(LocalDateTime.now());
+        assignmentMapper.update(a);
+        refreshOrderStatus(orderId);
     }
 
     @Transactional
     public void reject(Long orderId, Long rescuerId, String reason) {
-        DispatchOrder order = requireOrder(orderId);
-        assertRescuer(order, rescuerId);
-        if (!"DISPATCHED".equals(order.getStatus()) && !"ACCEPTED".equals(order.getStatus())) {
+        requireOrder(orderId);
+        DispatchVehicleAssignment a = requireAssignmentForRescuer(orderId, rescuerId);
+        if (!"DISPATCHED".equals(a.getStatus()) && !"ACCEPTED".equals(a.getStatus())) {
             throw new RuntimeException("当前状态不可退单");
         }
-        if (order.getCheckedInAt() != null) {
+        if (a.getCheckedInAt() != null) {
             throw new RuntimeException("已签到不可退单");
         }
         if (reason == null || reason.isBlank()) {
             throw new RuntimeException("请填写退单原因");
         }
-        Long vehicleId = order.getVehicleId();
-        order.setStatus("PENDING");
-        order.setRejectReason(reason.trim());
-        order.setVehicleId(null);
-        order.setRescuerId(null);
-        order.setDispatchedAt(null);
-        order.setAcceptedAt(null);
-        dispatchOrderMapper.update(order);
+        Long vehicleId = a.getVehicleId();
+        a.setStatus("REJECTED");
+        a.setRejectReason(reason.trim());
+        assignmentMapper.update(a);
+        refreshOrderStatus(orderId);
         releaseVehicleIfUnused(vehicleId);
     }
 
     @Transactional
     public void checkin(Long orderId, Long rescuerId, BigDecimal lng, BigDecimal lat, String mode, String remark) {
         DispatchOrder order = requireOrder(orderId);
-        assertRescuer(order, rescuerId);
-        if (!"ACCEPTED".equals(order.getStatus())) {
+        DispatchVehicleAssignment a = requireAssignmentForRescuer(orderId, rescuerId);
+        if (!"ACCEPTED".equals(a.getStatus())) {
             throw new RuntimeException("仅已接单状态可签到");
         }
-        if (order.getCheckedInAt() != null) {
+        if (a.getCheckedInAt() != null) {
             throw new RuntimeException("已签到");
         }
         if ("AUTO".equals(mode)) {
@@ -292,38 +328,57 @@ public class DispatchOrderService {
             if (meters > 500.0) {
                 throw new RuntimeException("距离事故点超过500米，无法自动签到");
             }
-            order.setCheckinLng(lng);
-            order.setCheckinLat(lat);
+            a.setCheckinLng(lng);
+            a.setCheckinLat(lat);
         } else if ("MANUAL".equals(mode)) {
             if (remark == null || remark.isBlank()) {
                 throw new RuntimeException("手动签到须填写原因");
             }
-            order.setCheckinRemark(remark.trim());
-            order.setCheckinLng(lng);
-            order.setCheckinLat(lat);
+            a.setCheckinRemark(remark.trim());
+            a.setCheckinLng(lng);
+            a.setCheckinLat(lat);
         } else {
             throw new RuntimeException("签到模式无效");
         }
-        order.setCheckinMode(mode);
-        order.setCheckedInAt(LocalDateTime.now());
-        dispatchOrderMapper.update(order);
+        a.setCheckinMode(mode);
+        a.setCheckedInAt(LocalDateTime.now());
+        assignmentMapper.update(a);
     }
 
-    // complete: 允许 DISPATCHED（兼容旧 PC）或 ACCEPTED；若 ACCEPTED 则必须已签到
+    /** PC：有活跃赋值则拒绝；否则若汇总已可完成则幂等。 */
     @Transactional
     public void complete(Long orderId) {
-        DispatchOrder order = requireOrder(orderId);
-        if ("ACCEPTED".equals(order.getStatus())) {
-            if (order.getCheckedInAt() == null) {
-                throw new RuntimeException("请先签到再完成");
-            }
-        } else if (!"DISPATCHED".equals(order.getStatus())) {
+        requireOrder(orderId);
+        List<DispatchVehicleAssignment> list = assignmentMapper.findByOrderId(orderId);
+        boolean anyActive = list.stream()
+                .anyMatch(a -> "DISPATCHED".equals(a.getStatus()) || "ACCEPTED".equals(a.getStatus()));
+        if (anyActive) {
+            throw new RuntimeException("仍有未完成的施救车辆，请等待各车完成或中止后再操作");
+        }
+        boolean anyCompleted = list.stream().anyMatch(a -> "COMPLETED".equals(a.getStatus()));
+        if (!anyCompleted) {
             throw new RuntimeException("当前状态不可完成");
         }
-        Long vehicleId = order.getVehicleId();
-        order.setStatus("COMPLETED");
-        order.setCompletedAt(LocalDateTime.now());
-        dispatchOrderMapper.update(order);
+        refreshOrderStatus(orderId);
+    }
+
+    /** 移动端：完成本人赋值。 */
+    @Transactional
+    public void complete(Long orderId, Long rescuerId) {
+        requireOrder(orderId);
+        DispatchVehicleAssignment a = requireAssignmentForRescuer(orderId, rescuerId);
+        if ("ACCEPTED".equals(a.getStatus())) {
+            if (a.getCheckedInAt() == null) {
+                throw new RuntimeException("请先签到再完成");
+            }
+        } else if (!"DISPATCHED".equals(a.getStatus())) {
+            throw new RuntimeException("当前状态不可完成");
+        }
+        Long vehicleId = a.getVehicleId();
+        a.setStatus("COMPLETED");
+        a.setCompletedAt(LocalDateTime.now());
+        assignmentMapper.update(a);
+        refreshOrderStatus(orderId);
         releaseVehicleIfUnused(vehicleId);
     }
 
@@ -334,15 +389,81 @@ public class DispatchOrderService {
         if (!"PENDING".equals(st) && !"DISPATCHED".equals(st) && !"ACCEPTED".equals(st)) {
             throw new RuntimeException("当前状态不可作废");
         }
-        Long vehicleId = order.getVehicleId();
-        boolean occupied = "DISPATCHED".equals(st) || "ACCEPTED".equals(st);
+        List<DispatchVehicleAssignment> list = assignmentMapper.findByOrderId(orderId);
+        Set<Long> vehicleIds = new LinkedHashSet<>();
+        for (DispatchVehicleAssignment a : list) {
+            if ("DISPATCHED".equals(a.getStatus()) || "ACCEPTED".equals(a.getStatus())) {
+                a.setStatus("ABORTED");
+                assignmentMapper.update(a);
+                vehicleIds.add(a.getVehicleId());
+            }
+        }
         order.setStatus("ABORTED");
         order.setAbortReason(abortReason);
-        // 保留 rescuer_id / vehicle_id 历史信息供列表；释放占用
         dispatchOrderMapper.update(order);
-        if (occupied) {
+        for (Long vehicleId : vehicleIds) {
             releaseVehicleIfUnused(vehicleId);
         }
+    }
+
+    void refreshOrderStatus(Long orderId) {
+        DispatchOrder order = requireOrder(orderId);
+        List<DispatchVehicleAssignment> list = assignmentMapper.findByOrderId(orderId);
+        if (list == null || list.isEmpty()) {
+            order.setStatus("PENDING");
+            order.setVehicleId(null);
+            order.setRescuerId(null);
+            order.setCompletedAt(null);
+            dispatchOrderMapper.update(order);
+            return;
+        }
+        boolean anyDispatched = false;
+        boolean anyAccepted = false;
+        boolean anyCompleted = false;
+        boolean allTerminal = true;
+        for (DispatchVehicleAssignment a : list) {
+            String s = a.getStatus();
+            if ("DISPATCHED".equals(s)) {
+                anyDispatched = true;
+                allTerminal = false;
+            } else if ("ACCEPTED".equals(s)) {
+                anyAccepted = true;
+                allTerminal = false;
+            } else if ("COMPLETED".equals(s)) {
+                anyCompleted = true;
+            } else if (!"REJECTED".equals(s) && !"ABORTED".equals(s)) {
+                allTerminal = false;
+            }
+        }
+        if (!allTerminal) {
+            if (anyDispatched) {
+                order.setStatus("DISPATCHED");
+            } else if (anyAccepted) {
+                order.setStatus("ACCEPTED");
+            }
+            order.setCompletedAt(null);
+        } else if (anyCompleted) {
+            order.setStatus("COMPLETED");
+            if (order.getCompletedAt() == null) {
+                order.setCompletedAt(LocalDateTime.now());
+            }
+        } else {
+            // 全部 REJECTED/ABORTED 且无完成 → 回 PENDING 可再派
+            order.setStatus("PENDING");
+            order.setCompletedAt(null);
+            order.setVehicleId(null);
+            order.setRescuerId(null);
+        }
+        // 兼容列：活跃赋值优先，否则第一行
+        DispatchVehicleAssignment primary = list.stream()
+                .filter(a -> "DISPATCHED".equals(a.getStatus()) || "ACCEPTED".equals(a.getStatus()))
+                .findFirst()
+                .orElse(list.get(0));
+        if (!"PENDING".equals(order.getStatus())) {
+            order.setVehicleId(primary.getVehicleId());
+            order.setRescuerId(primary.getRescuerId());
+        }
+        dispatchOrderMapper.update(order);
     }
 
     private DispatchOrder requireOrder(Long id) {
@@ -351,10 +472,15 @@ public class DispatchOrderService {
         return order;
     }
 
-    private void assertRescuer(DispatchOrder order, Long rescuerId) {
-        if (rescuerId == null || !rescuerId.equals(order.getRescuerId())) {
+    private DispatchVehicleAssignment requireAssignmentForRescuer(Long orderId, Long rescuerId) {
+        if (rescuerId == null) {
             throw new RuntimeException("无权操作该工单");
         }
+        DispatchVehicleAssignment a = assignmentMapper.findByOrderIdAndRescuerId(orderId, rescuerId);
+        if (a == null) {
+            throw new RuntimeException("无权操作该工单");
+        }
+        return a;
     }
 
     String generateOrderNo() {
@@ -364,14 +490,50 @@ public class DispatchOrderService {
     }
 
     void releaseVehicleIfUnused(Long vehicleId) {
-        if (vehicleId != null && dispatchOrderMapper.countDispatchedByVehicleId(vehicleId) == 0) {
+        if (vehicleId != null && assignmentMapper.countActiveByVehicleId(vehicleId) == 0) {
             rescueVehicleService.markIdle(vehicleId);
         }
     }
 
     private void enrich(DispatchOrder order) {
-        if (order.getVehicleId() != null) {
-            RescueVehicle vehicle = rescueVehicleMapper.findById(order.getVehicleId());
+        List<DispatchVehicleAssignment> assignments = assignmentMapper.findByOrderId(order.getId());
+        if (assignments == null) {
+            assignments = List.of();
+        }
+        for (DispatchVehicleAssignment a : assignments) {
+            RescueVehicle vehicle = rescueVehicleMapper.findById(a.getVehicleId());
+            if (vehicle != null) {
+                a.setVehiclePlate(vehicle.getPlateNo());
+            }
+            if (a.getRescuerId() != null) {
+                User user = userMapper.findById(a.getRescuerId());
+                if (user != null) {
+                    a.setRescuerName(user.getRealName() != null ? user.getRealName() : user.getUsername());
+                }
+            }
+        }
+        order.setAssignments(assignments);
+
+        Long displayVehicleId = order.getVehicleId();
+        Long displayRescuerId = order.getRescuerId();
+        if (!assignments.isEmpty()) {
+            DispatchVehicleAssignment primary = assignments.stream()
+                    .filter(a -> "DISPATCHED".equals(a.getStatus()) || "ACCEPTED".equals(a.getStatus()))
+                    .findFirst()
+                    .orElse(assignments.get(0));
+            displayVehicleId = primary.getVehicleId();
+            displayRescuerId = primary.getRescuerId();
+            // 将当前主赋值过程字段投影到工单，兼容旧移动端读法（多车时详情应再按 rescuer 覆盖）
+            order.setAcceptedAt(primary.getAcceptedAt());
+            order.setCheckedInAt(primary.getCheckedInAt());
+            order.setCheckinLng(primary.getCheckinLng());
+            order.setCheckinLat(primary.getCheckinLat());
+            order.setCheckinMode(primary.getCheckinMode());
+            order.setCheckinRemark(primary.getCheckinRemark());
+            order.setRejectReason(primary.getRejectReason());
+        }
+        if (displayVehicleId != null) {
+            RescueVehicle vehicle = rescueVehicleMapper.findById(displayVehicleId);
             if (vehicle != null) {
                 order.setVehiclePlate(vehicle.getPlateNo());
             }
@@ -382,10 +544,38 @@ public class DispatchOrderService {
                 order.setDispatcherName(user.getRealName() != null ? user.getRealName() : user.getUsername());
             }
         }
-        if (order.getRescuerId() != null) {
-            User user = userMapper.findById(order.getRescuerId());
+        if (displayRescuerId != null) {
+            User user = userMapper.findById(displayRescuerId);
             if (user != null) {
                 order.setRescuerName(user.getRealName() != null ? user.getRealName() : user.getUsername());
+            }
+        }
+    }
+
+    /** Overlay assignment process fields onto order for the given rescuer (mobile detail). */
+    public void projectAssignmentOntoOrder(DispatchOrder order, Long rescuerId) {
+        if (order == null || rescuerId == null) {
+            return;
+        }
+        DispatchVehicleAssignment a = assignmentMapper.findByOrderIdAndRescuerId(order.getId(), rescuerId);
+        if (a == null) {
+            return;
+        }
+        order.setVehicleId(a.getVehicleId());
+        order.setRescuerId(a.getRescuerId());
+        order.setAcceptedAt(a.getAcceptedAt());
+        order.setCheckedInAt(a.getCheckedInAt());
+        order.setCheckinLng(a.getCheckinLng());
+        order.setCheckinLat(a.getCheckinLat());
+        order.setCheckinMode(a.getCheckinMode());
+        order.setCheckinRemark(a.getCheckinRemark());
+        order.setRejectReason(a.getRejectReason());
+        if (a.getVehiclePlate() != null) {
+            order.setVehiclePlate(a.getVehiclePlate());
+        } else if (a.getVehicleId() != null) {
+            RescueVehicle v = rescueVehicleMapper.findById(a.getVehicleId());
+            if (v != null) {
+                order.setVehiclePlate(v.getPlateNo());
             }
         }
     }
