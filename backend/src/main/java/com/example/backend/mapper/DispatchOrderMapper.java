@@ -73,7 +73,8 @@ public interface DispatchOrderMapper {
     @Select("SELECT COUNT(*) FROM dispatch_order WHERE order_no LIKE CONCAT(#{prefix}, '%')")
     int countByOrderNoPrefix(String prefix);
 
-    @Select("SELECT COUNT(*) FROM dispatch_order WHERE vehicle_id = #{vehicleId} AND status IN ('DISPATCHED','ACCEPTED')")
+    /** @deprecated Prefer DispatchVehicleAssignmentMapper.countActiveByVehicleId */
+    @Select("SELECT COUNT(*) FROM dispatch_vehicle_assignment WHERE vehicle_id = #{vehicleId} AND status IN ('DISPATCHED','ACCEPTED')")
     int countDispatchedByVehicleId(Long vehicleId);
 
     @Select("SELECT COUNT(*) FROM dispatch_order WHERE create_time >= #{start} AND create_time < #{end}")
