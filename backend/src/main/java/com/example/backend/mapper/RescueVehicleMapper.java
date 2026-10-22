@@ -42,6 +42,10 @@ public interface RescueVehicleMapper {
     @Select("SELECT * FROM rescue_vehicle WHERE status = #{status}")
     List<RescueVehicle> findByStatus(String status);
 
+    /** Non-OFFLINE vehicles with a bound driver (may be IDLE or BUSY). */
+    @Select("SELECT * FROM rescue_vehicle WHERE status <> 'OFFLINE' AND driver_user_id IS NOT NULL")
+    List<RescueVehicle> findAssignable();
+
     @Select("SELECT * FROM rescue_vehicle WHERE plate_no = #{plateNo}")
     RescueVehicle findByPlateNo(String plateNo);
 

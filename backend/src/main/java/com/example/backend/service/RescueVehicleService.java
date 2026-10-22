@@ -155,7 +155,7 @@ public class RescueVehicleService {
         List<NearbyVehicleVO> fresh = new ArrayList<>();
         List<NearbyVehicleVO> stale = new ArrayList<>();
 
-        for (RescueVehicle v : vehicleMapper.findByStatus("IDLE")) {
+        for (RescueVehicle v : vehicleMapper.findAssignable()) {
             NearbyVehicleVO vo = toNearbyVo(v, originLng, originLat, matchedId, freshAfter);
             if (vo.isLocationFresh()) {
                 fresh.add(vo);
@@ -164,7 +164,12 @@ public class RescueVehicleService {
             }
         }
 
-        fresh.sort(Comparator.comparingDouble(x -> x.getDistanceMeters()));
+        Comparator<NearbyVehicleVO> rank = Comparator
+                .comparing(NearbyVehicleVO::isInMatchedDistrict).reversed()
+                .thenComparing(NearbyVehicleVO::isHasActiveAssignment)
+                .thenComparing(NearbyVehicleVO::getDistanceMeters, Comparator.nullsLast(Double::compareTo));
+        fresh.sort(rank);
+        stale.sort(rank);
         if (fresh.size() > effectiveLimit) {
             fresh = new ArrayList<>(fresh.subList(0, effectiveLimit));
         }
@@ -181,6 +186,7 @@ public class RescueVehicleService {
         NearbyVehicleVO vo = new NearbyVehicleVO();
         vo.setVehicle(v);
         vo.setInMatchedDistrict(matchedId != null && matchedId.equals(v.getDistrictId()));
+        vo.setHasActiveAssignment(assignmentMapper.countActiveByVehicleId(v.getId()) > 0);
         vo.setLocationUpdatedAt(v.getLocationUpdatedAt());
 
         boolean hasCoords = v.getLongitude() != null && v.getLatitude() != null;
