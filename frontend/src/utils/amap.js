@@ -199,10 +199,10 @@ export function drawDistrictOverlays(map, items = []) {
       path: pathLL,
       map,
       strokeWeight: 2,
-      strokeColor: '#4b5563',
+      strokeColor: '#6b7280',
       strokeStyle: 'dashed',
-      fillColor: '#6b7280',
-      fillOpacity: 0.32,
+      fillColor: '#94a3b8',
+      fillOpacity: 0.12,
       zIndex: 10,
       bubble: true,
       clickable: false
