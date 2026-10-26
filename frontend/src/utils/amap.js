@@ -190,6 +190,33 @@ export async function createPolygonEditor(container, { path = [], onChange } = {
   let polygon
   const refPolygons = []
   const refTexts = []
+  let mapReady = false
+  let pendingFitRefs = false
+
+  const fitReferenceView = () => {
+    if (!refPolygons.length) return
+    const run = () => {
+      try {
+        if (typeof map.resize === 'function') map.resize()
+        map.setFitView(refPolygons, false, [48, 48, 48, 48])
+      } catch (_) {
+        /* ignore fit errors in hidden/zero-size containers */
+      }
+    }
+    if (mapReady) {
+      run()
+    } else {
+      pendingFitRefs = true
+    }
+  }
+
+  map.on('complete', () => {
+    mapReady = true
+    if (pendingFitRefs) {
+      pendingFitRefs = false
+      fitReferenceView()
+    }
+  })
 
   const clearReferenceDistricts = () => {
     if (refPolygons.length) {
@@ -200,6 +227,7 @@ export async function createPolygonEditor(container, { path = [], onChange } = {
       map.remove(refTexts)
       refTexts.length = 0
     }
+    pendingFitRefs = false
   }
 
   const setReferenceDistricts = (items = []) => {
@@ -211,10 +239,11 @@ export async function createPolygonEditor(container, { path = [], onChange } = {
       const poly = new AMap.Polygon({
         path: pathLL,
         map,
-        strokeWeight: 1,
-        strokeColor: '#888888',
-        fillColor: '#999999',
-        fillOpacity: 0.12,
+        strokeWeight: 2,
+        strokeColor: '#4b5563',
+        strokeStyle: 'dashed',
+        fillColor: '#6b7280',
+        fillOpacity: 0.32,
         zIndex: 10,
         bubble: false,
         clickable: false
@@ -231,20 +260,22 @@ export async function createPolygonEditor(container, { path = [], onChange } = {
           map,
           zIndex: 11,
           style: {
-            'background-color': 'rgba(255,255,255,0.85)',
-            border: '1px solid #bbb',
+            'background-color': 'rgba(255,255,255,0.92)',
+            border: '1px solid #4b5563',
             'border-radius': '2px',
-            padding: '1px 4px',
-            'font-size': '12px',
-            color: '#555',
+            padding: '2px 6px',
+            'font-size': '13px',
+            'font-weight': '600',
+            color: '#1f2937',
             'white-space': 'nowrap'
           }
         })
         refTexts.push(text)
       }
     }
+    // 新建（尚无编辑多边形）时缩放到参考围栏，避免默认视野看不到城北等片区
     if (!polygon && refPolygons.length) {
-      map.setFitView(refPolygons)
+      fitReferenceView()
     }
   }
 

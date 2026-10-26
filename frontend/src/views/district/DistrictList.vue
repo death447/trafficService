@@ -219,6 +219,18 @@ async function initEditor(path) {
     })
     const refs = await loadReferenceDistricts()
     polygonEditor.setReferenceDistricts?.(refs)
+    // 弹窗刚打开时容器尺寸可能未稳定，再触发一次 resize/fit
+    await nextTick()
+    requestAnimationFrame(() => {
+      try {
+        polygonEditor?.map?.resize?.()
+        if (!path?.length && refs.length) {
+          polygonEditor.setReferenceDistricts?.(refs)
+        }
+      } catch (_) {
+        /* ignore */
+      }
+    })
   } catch (e) {
     amapReady.value = false
     fenceJsonText.value = JSON.stringify(fencePoints.value, null, 2)
