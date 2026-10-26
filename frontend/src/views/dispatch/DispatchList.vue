@@ -359,9 +359,13 @@ onMounted(() => {
 
 .actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0.35rem;
   white-space: nowrap;
+}
+
+.actions button {
+  flex: 0 0 auto;
 }
 
 .action-error {
