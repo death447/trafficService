@@ -456,7 +456,7 @@ const acting = ref('')
 
 const nearby = ref([])
 const staleNearby = ref([])
-const staleExpanded = ref(false)
+const staleExpanded = ref(true)
 const matchedDistrict = ref(null)
 const nearbyLoading = ref(false)
 const nearbyError = ref('')
