@@ -196,20 +196,8 @@ function destroyEditor() {
 }
 
 async function loadReferenceDistricts() {
-  try {
-    const res = await listDistricts({ status: 'ENABLED', page: 1, size: 100 })
-    const list = res.data?.list || []
-    return list
-      .filter((d) => d.id !== editingId.value)
-      .map((d) => ({
-        id: d.id,
-        name: d.name || d.code || String(d.id),
-        path: parseFenceJson(d.fenceJson)
-      }))
-      .filter((d) => d.path.length >= 3)
-  } catch {
-    return []
-  }
+  const items = await loadEnabledDistrictOverlayItems()
+  return items.filter((d) => d.id !== editingId.value)
 }
 
 async function initEditor(path) {

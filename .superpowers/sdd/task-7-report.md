@@ -1,135 +1,97 @@
-# Task 7 Review: 前端排班页 + 车辆绑片区
+# Task 7 Report: 浏览器验收
 
-**Range:** `d62bb45` → `5f92ab8`  
-**Commit:** `feat(frontend): add schedule management and vehicle district binding`  
-**Sources:** Plan Task 7 (`docs/superpowers/plans/2026-09-04-district-schedule.md`); brief encoding-stale → plan used. Diff via git (review-pkg encoding noisy).  
-**Mode:** Read-only (no code/git mutation)
+**Status:** DONE_WITH_CONCERNS  
+**Date:** 2026-09-12  
+**Branch:** `feat/report-module`  
+**Brief:** `.superpowers/sdd/task-7-brief.md`  
+**Work from:** `d:\cursorworkspace`
 
----
+## Summary
 
-## Spec compliance
+Restarted Spring Boot on JDK 17 so `ReportController` and `report:manage` loaded. Walked Steps 2–5 in cursor-ide-browser against Vite `http://localhost:5173` and backend `http://localhost:8080`. All listed checks passed. No product bugs found; no commit.
 
-### Checklist
+## Environment
 
-| Requirement | Verdict | Notes |
-|-------------|---------|-------|
-| `schedule.js` list/get/create/update/delete | **Pass** | All five exported; paths `/schedule` |
-| `ScheduleList.vue` columns 日期/时段/人员/角色/片区/车辆/操作 | **Pass** | |
-| Filters `from`/`to` default today | **Pass** | Also roleType + district (extra, fine) |
-| `roleType` toggles vehicle; clears on change | **Pass** | Vehicle field only for `TOW_DRIVER`; `onRoleTypeChange` clears user+vehicle |
-| TOW requires vehicle | **Pass** | Client check + `required` select; DISPATCHER sends `vehicleId: null` |
-| Conflict / business errors shown | **Pass** | `formError` / `error` from `e.message` (axios interceptor rejects `Result` `code!==200` with message) |
-| Route `/schedules` + `meta.permissions: ['schedule:manage']` | **Pass** | |
-| Nav「排班管理」+ Home card | **Pass** | `v-auth="'schedule:manage'"` |
-| VehicleList district column + select | **Pass** | ENABLED list; clear → `null`; DISABLED current as disabled option |
-| Style match / no new UI libs | **Pass** | `page`/`panel`/`data-table`/`modal`; package.json unchanged |
-| Commit message as planned | **Pass** | Exact plan string |
+- Frontend: existing Vite `npm run dev` at `http://localhost:5173`
+- Backend: stopped old Java PID 9392 on 8080, then `$env:JAVA_HOME='C:\Program Files\Java\jdk-17'` + `d:\cursorworkspace\.tools\apache-maven\bin\mvn.cmd spring-boot:run`
+- Evidence: `Tomcat started on port 8080 (http)`; `Started BackendApplication in 2.28 seconds`; `SpringBoot3 Backend Started Successfully!`
+- Admin API smoke after restart: `GET /api/report/summary?from=2026-09-01&to=2026-09-12` → HTTP 200, `dispatch.total=7`; login permissions include `report:manage,report:query`
 
-### Spec Issues
+## Commit
 
-#### Critical (Must Fix)
+none
 
-1. **Dispatcher cannot load personnel for schedule form**
-   - File: `ScheduleList.vue` (~317–325) uses `getUserList()` → `GET /api/user/list` with `@PreAuthorize("hasAuthority('user:query')")`
-   - DISPATCHER role grants only `permission` id `16` + `20–41` (no `user:query` = id 2)
-   - `Promise.all([getUserList(), listVehicles(), listDistricts()])` fails entirely on 403 → empty users/vehicles/districts maps
-   - Plan Step 4 acceptance: 「调度员建排班不选车 → 成功」cannot work; person `<select>` stays empty
-   - Fix (pick one): grant DISPATCHER `user:query`; or add a schedule-scoped lightweight user lookup under `schedule:*`; or harden lookups so vehicle/district still load and surface a clear auth error for users
+## Step checklist
 
-#### Important (Should Fix)
-
-1. **Manual联调 checklist not evidenced**
-   - Implementer report: build only; Step 4 rows (overlap errors, bind district, 403, nearby) not run
-   - After Critical fix, re-run dispatcher/towdriver paths before Task 8
-
-2. **Lookup failure is all-or-nothing**
-   - Same `Promise.all` means a single 403/network error blanks vehicle & district labels even when those APIs would succeed
-   - Prefer independent try/catch per lookup (or `Promise.allSettled`)
-
-#### Minor (Nice to Have)
-
-1. **`getSchedule` unused in UI** — API surface complete per plan; fine to keep
-2. **VehicleList double `listDistricts` call** — ENABLED + all; workable, could filter once client-side
-3. **Editing inactive / role-mismatched user** — `filteredUsers` may omit current `userId`; select looks blank (edge case)
-
-### Spec verdict
-
-**FAIL** — Core UI/wiring matches plan, but primary role (调度员) cannot populate the user picker due to missing `user:query`. Not ready to proceed until Critical is fixed.
+- [x] Step 1: restart backend
+- [x] Step 2: admin `/reports` (see checks below)
+- [x] Step 3: dispatcher can see and open reports
+- [x] Step 4: trafficpolice no sidebar 报表; `/reports` → 403
+- [x] Step 5: `/` overview stats + map; no internal workspace / module entries
 
 ---
 
-## Code quality
+## Step 2 — admin `/reports`
 
-### Strengths
+Account: `admin` / `admin123`. Logged in, then opened `http://localhost:5173/reports` (sidebar 报表 is current).
 
-- Clean mirror of VehicleList/DistrictList patterns (`page-header`, filters panel, modal form, `v-auth` button grains)
-- Correct DISPATCHER vs TOW_DRIVER payload rules; DISABLED district shown readonly and blocked on save (aligns with backend ENABLED-on-write)
-- Error surfacing compatible with `request.js` interceptor (`Error(message)` for business `Result.error`)
-- Scoped filter CSS uses existing enterprise tokens; no new dependencies
-- Single focused commit; file set matches plan Step 5
-
-### Quality Issues
-
-#### Critical (Must Fix)
-
-1. **Same permission/lookup failure as Spec Critical #1** — functional break for intended operator role; treat as merge blocker
-
-#### Important (Should Fix)
-
-1. **`loadLookups` fragility** (`ScheduleList.vue` ~317–325, `onMounted` ~429–435)
-   - One rejected promise leaves form unusable and labels as raw IDs while schedule list may still load — confusing UX
-   - Split fetches; keep partial success
-
-2. **No client-side end≤start guard**
-   - Backend validates; optional early `formError` would match TOW vehicle pre-check pattern
-
-#### Minor (Nice to Have)
-
-1. Client-side name maps for user/vehicle/district (IDs-only API) — acceptable; fragile if lookup list incomplete
-2. `datetime-local` → append `:00` — OK for current API; document if timezone quirks appear
-3. Filter district dropdown includes DISABLED districts — harmless; could restrict to ENABLED for consistency with form
-
-### Quality verdict
-
-**FAIL** — Implementation quality is generally solid and stylistically consistent, but the dispatcher user-list auth gap (and cascading `Promise.all` failure) is a Critical defect for production/acceptance use.
+| Check | Result | Evidence |
+|---|---|---|
+| 侧边栏工作台有「报表」 | **PASS** | After login, nav includes `⌂ 概览` then `表 报表`. Reports page marks 报表 as `current`. |
+| 默认本月 1 号到今天，自动查出卡片/图/表 | **PASS** | Inputs `2026-09-01` / `2026-09-12` (today). Mount showed `加载中…` then cards: 工单总数 **7**, 已完成 **3**, 处置中 **1**, 中止 **3**; 已评价数 **1**, 四维均分 5.0; 入库 14 / 在场 11 / 出库 3. Charts 按日工单量 + 状态分布 rendered. Table rows include `RO202609100002` … `RO202609070001` (7 order links to `/dispatches/:id`). |
+| 无工单区间：卡片 0、图/表空状态 | **PASS** | Queried `2026-01-01`–`2026-01-05`. Cards all **0** (quality avgs `—`). Empty copy **暂无数据** on charts and tables (6 empty nodes). No order links. |
+| 开始日期晚于结束日期；无 summary 请求 | **PASS** | Set from `2026-01-10`, to `2026-01-05`, clicked 查询. UI text **开始日期不能晚于结束日期**. XHR/fetch hook log after click: `[]`, `summaryHits: []`. |
+| 导出 Excel `report_*.xlsx`，四张表 | **PASS** (file + sheets; see Concerns) | Browser download hook: `report_2026-09-01_2026-09-12.xlsx` (blob). Same file via API: 5924 bytes. OOXML `xl/workbook.xml` sheets: **汇总**, **工单明细**, **评价按施救员**, **扣留按停车场**. |
+| 有工单行时点单号进详情 | **PASS** | Link `RO202609100002` → `http://localhost:5173/dispatches/7`. Heading **工单详情**, order no **RO202609100002**, 已接单. |
 
 ---
 
-## Recommendations
+## Step 3 — dispatcher
 
-1. Fix dispatcher access to schedule personnel (permission or dedicated endpoint) **before** Task 8 regression.
-2. Decouple lookup requests; show distinct errors.
-3. Smoke: dispatcher create without vehicle; towdriver without vehicle → message; overlap → message; vehicle bind ENABLED district; user without `schedule:manage` → no nav / `/schedules` → 403.
-
-## Assessment
-
-| Lens | Ready? |
-|------|--------|
-| Spec | **No** |
-| Quality | **No** (with Critical fix → re-review) |
-
-**Reasoning:** Planned files, commit message, schedule CRUD UI, vehicle district binding, and conflict error plumbing are present and well-aligned with VehicleList. The schedule form’s dependency on `user:query` breaks the dispatcher acceptance path and must be fixed first.
+| Check | Result | Evidence |
+|---|---|---|
+| 能看见并打开报表 | **PASS** | Login `dispatcher` / `admin123`. Sidebar: 概览, **报表**, 任务管理, 施救车辆, 片区管理, 排班管理. Header **dispatcher / 调度员**. `/reports` loads 报表 title, default dates 2026-09-01–2026-09-12, cards 7/3/1/3 and charts. |
 
 ---
 
-## Follow-up fix (2026-09-04): DISPATCHER user:query
+## Step 4 — 交警或施救员
 
-**Commit:** `fix: grant dispatcher user:query for schedule assignee picker`
+Account used: `trafficpolice` / `admin123` (交警).
 
-### Changes
+| Check | Result | Evidence |
+|---|---|---|
+| 侧边栏无「报表」 | **PASS** | After login on `/`, nav = `["⌂ 概览"]` only (`hasReport: false`). 业务调度 / 系统管理 groups empty. User chip **trafficpolice / 交警**. |
+| 直接访问 `/reports` 到 403 | **PASS** | URL redirected to `http://localhost:5173/403`. Title **访问受限**, code **403**, **没有访问权限**, copy 当前账号无权打开此功能. Sidebar still has no 报表. |
 
-1. `database/init.sql` — DISPATCHER `role_permission` SELECT now includes `id = 2` (`user:query`) in addition to dispatch/vehicle/district/schedule perms. Still **no** `user:manage` (id=1) menu/module for DISPATCHER.
-2. `database/migrate_2026-09-04_district_schedule.sql` — idempotent INSERT for `role_id=2, permission_id=2` when missing (existing DBs).
-3. `ScheduleList.vue` — `loadLookups` uses `Promise.allSettled` so a single 403/network failure no longer blanks vehicles/districts; partial failures surface a message; users still load via `getUserList()` once perm is granted.
+---
 
-### ADMIN verification
+## Step 5 — `/` 概览
 
-ADMIN already receives `user:query` via `permission` ids **1-15** (`SELECT 5, id FROM permission WHERE id BETWEEN 1 AND 15 OR ...`). No change required.
+Account: `admin` / `admin123`.
 
-### Intent note
+| Check | Result | Evidence |
+|---|---|---|
+| 统计卡 + 地图仍在 | **PASS** | Cards: 今日事故总数 **0**, 今日已派单 **0**, 当前处置中 **1**, 今日已完成 **0**. Section **实时态势** with map, legend 事故点 1 / 空闲车辆 1, markers `RO202609100002 已接单` and `粤B·救援02`. |
+| 没有内部工作台、没有底部模块入口 | **PASS** | `hasInternal: false`, `hasModuleGrid: false`. No hero 「内部工作台」, no `.module-grid` / `.module-item`. Home is stats + map only. Footer text 「内部系统 · 机密」 is sidebar chrome, not a module entry. |
 
-DISPATCHER may call `user:query` **only** to populate the schedule duty-assignee picker. They do not get `user:manage` and therefore do not see the user-management menu.
+Did **not** commit `Home.vue`. Overview already matches this check via existing uncommitted overview work, not a report-module bug.
 
-### Build
+---
 
-`npm run build` (frontend) succeeded after this fix (vite production build, exit 0).
+## Tests
+
+Browser acceptance only (this task). No unit tests added.
+
+- `GET /api/report/summary` after restart: HTTP 200
+- `GET /api/report/export`: xlsx 5924 bytes, 4 sheets
+
+## Concerns
+
+- Excel/WPS GUI was not launched in this session. Four sheets were verified from OOXML `workbook.xml`, not by opening the file in Excel/WPS.
+- `browser_click` on Vue `router-link` (sidebar 报表, some table links) often focused without navigating; direct URL and `element.click()` worked. Same automation quirk noted in Task 6; not treated as a product bug.
+- `Home.vue` remains uncommitted (+333/−188 vs HEAD: stats/map vs old 内部工作台 + module grid). Out of this task unless overview failed because of a report change (it did not).
+- Sidebar 报表 click-through was verified via URL `/reports`, not via MCP click navigation.
+
+## Self-review
+
+No report-page or permission bugs showed up in Steps 2–5. Backend restart was required; after that summary/export and `report:manage` gating behaved as specified.
