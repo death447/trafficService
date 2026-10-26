@@ -44,4 +44,5 @@ public class DispatchOrder {
     private List<DispatchMedia> medias;
     private DispatchOrderEvaluation evaluation;
     private List<DispatchVehicleAssignment> assignments;
+    private List<DispatchAccidentVehicle> accidentVehicles;
 }

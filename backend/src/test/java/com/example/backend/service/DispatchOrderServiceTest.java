@@ -10,7 +10,9 @@ import com.example.backend.entity.Role;
 import com.example.backend.mapper.DispatchFieldRecordMapper;
 import com.example.backend.mapper.DispatchMediaMapper;
 import com.example.backend.mapper.DispatchOrderEvaluationMapper;
+import com.example.backend.entity.DispatchAccidentVehicle;
 import com.example.backend.entity.DispatchVehicleAssignment;
+import com.example.backend.mapper.DispatchAccidentVehicleMapper;
 import com.example.backend.mapper.DispatchOrderMapper;
 import com.example.backend.mapper.DispatchVehicleAssignmentMapper;
 import com.example.backend.mapper.UserMapper;
@@ -38,13 +40,79 @@ class DispatchOrderServiceTest {
     @Mock DispatchMediaMapper mediaMapper;
     @Mock DispatchOrderEvaluationMapper evaluationMapper;
     @Mock DispatchVehicleAssignmentMapper assignmentMapper;
+    @Mock DispatchAccidentVehicleMapper accidentVehicleMapper;
     @InjectMocks DispatchOrderService service;
+
+    private DispatchOrder basePendingOrder() {
+        DispatchOrder order = new DispatchOrder();
+        order.setAccidentAddress("测试路");
+        order.setRescueReason("追尾");
+        return order;
+    }
+
+    @Test
+    void createRequiresAtLeastOneAccidentVehicleWithPlate() {
+        DispatchOrder order = basePendingOrder();
+        order.setAccidentVehicles(List.of());
+        Role d = new Role(); d.setRoleCode("DISPATCHER");
+        when(userMapper.findRolesByUserId(7L)).thenReturn(List.of(d));
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> service.create(order, 7L));
+        assertTrue(ex.getMessage().contains("至少"));
+    }
+
+    @Test
+    void createRejectsDuplicatePlates() {
+        DispatchOrder order = basePendingOrder();
+        DispatchAccidentVehicle a = new DispatchAccidentVehicle();
+        a.setPlateNo("粤B1");
+        DispatchAccidentVehicle b = new DispatchAccidentVehicle();
+        b.setPlateNo(" 粤b1 ");
+        order.setAccidentVehicles(List.of(a, b));
+        Role d = new Role(); d.setRoleCode("DISPATCHER");
+        when(userMapper.findRolesByUserId(7L)).thenReturn(List.of(d));
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> service.create(order, 7L));
+        assertTrue(ex.getMessage().contains("重复"));
+    }
+
+    @Test
+    void createPersistsTwoAccidentVehiclesAndSyncsFirstToOrder() {
+        DispatchOrder order = basePendingOrder();
+        DispatchAccidentVehicle first = new DispatchAccidentVehicle();
+        first.setPlateNo("粤B11111");
+        first.setPartyName("甲");
+        first.setPartyPhone("13800000001");
+        first.setVehicleTypeId(6L);
+        DispatchAccidentVehicle second = new DispatchAccidentVehicle();
+        second.setPlateNo("粤B22222");
+        second.setPartyName("乙");
+        order.setAccidentVehicles(List.of(first, second));
+        Role d = new Role(); d.setRoleCode("DISPATCHER");
+        when(userMapper.findRolesByUserId(7L)).thenReturn(List.of(d));
+        AccidentVehicleType t = new AccidentVehicleType();
+        t.setId(6L); t.setName("厢式货车"); t.setStatus("ENABLED");
+        when(accidentVehicleTypeService.requireEnabled(6L)).thenReturn(t);
+        when(dispatchOrderMapper.insert(any())).thenAnswer(inv -> {
+            DispatchOrder o = inv.getArgument(0);
+            o.setId(100L);
+            return 1;
+        });
+
+        assertTrue(service.create(order, 7L));
+        assertEquals("粤B11111", order.getPlateNo());
+        assertEquals(6L, order.getVehicleTypeId());
+        assertEquals("厢式货车", order.getVehicleTypeName());
+        assertEquals("甲", order.getPartyName());
+        assertEquals("13800000001", order.getPartyPhone());
+        verify(accidentVehicleMapper).deleteByOrderId(100L);
+        verify(accidentVehicleMapper, times(2)).insert(any(DispatchAccidentVehicle.class));
+    }
 
     @Test
     void createKeepsPendingAndPrefillsWithoutMarkBusy() {
         DispatchOrder order = new DispatchOrder();
         order.setAccidentAddress("测试路");
         order.setRescueReason("追尾");
+        order.setPlateNo("粤B00001");
         order.setDispatcherId(2L);
         order.setRescuerId(999L); // client-sent value should be overwritten by vehicle driver
         order.setVehicleId(1L);
@@ -57,7 +125,11 @@ class DispatchOrderServiceTest {
         v.setStatus("IDLE");
         v.setDriverUserId(3L);
         when(rescueVehicleService.requireAssignable(1L)).thenReturn(v);
-        when(dispatchOrderMapper.insert(any())).thenReturn(1);
+        when(dispatchOrderMapper.insert(any())).thenAnswer(inv -> {
+            DispatchOrder o = inv.getArgument(0);
+            o.setId(1L);
+            return 1;
+        });
 
         assertTrue(service.create(order, 99L));
         assertEquals("PENDING", order.getStatus());
@@ -66,6 +138,7 @@ class DispatchOrderServiceTest {
         assertEquals(1L, order.getVehicleId());
         verify(rescueVehicleService, never()).markBusy(any());
         verify(dispatchOrderMapper).insert(order);
+        verify(accidentVehicleMapper).insert(any(DispatchAccidentVehicle.class));
     }
 
     @Test
@@ -80,7 +153,11 @@ class DispatchOrderServiceTest {
         AccidentVehicleType t = new AccidentVehicleType();
         t.setId(6L); t.setName("厢式货车"); t.setStatus("ENABLED");
         when(accidentVehicleTypeService.requireEnabled(6L)).thenReturn(t);
-        when(dispatchOrderMapper.insert(any())).thenReturn(1);
+        when(dispatchOrderMapper.insert(any())).thenAnswer(inv -> {
+            DispatchOrder o = inv.getArgument(0);
+            o.setId(1L);
+            return 1;
+        });
 
         assertTrue(service.create(order, 7L));
         assertEquals("粤B12345", order.getPlateNo());
@@ -93,11 +170,16 @@ class DispatchOrderServiceTest {
         DispatchOrder order = new DispatchOrder();
         order.setAccidentAddress("A");
         order.setRescueReason("B");
+        order.setPlateNo("粤B00002");
         order.setPartyName("  ");
         order.setPartyPhone("");
         Role d = new Role(); d.setRoleCode("DISPATCHER");
         when(userMapper.findRolesByUserId(7L)).thenReturn(List.of(d));
-        when(dispatchOrderMapper.insert(any())).thenReturn(1);
+        when(dispatchOrderMapper.insert(any())).thenAnswer(inv -> {
+            DispatchOrder o = inv.getArgument(0);
+            o.setId(1L);
+            return 1;
+        });
 
         assertTrue(service.create(order, 7L));
         assertNull(order.getPartyName());
@@ -110,11 +192,16 @@ class DispatchOrderServiceTest {
         DispatchOrder order = new DispatchOrder();
         order.setAccidentAddress("A");
         order.setRescueReason("B");
+        order.setPlateNo("粤B00003");
         order.setPartyName(" 张三 ");
         order.setPartyPhone(" 13800138000 ");
         Role d = new Role(); d.setRoleCode("DISPATCHER");
         when(userMapper.findRolesByUserId(7L)).thenReturn(List.of(d));
-        when(dispatchOrderMapper.insert(any())).thenReturn(1);
+        when(dispatchOrderMapper.insert(any())).thenAnswer(inv -> {
+            DispatchOrder o = inv.getArgument(0);
+            o.setId(1L);
+            return 1;
+        });
 
         assertTrue(service.create(order, 7L));
         assertEquals("张三", order.getPartyName());
@@ -139,13 +226,17 @@ class DispatchOrderServiceTest {
         patch.setAccidentAddress("地址");
         patch.setRescueReason("原因");
         patch.setDispatcherId(1L);
+        patch.setPlateNo("粤B00009");
         patch.setPartyName(" 李四 ");
         patch.setPartyPhone(" 13900139000 ");
 
         assertTrue(service.update(patch));
         assertEquals("李四", existing.getPartyName());
         assertEquals("13900139000", existing.getPartyPhone());
+        assertEquals("粤B00009", existing.getPlateNo());
         verify(dispatchOrderMapper).update(existing);
+        verify(accidentVehicleMapper).deleteByOrderId(9L);
+        verify(accidentVehicleMapper).insert(any(DispatchAccidentVehicle.class));
     }
 
     @Test
@@ -153,6 +244,7 @@ class DispatchOrderServiceTest {
         DispatchOrder order = new DispatchOrder();
         order.setAccidentAddress("A");
         order.setRescueReason("B");
+        order.setPlateNo("粤B00099");
         order.setVehicleTypeId(99L);
         Role d = new Role(); d.setRoleCode("DISPATCHER");
         when(userMapper.findRolesByUserId(7L)).thenReturn(List.of(d));
@@ -166,11 +258,16 @@ class DispatchOrderServiceTest {
         DispatchOrder order = new DispatchOrder();
         order.setAccidentAddress("A");
         order.setRescueReason("B");
+        order.setPlateNo("粤B00004");
         order.setVehicleTypeId(null);
         order.setVehicleTypeName("应被清空");
         Role d = new Role(); d.setRoleCode("DISPATCHER");
         when(userMapper.findRolesByUserId(7L)).thenReturn(List.of(d));
-        when(dispatchOrderMapper.insert(any())).thenReturn(1);
+        when(dispatchOrderMapper.insert(any())).thenAnswer(inv -> {
+            DispatchOrder o = inv.getArgument(0);
+            o.setId(1L);
+            return 1;
+        });
         assertTrue(service.create(order, 7L));
         assertNull(order.getVehicleTypeId());
         assertNull(order.getVehicleTypeName());
@@ -181,9 +278,14 @@ class DispatchOrderServiceTest {
         DispatchOrder order = new DispatchOrder();
         order.setAccidentAddress("A");
         order.setRescueReason("B");
+        order.setPlateNo("粤B00005");
         Role d = new Role(); d.setRoleCode("DISPATCHER");
         when(userMapper.findRolesByUserId(7L)).thenReturn(List.of(d));
-        when(dispatchOrderMapper.insert(any())).thenReturn(1);
+        when(dispatchOrderMapper.insert(any())).thenAnswer(inv -> {
+            DispatchOrder o = inv.getArgument(0);
+            o.setId(1L);
+            return 1;
+        });
         assertTrue(service.create(order, 7L));
         assertEquals(7L, order.getDispatcherId());
     }
@@ -193,6 +295,7 @@ class DispatchOrderServiceTest {
         DispatchOrder order = new DispatchOrder();
         order.setAccidentAddress("A");
         order.setRescueReason("B");
+        order.setPlateNo("粤B00006");
         order.setRescuerId(3L);
         Role d = new Role(); d.setRoleCode("DISPATCHER");
         when(userMapper.findRolesByUserId(7L)).thenReturn(List.of(d));
@@ -206,6 +309,7 @@ class DispatchOrderServiceTest {
         DispatchOrder order = new DispatchOrder();
         order.setAccidentAddress("A");
         order.setRescueReason("B");
+        order.setPlateNo("粤B00007");
         order.setVehicleId(404L);
         Role d = new Role(); d.setRoleCode("DISPATCHER");
         when(userMapper.findRolesByUserId(7L)).thenReturn(List.of(d));
@@ -218,6 +322,7 @@ class DispatchOrderServiceTest {
         DispatchOrder order = new DispatchOrder();
         order.setAccidentAddress("A");
         order.setRescueReason("B");
+        order.setPlateNo("粤B00008");
         order.setVehicleId(1L);
         Role d = new Role(); d.setRoleCode("DISPATCHER");
         when(userMapper.findRolesByUserId(7L)).thenReturn(List.of(d));
@@ -251,6 +356,7 @@ class DispatchOrderServiceTest {
         patch.setRescueReason("新原因");
         patch.setLongitude(new BigDecimal("120.1"));
         patch.setLatitude(new BigDecimal("30.2"));
+        patch.setPlateNo("粤B00010");
         patch.setDispatcherId(2L);
         patch.setRescuerId(999L);
         patch.setVehicleId(1L);
@@ -434,6 +540,7 @@ class DispatchOrderServiceTest {
         DispatchOrder patch = new DispatchOrder();
         patch.setId(9L);
         patch.setAccidentAddress("仅改地址");
+        patch.setPlateNo("粤B00011");
 
         assertTrue(service.update(patch));
         assertEquals("仅改地址", existing.getAccidentAddress());
@@ -446,18 +553,21 @@ class DispatchOrderServiceTest {
     }
 
     @Test
-    void updateKeepsSameDisabledVehicleTypeWithoutRequireEnabled() {
+    void updateRevalidatesVehicleTypeOnReplace() {
         DispatchOrder existing = new DispatchOrder();
         existing.setId(9L);
         existing.setStatus("PENDING");
         existing.setDispatcherId(1L);
         existing.setVehicleTypeId(6L);
-        existing.setVehicleTypeName("已停用车型");
+        existing.setVehicleTypeName("旧快照");
         when(dispatchOrderMapper.findById(9L)).thenReturn(existing);
         when(dispatchOrderMapper.update(any())).thenReturn(1);
 
         Role d = new Role(); d.setRoleCode("DISPATCHER");
         when(userMapper.findRolesByUserId(1L)).thenReturn(List.of(d));
+        AccidentVehicleType t = new AccidentVehicleType();
+        t.setId(6L); t.setName("厢式货车"); t.setStatus("ENABLED");
+        when(accidentVehicleTypeService.requireEnabled(6L)).thenReturn(t);
 
         DispatchOrder patch = new DispatchOrder();
         patch.setId(9L);
@@ -470,8 +580,8 @@ class DispatchOrderServiceTest {
         assertTrue(service.update(patch));
         assertEquals("粤B99999", existing.getPlateNo());
         assertEquals(6L, existing.getVehicleTypeId());
-        assertEquals("已停用车型", existing.getVehicleTypeName());
-        verify(accidentVehicleTypeService, never()).requireEnabled(any());
+        assertEquals("厢式货车", existing.getVehicleTypeName());
+        verify(accidentVehicleTypeService).requireEnabled(6L);
         verify(dispatchOrderMapper).update(existing);
     }
 
@@ -496,6 +606,7 @@ class DispatchOrderServiceTest {
         patch.setId(9L);
         patch.setAccidentAddress("地址");
         patch.setRescueReason("原因");
+        patch.setPlateNo("粤B00012");
         patch.setVehicleTypeId(7L);
         patch.setDispatcherId(1L);
 
@@ -523,6 +634,7 @@ class DispatchOrderServiceTest {
         patch.setId(9L);
         patch.setAccidentAddress("地址");
         patch.setRescueReason("原因");
+        patch.setPlateNo("粤B00013");
         patch.setVehicleTypeId(99L);
         patch.setDispatcherId(1L);
 

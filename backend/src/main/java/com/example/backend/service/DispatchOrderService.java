@@ -3,11 +3,13 @@ package com.example.backend.service;
 import com.example.backend.common.PageParams;
 import com.example.backend.dto.DispatchOverview;
 import com.example.backend.entity.AccidentVehicleType;
+import com.example.backend.entity.DispatchAccidentVehicle;
 import com.example.backend.entity.DispatchOrder;
 import com.example.backend.entity.DispatchVehicleAssignment;
 import com.example.backend.entity.RescueVehicle;
 import com.example.backend.entity.Role;
 import com.example.backend.entity.User;
+import com.example.backend.mapper.DispatchAccidentVehicleMapper;
 import com.example.backend.mapper.DispatchFieldRecordMapper;
 import com.example.backend.mapper.DispatchMediaMapper;
 import com.example.backend.mapper.DispatchOrderEvaluationMapper;
@@ -16,6 +18,7 @@ import com.example.backend.mapper.DispatchVehicleAssignmentMapper;
 import com.example.backend.mapper.RescueVehicleMapper;
 import com.example.backend.mapper.UserMapper;
 import com.example.backend.util.GeoUtils;
+import com.example.backend.util.PlateNos;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,7 +28,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -61,6 +66,9 @@ public class DispatchOrderService {
 
     @Autowired
     private DispatchVehicleAssignmentMapper assignmentMapper;
+
+    @Autowired
+    private DispatchAccidentVehicleMapper accidentVehicleMapper;
 
     public DispatchOrder findById(Long id) {
         DispatchOrder order = dispatchOrderMapper.findById(id);
@@ -106,12 +114,18 @@ public class DispatchOrderService {
         order.setOrderNo(generateOrderNo());
         order.setStatus("PENDING");
         applyDispatcherAndPrefill(order, currentUserId);
-        applyPlateAndVehicleType(order);
-        normalizePartyContact(order);
+        List<DispatchAccidentVehicle> vehicles = normalizeAndValidateAccidentVehicles(
+                resolveAccidentVehiclesInput(order));
+        syncFirstAccidentVehicleToOrder(order, vehicles.get(0));
         order.setAbortReason(null);
         order.setDispatchedAt(null);
         order.setCompletedAt(null);
-        return dispatchOrderMapper.insert(order) > 0;
+        if (dispatchOrderMapper.insert(order) <= 0) {
+            return false;
+        }
+        replaceAccidentVehicles(order.getId(), vehicles);
+        order.setAccidentVehicles(vehicles);
+        return true;
     }
 
     @Transactional
@@ -127,14 +141,11 @@ public class DispatchOrderService {
         existing.setLongitude(order.getLongitude());
         existing.setLatitude(order.getLatitude());
         existing.setRescueReason(order.getRescueReason());
-        Long previousTypeId = existing.getVehicleTypeId();
-        String previousTypeName = existing.getVehicleTypeName();
-        existing.setPlateNo(order.getPlateNo());
-        existing.setVehicleTypeId(order.getVehicleTypeId());
-        applyPlateAndVehicleType(existing, previousTypeId, previousTypeName);
-        existing.setPartyName(order.getPartyName());
-        existing.setPartyPhone(order.getPartyPhone());
-        normalizePartyContact(existing);
+        List<DispatchAccidentVehicle> vehicles = normalizeAndValidateAccidentVehicles(
+                resolveAccidentVehiclesInput(order));
+        replaceAccidentVehicles(existing.getId(), vehicles);
+        syncFirstAccidentVehicleToOrder(existing, vehicles.get(0));
+        existing.setAccidentVehicles(vehicles);
         Long previousDispatcherId = existing.getDispatcherId();
         existing.setDispatcherId(order.getDispatcherId());
         if (order.getRescuerId() != null) {
@@ -145,6 +156,86 @@ public class DispatchOrderService {
         }
         applyDispatcherAndPrefill(existing, previousDispatcherId);
         return dispatchOrderMapper.update(existing) > 0;
+    }
+
+    List<DispatchAccidentVehicle> resolveAccidentVehiclesInput(DispatchOrder order) {
+        List<DispatchAccidentVehicle> list = order.getAccidentVehicles();
+        if (list != null && !list.isEmpty()) {
+            return list;
+        }
+        String plate = order.getPlateNo();
+        if (plate != null && !plate.trim().isEmpty()) {
+            DispatchAccidentVehicle one = new DispatchAccidentVehicle();
+            one.setPlateNo(plate);
+            one.setVehicleTypeId(order.getVehicleTypeId());
+            one.setVehicleTypeName(order.getVehicleTypeName());
+            one.setPartyName(order.getPartyName());
+            one.setPartyPhone(order.getPartyPhone());
+            return List.of(one);
+        }
+        return list == null ? List.of() : list;
+    }
+
+    List<DispatchAccidentVehicle> normalizeAndValidateAccidentVehicles(List<DispatchAccidentVehicle> raw) {
+        if (raw == null || raw.isEmpty()) {
+            throw new RuntimeException("请至少添加一辆事故车");
+        }
+        List<DispatchAccidentVehicle> result = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        for (DispatchAccidentVehicle in : raw) {
+            if (in == null) {
+                throw new RuntimeException("事故车牌不能为空");
+            }
+            String plate = in.getPlateNo() == null ? "" : in.getPlateNo().trim();
+            if (plate.isEmpty()) {
+                throw new RuntimeException("事故车牌不能为空");
+            }
+            String key = PlateNos.normalize(plate);
+            if (!seen.add(key)) {
+                throw new RuntimeException("事故车牌重复");
+            }
+            DispatchAccidentVehicle row = new DispatchAccidentVehicle();
+            row.setPlateNo(plate);
+            String partyName = in.getPartyName();
+            if (partyName != null) {
+                partyName = partyName.trim();
+                row.setPartyName(partyName.isEmpty() ? null : partyName);
+            }
+            String partyPhone = in.getPartyPhone();
+            if (partyPhone != null) {
+                partyPhone = partyPhone.trim();
+                row.setPartyPhone(partyPhone.isEmpty() ? null : partyPhone);
+            }
+            Long typeId = in.getVehicleTypeId();
+            if (typeId == null) {
+                row.setVehicleTypeId(null);
+                row.setVehicleTypeName(null);
+            } else {
+                AccidentVehicleType type = accidentVehicleTypeService.requireEnabled(typeId);
+                row.setVehicleTypeId(type.getId());
+                row.setVehicleTypeName(type.getName());
+            }
+            result.add(row);
+        }
+        return result;
+    }
+
+    void replaceAccidentVehicles(Long orderId, List<DispatchAccidentVehicle> vehicles) {
+        accidentVehicleMapper.deleteByOrderId(orderId);
+        for (int i = 0; i < vehicles.size(); i++) {
+            DispatchAccidentVehicle v = vehicles.get(i);
+            v.setDispatchOrderId(orderId);
+            v.setSortOrder(i);
+            accidentVehicleMapper.insert(v);
+        }
+    }
+
+    void syncFirstAccidentVehicleToOrder(DispatchOrder order, DispatchAccidentVehicle first) {
+        order.setPlateNo(first.getPlateNo());
+        order.setVehicleTypeId(first.getVehicleTypeId());
+        order.setVehicleTypeName(first.getVehicleTypeName());
+        order.setPartyName(first.getPartyName());
+        order.setPartyPhone(first.getPartyPhone());
     }
 
     void normalizePartyContact(DispatchOrder order) {
@@ -496,6 +587,9 @@ public class DispatchOrderService {
     }
 
     private void enrich(DispatchOrder order) {
+        List<DispatchAccidentVehicle> accidentVehicles = accidentVehicleMapper.findByOrderId(order.getId());
+        order.setAccidentVehicles(accidentVehicles == null ? List.of() : accidentVehicles);
+
         List<DispatchVehicleAssignment> assignments = assignmentMapper.findByOrderId(order.getId());
         if (assignments == null) {
             assignments = List.of();
