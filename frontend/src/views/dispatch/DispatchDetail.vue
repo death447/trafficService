@@ -60,11 +60,11 @@
               </div>
               <div>
                 <span class="label">施救员</span>
-                <strong>{{ order.rescuerName || order.rescuerId || '—' }}</strong>
+                <strong>{{ displayRescuerLabel }}</strong>
               </div>
               <div>
                 <span class="label">车辆</span>
-                <strong>{{ order.vehiclePlate || order.vehicleId || '—' }}</strong>
+                <strong>{{ displayVehicleLabel }}</strong>
               </div>
               <div v-if="order.assignments?.length" class="span-2">
                 <span class="label">已派车辆</span>
@@ -484,6 +484,35 @@ const displayAccidentVehicles = computed(() => {
     }]
   }
   return []
+})
+
+/** Join distinct non-empty labels with 、 */
+function joinLabels(labels) {
+  return [...new Set(labels.filter(Boolean))].join('、')
+}
+
+/**
+ * 车辆/施救员汇总：工单表 vehicle_id/rescuer_id 只是单车兼容镜像（指向第一条活跃赋值），
+ * 多车时以 assignments 全量为准。
+ */
+const displayVehicleLabel = computed(() => {
+  const o = order.value
+  if (!o) return '—'
+  const labels = (o.assignments || []).map((a) =>
+    a.vehiclePlate || (a.vehicleId != null ? `#${a.vehicleId}` : null)
+  )
+  if (labels.length) return joinLabels(labels)
+  return o.vehiclePlate || o.vehicleId || '—'
+})
+
+const displayRescuerLabel = computed(() => {
+  const o = order.value
+  if (!o) return '—'
+  const labels = (o.assignments || []).map((a) =>
+    a.rescuerName || (a.rescuerId != null ? `#${a.rescuerId}` : null)
+  )
+  if (labels.length) return joinLabels(labels)
+  return o.rescuerName || o.rescuerId || '—'
 })
 
 function emptyEditAccidentVehicle() {
