@@ -52,28 +52,36 @@
       @update:size="onSizeChange"
     />
 
-    <div v-if="formVisible" class="modal" @click.self="closeForm">
+    <div v-if="formVisible" class="modal district-modal" @click.self="closeForm">
       <form class="modal-card modal-wide" @submit.prevent="onSubmit">
-        <h2>{{ editingId ? '编辑片区' : '新增片区' }}</h2>
-        <label>
-          名称
-          <input v-model.trim="form.name" required />
-        </label>
-        <label>
-          编码
-          <input v-model.trim="form.code" required :disabled="!!editingId" />
-        </label>
-        <label>
-          状态
-          <select v-model="form.status" required>
-            <option value="ENABLED">启用</option>
-            <option value="DISABLED">停用</option>
-          </select>
-        </label>
-        <label>
-          备注
-          <input v-model.trim="form.remark" />
-        </label>
+        <div class="modal-title-row">
+          <h2>{{ editingId ? '编辑片区' : '新增片区' }}</h2>
+          <div class="modal-actions modal-actions-inline">
+            <button type="button" class="secondary" @click="closeForm">取消</button>
+            <button type="submit" :disabled="saving">{{ saving ? '保存中…' : '保存' }}</button>
+          </div>
+        </div>
+        <div class="meta-grid">
+          <label>
+            名称
+            <input v-model.trim="form.name" required />
+          </label>
+          <label>
+            编码
+            <input v-model.trim="form.code" required :disabled="!!editingId" />
+          </label>
+          <label>
+            状态
+            <select v-model="form.status" required>
+              <option value="ENABLED">启用</option>
+              <option value="DISABLED">停用</option>
+            </select>
+          </label>
+          <label class="meta-remark">
+            备注
+            <input v-model.trim="form.remark" />
+          </label>
+        </div>
 
         <div class="fence-block">
           <div class="fence-header">
@@ -104,10 +112,6 @@
         </div>
 
         <p v-if="formError" class="error">{{ formError }}</p>
-        <div class="modal-actions">
-          <button type="button" class="secondary" @click="closeForm">取消</button>
-          <button type="submit" :disabled="saving">{{ saving ? '保存中…' : '保存' }}</button>
-        </div>
       </form>
     </div>
   </div>
@@ -219,14 +223,11 @@ async function initEditor(path) {
     })
     const refs = await loadReferenceDistricts()
     polygonEditor.setReferenceDistricts?.(refs)
-    // 弹窗刚打开时容器尺寸可能未稳定，再触发一次 resize/fit
+    // 弹窗刚打开时容器尺寸可能未稳定，延后再 fit 一次
     await nextTick()
     requestAnimationFrame(() => {
       try {
-        polygonEditor?.map?.resize?.()
-        if (!path?.length && refs.length) {
-          polygonEditor.setReferenceDistricts?.(refs)
-        }
+        polygonEditor?.fitReferenceView?.()
       } catch (_) {
         /* ignore */
       }
@@ -371,14 +372,60 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.district-modal {
+  padding: 1.25rem 1rem;
+  align-items: stretch;
+}
+
 .modal-wide {
-  width: min(960px, calc(100vw - 2rem));
+  width: min(1280px, calc(100vw - 1.5rem));
+  max-height: calc(100vh - 2.5rem);
+  padding: 1rem 1.15rem 1.1rem;
+  gap: 0.55rem;
+  overflow: auto;
+}
+
+.modal-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.modal-title-row h2 {
+  margin: 0;
+}
+
+.modal-actions-inline {
+  margin-top: 0;
+  flex-shrink: 0;
+}
+
+.meta-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr) minmax(120px, 0.7fr) minmax(0, 1.4fr);
+  gap: 0.45rem 0.65rem;
+}
+
+.meta-grid label {
+  gap: 0.2rem;
+  font-size: 0.8rem;
+}
+
+.meta-grid :deep(input),
+.meta-grid :deep(select),
+.meta-grid input,
+.meta-grid select {
+  padding: 0.35rem 0.5rem;
+  font-size: 0.85rem;
 }
 
 .fence-block {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.35rem;
+  flex: 1;
+  min-height: 0;
 }
 
 .fence-header {
@@ -386,7 +433,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: var(--text-secondary);
 }
 
@@ -397,23 +444,23 @@ onBeforeUnmount(() => {
 
 .hint {
   margin: 0;
-  padding: 0.55rem 0.75rem;
+  padding: 0.45rem 0.65rem;
   background: #fff8e8;
   border: 1px solid #f0d78c;
   border-radius: var(--radius);
   color: #8a6a12;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
 }
 
 .map-hint {
   margin: 0;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: var(--text-secondary);
 }
 
 .map-box {
-  height: min(52vh, 480px);
-  min-height: 380px;
+  height: min(68vh, 720px);
+  min-height: 480px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
@@ -432,7 +479,22 @@ onBeforeUnmount(() => {
 
 .vertex-count {
   margin: 0;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: var(--text-secondary);
+}
+
+@media (max-width: 900px) {
+  .meta-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .meta-remark {
+    grid-column: 1 / -1;
+  }
+
+  .map-box {
+    height: min(55vh, 520px);
+    min-height: 360px;
+  }
 }
 </style>
