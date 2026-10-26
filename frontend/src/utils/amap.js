@@ -154,6 +154,12 @@ export async function createPickerMap(container, { lng, lat, onPicked, searchInp
       setMarker(x, y, address)
       if (address == null) reverseGeocode(x, y)
     },
+    clearMarker() {
+      if (marker) {
+        map.remove(marker)
+        marker = null
+      }
+    },
     destroy() {
       if (map && typeof map.destroy === 'function') map.destroy()
     }
