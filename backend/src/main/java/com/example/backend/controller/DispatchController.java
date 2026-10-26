@@ -61,7 +61,8 @@ public class DispatchController {
             Long dispatcherId = currentUserId();
             boolean success = dispatchOrderService.create(order, dispatcherId);
             if (success) {
-                return Result.success(order);
+                // 返回 enrich 后的详情（含事故车子表、车辆车牌等）
+                return Result.success(dispatchOrderService.findById(order.getId()));
             }
             return Result.error("创建工单失败");
         } catch (RuntimeException e) {
