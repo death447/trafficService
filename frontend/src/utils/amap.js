@@ -180,6 +180,74 @@ function ringCentroid(ring) {
   return { lng: lng / ring.length, lat: lat / ring.length }
 }
 
+/**
+ * 在地图上绘制启用片区参考围栏（灰虚线 + 名称，点击穿透）。
+ * @param {object} map AMap.Map
+ * @param {Array<{ name?: string, path: Array<{ lng: number, lat: number }> }>} items
+ * @returns {{ polygons: object[], texts: object[] }}
+ */
+export function drawDistrictOverlays(map, items = []) {
+  const AMap = window.AMap
+  if (!map || !AMap) return { polygons: [], texts: [] }
+  const polygons = []
+  const texts = []
+  for (const item of items) {
+    const ring = item?.path
+    if (!Array.isArray(ring) || ring.length < 3) continue
+    const pathLL = ring.map((p) => [p.lng, p.lat])
+    const poly = new AMap.Polygon({
+      path: pathLL,
+      map,
+      strokeWeight: 2,
+      strokeColor: '#4b5563',
+      strokeStyle: 'dashed',
+      fillColor: '#6b7280',
+      fillOpacity: 0.32,
+      zIndex: 10,
+      bubble: true,
+      clickable: false
+    })
+    polygons.push(poly)
+    const center = ringCentroid(ring)
+    const label = item?.name != null && String(item.name).trim() !== ''
+      ? String(item.name).trim()
+      : ''
+    if (center && label) {
+      const text = new AMap.Text({
+        text: label,
+        position: [center.lng, center.lat],
+        map,
+        zIndex: 11,
+        bubble: true,
+        clickable: false,
+        style: {
+          'background-color': 'rgba(255,255,255,0.92)',
+          border: '1px solid #4b5563',
+          'border-radius': '2px',
+          padding: '2px 6px',
+          'font-size': '13px',
+          'font-weight': '600',
+          color: '#1f2937',
+          'white-space': 'nowrap',
+          'pointer-events': 'none'
+        }
+      })
+      texts.push(text)
+    }
+  }
+  return { polygons, texts }
+}
+
+/** @param {object} map @param {{ polygons?: object[], texts?: object[] } | null} handles */
+export function clearDistrictOverlays(map, handles) {
+  if (!map || !handles) return
+  const { polygons = [], texts = [] } = handles
+  if (polygons.length) map.remove(polygons)
+  if (texts.length) map.remove(texts)
+  polygons.length = 0
+  texts.length = 0
+}
+
 /** 多边形围栏编辑：点击追加顶点；无 Key 时由页面用 textarea 编辑 JSON */
 export async function createPolygonEditor(container, { path = [], onChange } = {}) {
   const AMap = await loadAmap()
@@ -188,17 +256,16 @@ export async function createPolygonEditor(container, { path = [], onChange } = {
     center: JIAXING_MUNICIPAL_CENTER
   })
   let polygon
-  const refPolygons = []
-  const refTexts = []
+  let refHandles = { polygons: [], texts: [] }
   let mapReady = false
   let pendingFitRefs = false
 
   const fitReferenceView = () => {
-    if (!refPolygons.length) return
+    if (!refHandles.polygons.length) return
     const run = () => {
       try {
         if (typeof map.resize === 'function') map.resize()
-        map.setFitView(refPolygons, false, [48, 48, 48, 48])
+        map.setFitView(refHandles.polygons, false, [48, 48, 48, 48])
       } catch (_) {
         /* ignore fit errors in hidden/zero-size containers */
       }
@@ -219,66 +286,16 @@ export async function createPolygonEditor(container, { path = [], onChange } = {
   })
 
   const clearReferenceDistricts = () => {
-    if (refPolygons.length) {
-      map.remove(refPolygons)
-      refPolygons.length = 0
-    }
-    if (refTexts.length) {
-      map.remove(refTexts)
-      refTexts.length = 0
-    }
+    clearDistrictOverlays(map, refHandles)
+    refHandles = { polygons: [], texts: [] }
     pendingFitRefs = false
   }
 
   const setReferenceDistricts = (items = []) => {
     clearReferenceDistricts()
-    for (const item of items) {
-      const ring = item?.path
-      if (!Array.isArray(ring) || ring.length < 3) continue
-      const pathLL = ring.map((p) => [p.lng, p.lat])
-      const poly = new AMap.Polygon({
-        path: pathLL,
-        map,
-        strokeWeight: 2,
-        strokeColor: '#4b5563',
-        strokeStyle: 'dashed',
-        fillColor: '#6b7280',
-        fillOpacity: 0.32,
-        zIndex: 10,
-        // 点击需落到地图上才能继续加点（参考层不可挡住）
-        bubble: true,
-        clickable: false
-      })
-      refPolygons.push(poly)
-      const center = ringCentroid(ring)
-      const label = item?.name != null && String(item.name).trim() !== ''
-        ? String(item.name).trim()
-        : ''
-      if (center && label) {
-        const text = new AMap.Text({
-          text: label,
-          position: [center.lng, center.lat],
-          map,
-          zIndex: 11,
-          bubble: true,
-          clickable: false,
-          style: {
-            'background-color': 'rgba(255,255,255,0.92)',
-            border: '1px solid #4b5563',
-            'border-radius': '2px',
-            padding: '2px 6px',
-            'font-size': '13px',
-            'font-weight': '600',
-            color: '#1f2937',
-            'white-space': 'nowrap',
-            'pointer-events': 'none'
-          }
-        })
-        refTexts.push(text)
-      }
-    }
+    refHandles = drawDistrictOverlays(map, items)
     // 新建（尚无编辑多边形）时缩放到参考围栏，避免默认视野看不到城北等片区
-    if (!polygon && refPolygons.length) {
+    if (!polygon && refHandles.polygons.length) {
       fitReferenceView()
     }
   }

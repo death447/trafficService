@@ -28,7 +28,7 @@
       <div class="map-head">
         <div>
           <h2 class="section-title">实时态势</h2>
-          <p class="map-sub">标注处置中的事故点与空闲救援车辆</p>
+          <p class="map-sub">标注处置中的事故点、空闲救援车辆与启用片区范围</p>
         </div>
         <div class="legend">
           <span v-if="canQueryDispatch" class="legend-item"><i class="dot acc" />事故点 {{ accidents.length }}</span>
@@ -51,7 +51,8 @@ import { useRouter } from 'vue-router'
 import { useUserStore } from '../stores/user'
 import { getDispatchOverview } from '../api/dispatch'
 import { listVehicles } from '../api/vehicle'
-import { createVehicleMapIcon, hasAmapKey, loadAmap } from '../utils/amap'
+import { clearDistrictOverlays, createVehicleMapIcon, drawDistrictOverlays, hasAmapKey, loadAmap } from '../utils/amap'
+import { loadEnabledDistrictOverlayItems } from '../utils/districtOverlay'
 import { computeOverlappingMarkerOffsets } from '../utils/markerOffset'
 
 const JIAXING_CENTER = [120.755486, 30.746849]
@@ -80,6 +81,7 @@ const canShowMap = computed(() => amapReady)
 let mapInstance = null
 let accidentMarkers = []
 let vehicleMarkers = []
+let districtHandles = null
 let pollTimer = null
 
 const statusLabels = {
@@ -203,6 +205,8 @@ async function initMap() {
       center: JIAXING_CENTER,
       resizeEnable: true
     })
+    const districtItems = await loadEnabledDistrictOverlayItems()
+    districtHandles = drawDistrictOverlays(mapInstance, districtItems)
     syncMarkers()
   } catch (e) {
     mapError.value = e.message || '地图加载失败'
@@ -212,6 +216,10 @@ async function initMap() {
 function destroyMap() {
   clearMarkers(accidentMarkers)
   clearMarkers(vehicleMarkers)
+  if (mapInstance) {
+    clearDistrictOverlays(mapInstance, districtHandles)
+  }
+  districtHandles = null
   if (mapInstance && typeof mapInstance.destroy === 'function') {
     mapInstance.destroy()
   }

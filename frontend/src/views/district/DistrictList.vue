@@ -126,6 +126,7 @@ import {
   deleteDistrict
 } from '../../api/district'
 import { createPolygonEditor, hasAmapKey } from '../../utils/amap'
+import { loadEnabledDistrictOverlayItems } from '../../utils/districtOverlay'
 import PaginationBar from '../../components/PaginationBar.vue'
 
 const districts = ref([])

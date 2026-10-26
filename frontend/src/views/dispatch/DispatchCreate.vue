@@ -117,7 +117,8 @@ import { createDispatch } from '../../api/dispatch'
 import { listVehicles, nearbyVehicles } from '../../api/vehicle'
 import { listEnabledVehicleTypes } from '../../api/vehicleType'
 import { useUserStore } from '../../stores/user'
-import { createPickerMap, createVehicleMapIcon, hasAmapKey } from '../../utils/amap'
+import { clearDistrictOverlays, createPickerMap, createVehicleMapIcon, drawDistrictOverlays, hasAmapKey } from '../../utils/amap'
+import { loadEnabledDistrictOverlayItems } from '../../utils/districtOverlay'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -135,6 +136,7 @@ const nearbyFresh = ref([])
 const nearbyStale = ref([])
 let mapInstance = null
 let vehicleMarkers = []
+let districtHandles = null
 
 const form = reactive({
   rescueReason: '',
@@ -341,6 +343,8 @@ async function initMap() {
         refreshNearby()
       }
     })
+    const districtItems = await loadEnabledDistrictOverlayItems()
+    districtHandles = drawDistrictOverlays(mapInstance.map, districtItems)
   } catch (e) {
     mapError.value = e.message || '地图加载失败'
   }
@@ -425,6 +429,10 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   clearVehicleMarkers()
+  if (mapInstance?.map) {
+    clearDistrictOverlays(mapInstance.map, districtHandles)
+  }
+  districtHandles = null
   if (mapInstance && typeof mapInstance.destroy === 'function') {
     mapInstance.destroy()
   }
