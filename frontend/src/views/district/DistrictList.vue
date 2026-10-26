@@ -190,6 +190,23 @@ function destroyEditor() {
   polygonEditor = null
 }
 
+async function loadReferenceDistricts() {
+  try {
+    const res = await listDistricts({ status: 'ENABLED', page: 1, size: 100 })
+    const list = res.data?.list || []
+    return list
+      .filter((d) => d.id !== editingId.value)
+      .map((d) => ({
+        id: d.id,
+        name: d.name || d.code || String(d.id),
+        path: parseFenceJson(d.fenceJson)
+      }))
+      .filter((d) => d.path.length >= 3)
+  } catch {
+    return []
+  }
+}
+
 async function initEditor(path) {
   destroyEditor()
   if (!amapReady.value || !mapEl.value) return
@@ -200,6 +217,8 @@ async function initEditor(path) {
         fencePoints.value = points
       }
     })
+    const refs = await loadReferenceDistricts()
+    polygonEditor.setReferenceDistricts?.(refs)
   } catch (e) {
     amapReady.value = false
     fenceJsonText.value = JSON.stringify(fencePoints.value, null, 2)
