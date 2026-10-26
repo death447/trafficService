@@ -27,13 +27,21 @@ export function loadAmap() {
   return loading
 }
 
+/** 嘉兴市本级（南湖 / 秀洲市区）默认落点，GCJ-02 */
+export const JIAXING_MUNICIPAL_CENTER = [120.755486, 30.746849]
+export const JIAXING_MUNICIPAL_ZOOM = 13
+
 /**
  * 选点地图：定位 / 搜索 / 点击与拖拽标记 + 逆地理。
+ * 无初始坐标时默认打开嘉兴南湖区。
  * @returns {{ map, setMarker(lng, lat, address?), destroy() }}
  */
 export async function createPickerMap(container, { lng, lat, onPicked, searchInput } = {}) {
   const AMap = await loadAmap()
-  const map = new AMap.Map(container, { zoom: 5, center: [105, 35] })
+  const map = new AMap.Map(container, {
+    zoom: JIAXING_MUNICIPAL_ZOOM,
+    center: JIAXING_MUNICIPAL_CENTER
+  })
 
   let marker = null
   let geocoder = null
@@ -85,21 +93,8 @@ export async function createPickerMap(container, { lng, lat, onPicked, searchInp
   if (hasInitial) {
     map.setZoomAndCenter(13, [Number(lng), Number(lat)])
     setMarker(lng, lat)
-  } else {
-    const geolocation = new AMap.Geolocation({
-      enableHighAccuracy: true,
-      timeout: 10000
-    })
-    geolocation.getCurrentPosition((status, result) => {
-      if (status === 'complete' && result.position) {
-        const { lng: x, lat: y } = result.position
-        map.setZoomAndCenter(15, [x, y])
-        // 仅定位视图，不自动 onPicked
-      } else {
-        map.setZoomAndCenter(5, [105, 35])
-      }
-    })
   }
+  // 无初始坐标：保持嘉兴南湖默认视野（不再跳全国 / 浏览器定位）
 
   map.on('click', (e) => {
     const { lng: x, lat: y } = e.lnglat
@@ -164,10 +159,6 @@ export async function createPickerMap(container, { lng, lat, onPicked, searchInp
     }
   }
 }
-
-/** 嘉兴市本级（南湖 / 秀洲市区）默认落点，GCJ-02 */
-const JIAXING_MUNICIPAL_CENTER = [120.755486, 30.746849]
-const JIAXING_MUNICIPAL_ZOOM = 12
 
 function ringCentroid(ring) {
   if (!ring?.length) return null
