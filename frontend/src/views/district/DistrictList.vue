@@ -89,7 +89,7 @@
           <p v-else-if="!amapReady" class="hint">
             地图加载失败，请直接编辑下方 JSON 围栏（格式：[{"lng":…,"lat":…},…]）。
           </p>
-          <p v-else class="map-hint">点击地图追加顶点；可撤销或清空后重绘。</p>
+          <p v-else class="map-hint">灰色为其它启用片区（参考）；点击地图追加当前围栏顶点，可撤销或清空后重绘。</p>
           <div v-if="amapReady" ref="mapEl" class="map-box" />
           <label v-if="!amapReady" class="fence-json-label">
             围栏 JSON
