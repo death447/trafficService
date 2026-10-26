@@ -42,21 +42,17 @@
                 <span class="label">施救原因</span>
                 <strong>{{ order.rescueReason || '—' }}</strong>
               </div>
-              <div>
-                <span class="label">车牌号码</span>
-                <strong>{{ order.plateNo || '—' }}</strong>
-              </div>
-              <div>
-                <span class="label">车型</span>
-                <strong>{{ order.vehicleTypeName || '—' }}</strong>
-              </div>
-              <div>
-                <span class="label">当事人</span>
-                <strong>{{ order.partyName || '—' }}</strong>
-              </div>
-              <div>
-                <span class="label">联系方式</span>
-                <strong>{{ order.partyPhone || '—' }}</strong>
+              <div class="span-2">
+                <span class="label">事故车辆</span>
+                <ul v-if="displayAccidentVehicles.length" class="accident-vehicle-list">
+                  <li v-for="(av, idx) in displayAccidentVehicles" :key="av.id || idx">
+                    {{ av.plateNo || '—' }}
+                    · {{ av.vehicleTypeName || '未选车型' }}
+                    · {{ av.partyName || '—' }}
+                    · {{ av.partyPhone || '—' }}
+                  </li>
+                </ul>
+                <strong v-else>—</strong>
               </div>
               <div>
                 <span class="label">调度员</span>
@@ -140,32 +136,49 @@
             v-if="order.status === 'PENDING' || order.status === 'DISPATCHED' || order.status === 'ACCEPTED'"
           >
             <div v-if="order.status === 'PENDING'" class="panel edit-panel">
-              <h2 class="section-title">车牌、车型与当事人</h2>
-              <div class="edit-form">
-                <label>
-                  车牌号码
-                  <input v-model.trim="editForm.plateNo" placeholder="选填" maxlength="20" />
-                </label>
-                <label>
-                  车型
-                  <select v-model="editForm.vehicleTypeId">
-                    <option value="">不选择</option>
-                    <option v-for="t in editVehicleTypeOptions" :key="t.id" :value="String(t.id)">
-                      {{ t.name }}
-                    </option>
-                  </select>
-                </label>
-                <label>
-                  事故当事人
-                  <input v-model.trim="editForm.partyName" placeholder="选填" maxlength="50" />
-                </label>
-                <label>
-                  手机号码
-                  <input v-model.trim="editForm.partyPhone" placeholder="选填" maxlength="20" />
-                </label>
-                <button type="button" :disabled="savingEdit" @click="onSaveEdit">
-                  {{ savingEdit ? '保存中…' : '保存' }}
-                </button>
+              <h2 class="section-title">事故车辆</h2>
+              <div class="accident-edit">
+                <div
+                  v-for="(av, idx) in editAccidentVehicles"
+                  :key="idx"
+                  class="accident-edit-row"
+                >
+                  <label>
+                    车牌号码
+                    <input v-model.trim="av.plateNo" placeholder="必填" maxlength="20" />
+                  </label>
+                  <label>
+                    车型
+                    <select v-model="av.vehicleTypeId">
+                      <option value="">不选择</option>
+                      <option v-for="t in vehicleTypes" :key="t.id" :value="String(t.id)">
+                        {{ t.name }}
+                      </option>
+                    </select>
+                  </label>
+                  <label>
+                    事故当事人
+                    <input v-model.trim="av.partyName" placeholder="选填" maxlength="50" />
+                  </label>
+                  <label>
+                    手机号码
+                    <input v-model.trim="av.partyPhone" placeholder="选填" maxlength="20" />
+                  </label>
+                  <button
+                    type="button"
+                    class="secondary"
+                    :disabled="editAccidentVehicles.length <= 1"
+                    @click="removeEditAccidentVehicle(idx)"
+                  >
+                    删除
+                  </button>
+                </div>
+                <div class="accident-edit-actions">
+                  <button type="button" class="secondary" @click="addEditAccidentVehicle">添加车辆</button>
+                  <button type="button" :disabled="savingEdit" @click="onSaveEdit">
+                    {{ savingEdit ? '保存中…' : '保存' }}
+                  </button>
+                </div>
               </div>
               <p v-if="editError" class="error">{{ editError }}</p>
             </div>
@@ -453,28 +466,38 @@ const selectedVehicleId = ref(null)
 
 const vehicleTypes = ref([])
 
-const editVehicleTypeOptions = computed(() => {
-  const enabled = vehicleTypes.value
-  const currentId = editForm.vehicleTypeId
-  if (!currentId || enabled.some((t) => String(t.id) === currentId)) {
-    return enabled
-  }
-  const o = order.value
-  if (o?.vehicleTypeId != null && String(o.vehicleTypeId) === currentId && o.vehicleTypeName) {
-    return [{ id: o.vehicleTypeId, name: `${o.vehicleTypeName}（已停用）` }, ...enabled]
-  }
-  return enabled
-})
-
-const editForm = reactive({
-  plateNo: '',
-  vehicleTypeId: '',
-  partyName: '',
-  partyPhone: ''
-})
+const editAccidentVehicles = reactive([])
 const savingEdit = ref(false)
 const editError = ref('')
 const previewSrc = ref('')
+
+const displayAccidentVehicles = computed(() => {
+  const o = order.value
+  if (!o) return []
+  if (o.accidentVehicles?.length) return o.accidentVehicles
+  if (o.plateNo || o.partyName || o.partyPhone || o.vehicleTypeName) {
+    return [{
+      plateNo: o.plateNo,
+      vehicleTypeName: o.vehicleTypeName,
+      partyName: o.partyName,
+      partyPhone: o.partyPhone
+    }]
+  }
+  return []
+})
+
+function emptyEditAccidentVehicle() {
+  return { plateNo: '', vehicleTypeId: '', partyName: '', partyPhone: '' }
+}
+
+function addEditAccidentVehicle() {
+  editAccidentVehicles.push(emptyEditAccidentVehicle())
+}
+
+function removeEditAccidentVehicle(idx) {
+  if (editAccidentVehicles.length <= 1) return
+  editAccidentVehicles.splice(idx, 1)
+}
 
 const fieldRecord = computed(() => order.value?.fieldRecord || null)
 const evaluation = computed(() => order.value?.evaluation || null)
@@ -608,14 +631,44 @@ async function loadOrder() {
 function syncEditForm() {
   const o = order.value
   if (!o) return
-  editForm.plateNo = o.plateNo || ''
-  editForm.vehicleTypeId = o.vehicleTypeId != null ? String(o.vehicleTypeId) : ''
-  editForm.partyName = o.partyName || ''
-  editForm.partyPhone = o.partyPhone || ''
+  editAccidentVehicles.splice(0, editAccidentVehicles.length)
+  const rows = o.accidentVehicles?.length
+    ? o.accidentVehicles
+    : (o.plateNo || o.partyName || o.partyPhone || o.vehicleTypeId
+      ? [{
+          plateNo: o.plateNo,
+          vehicleTypeId: o.vehicleTypeId,
+          partyName: o.partyName,
+          partyPhone: o.partyPhone
+        }]
+      : [emptyEditAccidentVehicle()])
+  for (const av of rows) {
+    editAccidentVehicles.push({
+      plateNo: av.plateNo || '',
+      vehicleTypeId: av.vehicleTypeId != null ? String(av.vehicleTypeId) : '',
+      partyName: av.partyName || '',
+      partyPhone: av.partyPhone || ''
+    })
+  }
+  if (editAccidentVehicles.length === 0) {
+    editAccidentVehicles.push(emptyEditAccidentVehicle())
+  }
 }
 
 async function onSaveEdit() {
   if (!order.value) return
+  const vehiclesPayload = editAccidentVehicles
+    .map((av) => ({
+      plateNo: (av.plateNo || '').trim(),
+      vehicleTypeId: av.vehicleTypeId ? Number(av.vehicleTypeId) : null,
+      partyName: (av.partyName || '').trim() || null,
+      partyPhone: (av.partyPhone || '').trim() || null
+    }))
+    .filter((av) => av.plateNo)
+  if (vehiclesPayload.length === 0) {
+    editError.value = '请至少添加一辆事故车并填写车牌'
+    return
+  }
   savingEdit.value = true
   editError.value = ''
   try {
@@ -627,10 +680,7 @@ async function onSaveEdit() {
       dispatcherId: order.value.dispatcherId,
       vehicleId: order.value.vehicleId,
       rescuerId: order.value.rescuerId,
-      plateNo: editForm.plateNo || null,
-      vehicleTypeId: editForm.vehicleTypeId ? Number(editForm.vehicleTypeId) : null,
-      partyName: editForm.partyName || null,
-      partyPhone: editForm.partyPhone || null
+      accidentVehicles: vehiclesPayload
     })
     const res = await getDispatch(id.value)
     order.value = res.data
@@ -1257,24 +1307,41 @@ onBeforeUnmount(() => {
   box-shadow: 0 12px 40px rgba(15, 23, 42, 0.28);
 }
 
-.edit-form {
+.accident-vehicle-list {
+  margin: 0.25rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--text);
+  line-height: 1.55;
+}
+
+.accident-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.accident-edit-row {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem 1rem;
   align-items: flex-end;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #fafbfc;
 }
 
-.edit-form label {
+.accident-edit-row label {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
   font-size: 0.85rem;
   color: var(--text-secondary);
-  min-width: 160px;
+  min-width: 140px;
 }
 
-.edit-form input,
-.edit-form select {
+.accident-edit-row input,
+.accident-edit-row select {
   padding: 0.5rem 0.65rem;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
@@ -1282,6 +1349,12 @@ onBeforeUnmount(() => {
   font-size: 0.875rem;
   color: var(--text);
   background: #fff;
+}
+
+.accident-edit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
 }
 
 .map-box {

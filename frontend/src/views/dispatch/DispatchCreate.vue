@@ -15,27 +15,47 @@
     <form class="panel form-panel" @submit.prevent="onSubmit">
       <div class="create-layout">
         <div class="form-col">
-          <label>
-            车牌号码
-            <input v-model.trim="form.plateNo" placeholder="选填" maxlength="20" />
-          </label>
-          <label>
-            车型
-            <select v-model="form.vehicleTypeId">
-              <option value="">不选择</option>
-              <option v-for="t in vehicleTypes" :key="t.id" :value="String(t.id)">
-                {{ t.name }}
-              </option>
-            </select>
-          </label>
-          <label>
-            事故当事人
-            <input v-model.trim="form.partyName" placeholder="选填" maxlength="50" />
-          </label>
-          <label>
-            手机号码
-            <input v-model.trim="form.partyPhone" placeholder="选填" maxlength="20" />
-          </label>
+          <div class="accident-vehicles">
+            <div class="accident-vehicles-head">
+              <span class="accident-vehicles-title">事故车辆（至少 1 辆，车牌必填）</span>
+              <button type="button" class="secondary small" @click="addAccidentVehicle">添加车辆</button>
+            </div>
+            <div
+              v-for="(av, idx) in accidentVehicles"
+              :key="idx"
+              class="accident-vehicle-row"
+            >
+              <label>
+                车牌号码
+                <input v-model.trim="av.plateNo" required placeholder="必填" maxlength="20" />
+              </label>
+              <label>
+                车型
+                <select v-model="av.vehicleTypeId">
+                  <option value="">不选择</option>
+                  <option v-for="t in vehicleTypes" :key="t.id" :value="String(t.id)">
+                    {{ t.name }}
+                  </option>
+                </select>
+              </label>
+              <label>
+                事故当事人
+                <input v-model.trim="av.partyName" placeholder="选填" maxlength="50" />
+              </label>
+              <label>
+                手机号码
+                <input v-model.trim="av.partyPhone" placeholder="选填" maxlength="20" />
+              </label>
+              <button
+                type="button"
+                class="secondary small"
+                :disabled="accidentVehicles.length <= 1"
+                @click="removeAccidentVehicle(idx)"
+              >
+                删除
+              </button>
+            </div>
+          </div>
           <label>
             事故地点
             <input
@@ -122,12 +142,23 @@ const form = reactive({
   longitude: '',
   latitude: '',
   rescuerId: '',
-  vehicleId: '',
-  plateNo: '',
-  vehicleTypeId: '',
-  partyName: '',
-  partyPhone: ''
+  vehicleId: ''
 })
+
+function emptyAccidentVehicle() {
+  return { plateNo: '', vehicleTypeId: '', partyName: '', partyPhone: '' }
+}
+
+const accidentVehicles = reactive([emptyAccidentVehicle()])
+
+function addAccidentVehicle() {
+  accidentVehicles.push(emptyAccidentVehicle())
+}
+
+function removeAccidentVehicle(idx) {
+  if (accidentVehicles.length <= 1) return
+  accidentVehicles.splice(idx, 1)
+}
 
 const currentDispatcherLabel = computed(() => {
   const name = userStore.username || ''
@@ -346,6 +377,18 @@ async function onSubmit() {
     formError.value = '未获取到当前登录用户，请重新登录'
     return
   }
+  const vehiclesPayload = accidentVehicles
+    .map((av) => ({
+      plateNo: (av.plateNo || '').trim(),
+      vehicleTypeId: av.vehicleTypeId ? Number(av.vehicleTypeId) : null,
+      partyName: (av.partyName || '').trim() || null,
+      partyPhone: (av.partyPhone || '').trim() || null
+    }))
+    .filter((av) => av.plateNo)
+  if (vehiclesPayload.length === 0) {
+    formError.value = '请至少添加一辆事故车并填写车牌'
+    return
+  }
   saving.value = true
   try {
     const res = await createDispatch({
@@ -356,10 +399,7 @@ async function onSubmit() {
       dispatcherId: userStore.userId,
       rescuerId: toNullableId(form.rescuerId),
       vehicleId: toNullableId(form.vehicleId),
-      plateNo: form.plateNo || null,
-      vehicleTypeId: form.vehicleTypeId ? Number(form.vehicleTypeId) : null,
-      partyName: form.partyName || null,
-      partyPhone: form.partyPhone || null
+      accidentVehicles: vehiclesPayload
     })
     const id = res.data?.id
     if (id != null) {
@@ -428,6 +468,41 @@ onBeforeUnmount(() => {
   gap: 0.35rem;
   font-size: 0.85rem;
   color: var(--text-secondary);
+}
+
+.accident-vehicles {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.accident-vehicles-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.accident-vehicles-title {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.accident-vehicle-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #fafbfc;
+}
+
+button.small {
+  padding: 0.3rem 0.65rem;
+  font-size: 0.8rem;
+  align-self: flex-start;
 }
 
 .field-hint {
