@@ -7,6 +7,7 @@ DROP TABLE IF EXISTS `duty_schedule`;
 DROP TABLE IF EXISTS `district`;
 DROP TABLE IF EXISTS `dispatch_media`;
 DROP TABLE IF EXISTS `dispatch_field_record`;
+DROP TABLE IF EXISTS `dispatch_accident_vehicle`;
 DROP TABLE IF EXISTS `dispatch_vehicle_assignment`;
 DROP TABLE IF EXISTS `accident_vehicle_type`;
 DROP TABLE IF EXISTS `dispatch_order`;
@@ -160,6 +161,22 @@ CREATE TABLE `dispatch_vehicle_assignment` (
   KEY `idx_vehicle_status` (`vehicle_id`, `status`),
   KEY `idx_order_id` (`dispatch_order_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='工单-施救车赋值';
+
+CREATE TABLE `dispatch_accident_vehicle` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `dispatch_order_id` BIGINT NOT NULL,
+  `sort_order` INT NOT NULL DEFAULT 0,
+  `plate_no` VARCHAR(20) NOT NULL,
+  `vehicle_type_id` BIGINT DEFAULT NULL,
+  `vehicle_type_name` VARCHAR(50) DEFAULT NULL,
+  `party_name` VARCHAR(50) DEFAULT NULL,
+  `party_phone` VARCHAR(20) DEFAULT NULL,
+  `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_order_id` (`dispatch_order_id`),
+  KEY `idx_plate_no` (`plate_no`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='工单事故车辆';
 
 CREATE TABLE `accident_vehicle_type` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
