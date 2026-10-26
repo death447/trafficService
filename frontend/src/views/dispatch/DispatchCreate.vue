@@ -70,19 +70,43 @@
             调度员
             <input type="text" :value="currentDispatcherLabel" readonly class="readonly-input" />
           </label>
-          <label>
+          <label class="vehicle-pick">
             救援车辆
-            <select v-model="form.vehicleId">
-              <option value="">暂不指定</option>
-              <option v-for="v in idleVehicles" :key="v.id" :value="String(v.id)">
-                {{ vehicleDisplay(v) }}
-              </option>
-            </select>
+            <div class="vehicle-pick-toolbar">
+              <button
+                type="button"
+                class="linkish"
+                :disabled="!selectedVehicleIds.length"
+                @click="clearSelectedVehicles"
+              >
+                清空已选
+              </button>
+              <span class="field-hint">可选多辆；保存时立即派单。不选则仅建待派工单。</span>
+            </div>
+            <ul class="vehicle-check-list">
+              <li v-for="v in selectableVehicles" :key="v.id">
+                <label>
+                  <input
+                    type="checkbox"
+                    :checked="isVehicleSelected(v.id)"
+                    @change="toggleVehicle(v.id)"
+                  />
+                  {{ vehicleDisplay(v) }}
+                </label>
+              </li>
+            </ul>
             <span v-if="nearbyHint" class="field-hint">{{ nearbyHint }}</span>
           </label>
           <label>
             施救员
-            <input type="text" :value="boundRescuerLabel" readonly class="readonly-input" />
+            <div v-if="!selectedVehicleIds.length" class="readonly-input rescuer-empty">
+              请先选择救援车辆
+            </div>
+            <ul v-else class="rescuer-summary">
+              <li v-for="row in selectedVehicleSummaries" :key="row.id">
+                {{ row.plate }} → {{ row.rescuer }}
+              </li>
+            </ul>
           </label>
           <label>
             施救原因
@@ -99,7 +123,7 @@
         <div class="map-col">
           <div v-if="amapReady" class="map-wrap">
             <p class="map-hint">
-              输入地址回车或地图选点定位事故；定位后地图会标注附近空闲车辆，点击标记可选车
+              输入地址回车或地图选点定位事故；定位后地图会标注附近可派车辆，点击标记可多选/取消
             </p>
             <div ref="mapEl" class="map-box" />
           </div>
@@ -142,10 +166,25 @@ const form = reactive({
   rescueReason: '',
   accidentAddress: '',
   longitude: '',
-  latitude: '',
-  rescuerId: '',
-  vehicleId: ''
+  latitude: ''
 })
+
+const selectedVehicleIds = ref([])
+
+function toggleVehicle(id) {
+  const s = String(id)
+  const i = selectedVehicleIds.value.indexOf(s)
+  if (i >= 0) selectedVehicleIds.value.splice(i, 1)
+  else selectedVehicleIds.value.push(s)
+}
+
+function clearSelectedVehicles() {
+  selectedVehicleIds.value = []
+}
+
+function isVehicleSelected(id) {
+  return selectedVehicleIds.value.includes(String(id))
+}
 
 function emptyAccidentVehicle() {
   return { plateNo: '', vehicleTypeId: '', partyName: '', partyPhone: '' }
@@ -176,64 +215,72 @@ const distanceByVehicleId = computed(() => {
   return map
 })
 
-/** Vehicle ids that already have DISPATCHED/ACCEPTED assignments (from nearby payload). */
-const busyNearbyIds = computed(() => {
-  const ids = new Set()
-  for (const item of [...nearbyFresh.value, ...nearbyStale.value]) {
-    if (item?.hasActiveAssignment && item.vehicle?.id != null) {
-      ids.add(item.vehicle.id)
-    }
-  }
-  return ids
-})
+/** ids known to have active assignment (nearby flag or BUSY status) */
+function isBusyVehicle(v, nearbyItem) {
+  if (nearbyItem?.hasActiveAssignment) return true
+  if (v?.status === 'BUSY') return true
+  return false
+}
 
-/** IDLE and not already on an active dispatch: nearby distance order first, then the rest */
-const idleVehicles = computed(() => {
+/**
+ * 可选车辆：空闲 + 已有进行中派单（BUSY）均可选；
+ * 附近距离优先，空闲排前、已派单靠后。
+ */
+const selectableVehicles = computed(() => {
   const byId = new Map(
     vehicles.value
-      .filter((v) => v.status === 'IDLE' && !busyNearbyIds.value.has(v.id))
+      .filter((v) => v.status === 'IDLE' || v.status === 'BUSY')
       .map((v) => [v.id, v])
   )
+  // merge vehicles only seen in nearby (status may be BUSY)
+  for (const item of [...nearbyFresh.value, ...nearbyStale.value]) {
+    const v = item.vehicle
+    if (v?.id != null && !byId.has(v.id) && v.status !== 'OFFLINE') {
+      byId.set(v.id, v)
+    }
+  }
   const ordered = []
   const seen = new Set()
-  for (const item of [...nearbyFresh.value, ...nearbyStale.value]) {
-    if (item?.hasActiveAssignment) continue
+  const nearbyOrdered = [...nearbyFresh.value, ...nearbyStale.value].sort((a, b) => {
+    const aBusy = a.hasActiveAssignment ? 1 : 0
+    const bBusy = b.hasActiveAssignment ? 1 : 0
+    if (aBusy !== bBusy) return aBusy - bBusy
+    const ad = a.distanceMeters
+    const bd = b.distanceMeters
+    if (ad == null && bd == null) return 0
+    if (ad == null) return 1
+    if (bd == null) return -1
+    return ad - bd
+  })
+  for (const item of nearbyOrdered) {
     const id = item.vehicle?.id
     if (id == null || seen.has(id) || !byId.has(id)) continue
     ordered.push(byId.get(id))
     seen.add(id)
   }
-  for (const v of byId.values()) {
-    if (!seen.has(v.id)) ordered.push(v)
-  }
+  // remaining: idle first, then busy
+  const rest = [...byId.values()].filter((v) => !seen.has(v.id))
+  rest.sort((a, b) => {
+    const aBusy = a.status === 'BUSY' ? 1 : 0
+    const bBusy = b.status === 'BUSY' ? 1 : 0
+    return aBusy - bBusy
+  })
+  ordered.push(...rest)
   return ordered
 })
 
-const selectedVehicle = computed(() => {
-  if (!form.vehicleId) return null
-  return idleVehicles.value.find((v) => String(v.id) === form.vehicleId) || null
+const selectedVehicleSummaries = computed(() => {
+  return selectedVehicleIds.value.map((id) => {
+    const v = selectableVehicles.value.find((x) => String(x.id) === id)
+    if (!v) return { id, plate: `#${id}`, rescuer: '—' }
+    const rescuer =
+      v.driverName ||
+      (v.driverUserId != null ? `用户#${v.driverUserId}` : '该车辆未绑定施救员')
+    return { id, plate: v.plateNo || `#${id}`, rescuer }
+  })
 })
 
-const boundRescuerLabel = computed(() => {
-  const v = selectedVehicle.value
-  if (!form.vehicleId) return '请先选择救援车辆'
-  if (!v) return '—'
-  if (v.driverUserId == null) return '该车辆未绑定施救员'
-  if (v.driverName) return v.driverName
-  return `用户#${v.driverUserId}`
-})
-
-watch(
-  () => form.vehicleId,
-  (id) => {
-    if (!id) {
-      form.rescuerId = ''
-      return
-    }
-    const v = idleVehicles.value.find((item) => String(item.id) === id)
-    form.rescuerId = v?.driverUserId != null ? String(v.driverUserId) : ''
-  }
-)
+watch(selectedVehicleIds, () => syncVehicleMarkers(), { deep: true })
 
 function formatDistance(meters) {
   if (meters == null || Number.isNaN(Number(meters))) return '距离未知'
@@ -248,7 +295,11 @@ function vehicleDisplay(v) {
   const dist = distanceByVehicleId.value.get(v.id)
   const distPart =
     form.longitude !== '' && form.latitude !== '' ? ` · ${formatDistance(dist)}` : ''
-  return `${v.plateNo}（空闲 · ${driver}${distPart}）`
+  const nearbyItem = [...nearbyFresh.value, ...nearbyStale.value].find(
+    (i) => i.vehicle?.id === v.id
+  )
+  const statusPart = isBusyVehicle(v, nearbyItem) ? '任务中' : '空闲'
+  return `${v.plateNo}（${statusPart} · ${driver}${distPart}）`
 }
 
 function clearVehicleMarkers() {
@@ -265,10 +316,11 @@ function syncVehicleMarkers() {
   const AMap = window.AMap
   const icon = createVehicleMapIcon(AMap)
   for (const item of [...nearbyFresh.value, ...nearbyStale.value]) {
-    if (item?.hasActiveAssignment) continue
     const v = item.vehicle
     if (v?.longitude == null || v?.latitude == null) continue
-    if (v.status && v.status !== 'IDLE') continue
+    if (v.status === 'OFFLINE') continue
+    const busy = isBusyVehicle(v, item)
+    const selected = isVehicleSelected(v.id)
     const marker = new AMap.Marker({
       position: [Number(v.longitude), Number(v.latitude)],
       map,
@@ -276,13 +328,13 @@ function syncVehicleMarkers() {
       offset: new AMap.Pixel(-22, -18),
       title: v.plateNo || '',
       label: {
-        content: `${v.plateNo || ''} ${formatDistance(item.distanceMeters)}`,
+        content: `${selected ? '✓ ' : ''}${v.plateNo || ''}${busy ? '（任务中）' : ''} ${formatDistance(item.distanceMeters)}`,
         direction: 'top',
         offset: new AMap.Pixel(0, -4)
       }
     })
     marker.on('click', () => {
-      form.vehicleId = String(v.id)
+      toggleVehicle(v.id)
     })
     vehicleMarkers.push(marker)
   }
@@ -317,23 +369,12 @@ async function refreshNearby() {
       nearbyHint.value = '暂无实时定位车辆，已按历史坐标标注可派车辆'
     }
     syncVehicleMarkers()
-    // 若当前所选车已在进行中派单，清空选择
-    if (form.vehicleId && busyNearbyIds.value.has(Number(form.vehicleId))) {
-      form.vehicleId = ''
-      form.rescuerId = ''
-    }
   } catch (e) {
     nearbyFresh.value = []
     nearbyStale.value = []
     clearVehicleMarkers()
     nearbyHint.value = e?.response?.data?.message || e?.message || '加载附近车辆失败'
   }
-}
-
-function toNullableId(value) {
-  if (value === '' || value == null) return null
-  const n = Number(value)
-  return Number.isNaN(n) ? null : n
 }
 
 function goBack() {
@@ -343,12 +384,19 @@ function goBack() {
 async function loadLookups() {
   lookupError.value = ''
   try {
-    const res = await listVehicles({ status: 'IDLE', page: 1, size: 100 })
-    vehicles.value = res.data?.list || []
+    const [idleRes, busyRes] = await Promise.all([
+      listVehicles({ status: 'IDLE', page: 1, size: 100 }),
+      listVehicles({ status: 'BUSY', page: 1, size: 100 })
+    ])
+    const byId = new Map()
+    for (const v of [...(idleRes.data?.list || []), ...(busyRes.data?.list || [])]) {
+      byId.set(v.id, v)
+    }
+    vehicles.value = [...byId.values()]
   } catch (e) {
     vehicles.value = []
     lookupError.value =
-      e?.response?.data?.message || e?.message || '加载空闲车辆失败'
+      e?.response?.data?.message || e?.message || '加载可派车辆失败'
   }
 }
 
@@ -422,8 +470,9 @@ async function onSubmit() {
       longitude: lng,
       latitude: lat,
       dispatcherId: userStore.userId,
-      rescuerId: toNullableId(form.rescuerId),
-      vehicleId: toNullableId(form.vehicleId),
+      vehicleIds: selectedVehicleIds.value
+        .map((id) => Number(id))
+        .filter((n) => !Number.isNaN(n)),
       accidentVehicles: vehiclesPayload
     })
     const id = res.data?.id
@@ -538,6 +587,76 @@ button.small {
   font-size: 0.75rem;
   color: var(--text-secondary);
   line-height: 1.35;
+}
+
+.vehicle-pick-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+button.linkish {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--accent, #1a6fb5);
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+button.linkish:disabled {
+  color: var(--text-secondary);
+  cursor: default;
+  text-decoration: none;
+}
+
+.vehicle-check-list {
+  list-style: none;
+  margin: 0;
+  padding: 0.35rem 0.5rem;
+  max-height: 12rem;
+  overflow: auto;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: #fff;
+}
+
+.vehicle-check-list li label {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.45rem;
+  font-size: 0.8rem;
+  color: var(--text);
+  cursor: pointer;
+  padding: 0.25rem 0;
+}
+
+.vehicle-check-list input[type='checkbox'] {
+  margin-top: 0.15rem;
+  flex-shrink: 0;
+}
+
+.rescuer-empty {
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+}
+
+.rescuer-summary {
+  list-style: none;
+  margin: 0;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-muted);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.rescuer-summary li + li {
+  margin-top: 0.25rem;
 }
 
 .form-col input,
