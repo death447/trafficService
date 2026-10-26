@@ -7,6 +7,7 @@ import com.example.backend.dto.RateTaskRequest;
 import com.example.backend.entity.DispatchMedia;
 import com.example.backend.entity.DispatchOrder;
 import com.example.backend.entity.DispatchOrderEvaluation;
+import com.example.backend.mapper.DispatchAccidentVehicleMapper;
 import com.example.backend.mapper.DispatchFieldRecordMapper;
 import com.example.backend.mapper.DispatchMediaMapper;
 import com.example.backend.mapper.DispatchOrderEvaluationMapper;
@@ -28,6 +29,8 @@ public class PoliceMobileService {
 
     @Autowired
     private DispatchOrderMapper dispatchOrderMapper;
+    @Autowired
+    private DispatchAccidentVehicleMapper accidentVehicleMapper;
     @Autowired
     private DispatchFieldRecordMapper fieldRecordMapper;
     @Autowired
@@ -51,6 +54,8 @@ public class PoliceMobileService {
         if (order == null) {
             throw new RuntimeException("工单不存在");
         }
+        var accidentVehicles = accidentVehicleMapper.findByOrderId(id);
+        order.setAccidentVehicles(accidentVehicles == null ? List.of() : accidentVehicles);
         PoliceTaskDetail detail = new PoliceTaskDetail();
         detail.setOrder(order);
         detail.setFieldRecord(fieldRecordMapper.findByOrderId(id));

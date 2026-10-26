@@ -14,6 +14,7 @@ import com.example.backend.entity.DispatchOrder;
 import com.example.backend.entity.DispatchVehicleAssignment;
 import com.example.backend.entity.RescueVehicle;
 import com.example.backend.entity.User;
+import com.example.backend.mapper.DispatchAccidentVehicleMapper;
 import com.example.backend.mapper.DispatchFieldRecordMapper;
 import com.example.backend.mapper.DispatchMediaMapper;
 import com.example.backend.mapper.DispatchOrderEvaluationMapper;
@@ -45,6 +46,9 @@ public class RescuerMobileService {
 
     @Autowired
     private DispatchVehicleAssignmentMapper assignmentMapper;
+
+    @Autowired
+    private DispatchAccidentVehicleMapper accidentVehicleMapper;
 
     @Autowired
     private DispatchFieldRecordMapper fieldRecordMapper;
@@ -96,6 +100,8 @@ public class RescuerMobileService {
             throw new RuntimeException("工单不存在");
         }
         projectAssignmentOntoOrder(order, assignment);
+        var accidentVehicles = accidentVehicleMapper.findByOrderId(orderId);
+        order.setAccidentVehicles(accidentVehicles == null ? List.of() : accidentVehicles);
         RescuerTaskDetail detail = new RescuerTaskDetail();
         detail.setOrder(order);
         DispatchFieldRecord fr = fieldRecordMapper.findByAssignmentId(assignment.getId());

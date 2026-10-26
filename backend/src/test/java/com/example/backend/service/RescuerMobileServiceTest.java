@@ -35,6 +35,7 @@ class RescuerMobileServiceTest {
 
     @Mock DispatchOrderMapper dispatchOrderMapper;
     @Mock DispatchVehicleAssignmentMapper assignmentMapper;
+    @Mock com.example.backend.mapper.DispatchAccidentVehicleMapper accidentVehicleMapper;
     @Mock DispatchFieldRecordMapper fieldRecordMapper;
     @Mock DispatchMediaMapper mediaMapper;
     @Mock DispatchOrderEvaluationMapper evaluationMapper;
