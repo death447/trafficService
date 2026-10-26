@@ -111,6 +111,7 @@ public class DispatchOrderService {
 
     @Transactional
     public boolean create(DispatchOrder order, Long currentUserId) {
+        List<Long> toAssign = resolveVehicleIdsToAssign(order);
         order.setOrderNo(generateOrderNo());
         order.setStatus("PENDING");
         applyDispatcherAndPrefill(order, currentUserId);
@@ -125,7 +126,36 @@ public class DispatchOrderService {
         }
         replaceAccidentVehicles(order.getId(), vehicles);
         order.setAccidentVehicles(vehicles);
+        if (!toAssign.isEmpty()) {
+            assign(order.getId(), toAssign);
+            DispatchOrder latest = dispatchOrderMapper.findById(order.getId());
+            if (latest != null) {
+                order.setStatus(latest.getStatus());
+                order.setVehicleId(latest.getVehicleId());
+                order.setRescuerId(latest.getRescuerId());
+                order.setDispatchedAt(latest.getDispatchedAt());
+            }
+        }
         return true;
+    }
+
+    /** Merge vehicleId + vehicleIds, clear prefill columns so insert stays clean. */
+    List<Long> resolveVehicleIdsToAssign(DispatchOrder order) {
+        LinkedHashSet<Long> ids = new LinkedHashSet<>();
+        if (order.getVehicleIds() != null) {
+            for (Long id : order.getVehicleIds()) {
+                if (id != null) {
+                    ids.add(id);
+                }
+            }
+        }
+        if (order.getVehicleId() != null) {
+            ids.add(order.getVehicleId());
+        }
+        order.setVehicleId(null);
+        order.setRescuerId(null);
+        order.setVehicleIds(null);
+        return new ArrayList<>(ids);
     }
 
     @Transactional
@@ -279,10 +309,9 @@ public class DispatchOrderService {
         Long dispatcherId = order.getDispatcherId() != null ? order.getDispatcherId() : currentUserId;
         assertHasRole(dispatcherId, "DISPATCHER", "ADMIN");
         order.setDispatcherId(dispatcherId);
-
+        // create 时车辆改由 resolveVehicleIdsToAssign + assign；update 仍可带 vehicleId 镜像
         if (order.getVehicleId() != null) {
-            RescueVehicle vehicle = rescueVehicleService.requirePrefillable(order.getVehicleId());
-            // 施救员由车辆绑定关系带出，不允许单独指定；预填不建赋值、不占车
+            RescueVehicle vehicle = rescueVehicleService.requireAssignable(order.getVehicleId());
             order.setRescuerId(vehicle.getDriverUserId());
         }
         if (order.getRescuerId() != null) {

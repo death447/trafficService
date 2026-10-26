@@ -24,9 +24,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -108,37 +111,195 @@ class DispatchOrderServiceTest {
     }
 
     @Test
-    void createKeepsPendingAndPrefillsWithoutMarkBusy() {
+    void createWithNoVehiclesStaysPending() {
         DispatchOrder order = new DispatchOrder();
-        order.setAccidentAddress("测试路");
-        order.setRescueReason("追尾");
-        order.setPlateNo("粤B00001");
-        order.setDispatcherId(2L);
-        order.setRescuerId(999L); // client-sent value should be overwritten by vehicle driver
-        order.setVehicleId(1L);
+        order.setAccidentAddress("???");
+        order.setRescueReason("??");
+        order.setPlateNo("?B00001");
         Role d = new Role(); d.setRoleCode("DISPATCHER");
-        Role t = new Role(); t.setRoleCode("TOW_DRIVER");
-        when(userMapper.findRolesByUserId(2L)).thenReturn(List.of(d));
-        when(userMapper.findRolesByUserId(3L)).thenReturn(List.of(t));
-        RescueVehicle v = new RescueVehicle();
-        v.setId(1L);
-        v.setStatus("IDLE");
-        v.setDriverUserId(3L);
-        when(rescueVehicleService.requirePrefillable(1L)).thenReturn(v);
+        when(userMapper.findRolesByUserId(7L)).thenReturn(List.of(d));
         when(dispatchOrderMapper.insert(any())).thenAnswer(inv -> {
             DispatchOrder o = inv.getArgument(0);
             o.setId(1L);
             return 1;
         });
 
-        assertTrue(service.create(order, 99L));
+        assertTrue(service.create(order, 7L));
         assertEquals("PENDING", order.getStatus());
-        assertEquals(2L, order.getDispatcherId());
-        assertEquals(3L, order.getRescuerId());
-        assertEquals(1L, order.getVehicleId());
+        assertNull(order.getVehicleId());
+        assertNull(order.getRescuerId());
+        verify(assignmentMapper, never()).insert(any());
         verify(rescueVehicleService, never()).markBusy(any());
-        verify(dispatchOrderMapper).insert(order);
-        verify(accidentVehicleMapper).insert(any(DispatchAccidentVehicle.class));
+    }
+
+    @Test
+    void createWithVehicleIdsAssignsAll() {
+        DispatchOrder order = new DispatchOrder();
+        order.setAccidentAddress("???");
+        order.setRescueReason("??");
+        order.setPlateNo("?B00001");
+        order.setVehicleIds(List.of(1L, 2L));
+        Role d = new Role(); d.setRoleCode("DISPATCHER");
+        Role t = new Role(); t.setRoleCode("TOW_DRIVER");
+        when(userMapper.findRolesByUserId(7L)).thenReturn(List.of(d));
+        when(userMapper.findRolesByUserId(3L)).thenReturn(List.of(t));
+        when(userMapper.findRolesByUserId(4L)).thenReturn(List.of(t));
+        RescueVehicle v1 = new RescueVehicle();
+        v1.setId(1L); v1.setStatus("IDLE"); v1.setDriverUserId(3L);
+        RescueVehicle v2 = new RescueVehicle();
+        v2.setId(2L); v2.setStatus("BUSY"); v2.setDriverUserId(4L);
+        when(rescueVehicleService.requireAssignable(1L)).thenReturn(v1);
+        when(rescueVehicleService.requireAssignable(2L)).thenReturn(v2);
+        when(dispatchOrderMapper.insert(any())).thenAnswer(inv -> {
+            DispatchOrder o = inv.getArgument(0);
+            o.setId(10L);
+            assertNull(o.getVehicleId());
+            return 1;
+        });
+        when(dispatchOrderMapper.findById(10L)).thenAnswer(inv -> {
+            DispatchOrder o = new DispatchOrder();
+            o.setId(10L);
+            o.setStatus(order.getStatus() != null ? order.getStatus() : "PENDING");
+            o.setVehicleId(order.getVehicleId());
+            o.setRescuerId(order.getRescuerId());
+            o.setDispatchedAt(order.getDispatchedAt());
+            return o;
+        });
+        when(assignmentMapper.countByOrderIdAndVehicleId(eq(10L), anyLong())).thenReturn(0);
+        when(assignmentMapper.insert(any())).thenAnswer(inv -> {
+            DispatchVehicleAssignment a = inv.getArgument(0);
+            a.setId(a.getVehicleId());
+            return 1;
+        });
+        when(assignmentMapper.findByOrderId(10L)).thenAnswer(inv -> {
+            List<DispatchVehicleAssignment> list = new ArrayList<>();
+            DispatchVehicleAssignment a1 = new DispatchVehicleAssignment();
+            a1.setId(1L); a1.setDispatchOrderId(10L); a1.setVehicleId(1L);
+            a1.setRescuerId(3L); a1.setStatus("DISPATCHED");
+            DispatchVehicleAssignment a2 = new DispatchVehicleAssignment();
+            a2.setId(2L); a2.setDispatchOrderId(10L); a2.setVehicleId(2L);
+            a2.setRescuerId(4L); a2.setStatus("DISPATCHED");
+            list.add(a1);
+            list.add(a2);
+            return list;
+        });
+        when(dispatchOrderMapper.update(any())).thenAnswer(inv -> {
+            DispatchOrder o = inv.getArgument(0);
+            order.setStatus(o.getStatus());
+            order.setVehicleId(o.getVehicleId());
+            order.setRescuerId(o.getRescuerId());
+            order.setDispatchedAt(o.getDispatchedAt());
+            return 1;
+        });
+
+        assertTrue(service.create(order, 7L));
+        verify(assignmentMapper, times(2)).insert(any());
+        verify(rescueVehicleService).markBusy(1L);
+        verify(rescueVehicleService).markBusy(2L);
+        assertEquals("DISPATCHED", order.getStatus());
+        // refreshOrderStatus mirrors first active assignment onto order columns
+        assertEquals(1L, order.getVehicleId());
+        assertEquals(3L, order.getRescuerId());
+    }
+
+    @Test
+    void createMergesVehicleIdIntoVehicleIds() {
+        DispatchOrder order = new DispatchOrder();
+        order.setAccidentAddress("A");
+        order.setRescueReason("B");
+        order.setPlateNo("?B00002");
+        order.setVehicleId(1L);
+        order.setVehicleIds(List.of(1L, 2L));
+        Role d = new Role(); d.setRoleCode("DISPATCHER");
+        Role t = new Role(); t.setRoleCode("TOW_DRIVER");
+        when(userMapper.findRolesByUserId(7L)).thenReturn(List.of(d));
+        when(userMapper.findRolesByUserId(3L)).thenReturn(List.of(t));
+        when(userMapper.findRolesByUserId(4L)).thenReturn(List.of(t));
+        RescueVehicle v1 = new RescueVehicle();
+        v1.setId(1L); v1.setStatus("IDLE"); v1.setDriverUserId(3L);
+        RescueVehicle v2 = new RescueVehicle();
+        v2.setId(2L); v2.setStatus("IDLE"); v2.setDriverUserId(4L);
+        when(rescueVehicleService.requireAssignable(1L)).thenReturn(v1);
+        when(rescueVehicleService.requireAssignable(2L)).thenReturn(v2);
+        when(dispatchOrderMapper.insert(any())).thenAnswer(inv -> {
+            DispatchOrder o = inv.getArgument(0);
+            o.setId(11L);
+            return 1;
+        });
+        when(dispatchOrderMapper.findById(11L)).thenAnswer(inv -> {
+            DispatchOrder o = new DispatchOrder();
+            o.setId(11L);
+            o.setStatus(order.getStatus() != null ? order.getStatus() : "PENDING");
+            o.setVehicleId(order.getVehicleId());
+            o.setRescuerId(order.getRescuerId());
+            o.setDispatchedAt(order.getDispatchedAt());
+            return o;
+        });
+        when(assignmentMapper.countByOrderIdAndVehicleId(eq(11L), anyLong())).thenReturn(0);
+        when(assignmentMapper.insert(any())).thenAnswer(inv -> {
+            DispatchVehicleAssignment a = inv.getArgument(0);
+            a.setId(a.getVehicleId());
+            return 1;
+        });
+        when(assignmentMapper.findByOrderId(11L)).thenAnswer(inv -> {
+            List<DispatchVehicleAssignment> list = new ArrayList<>();
+            for (Long vid : List.of(1L, 2L)) {
+                DispatchVehicleAssignment a = new DispatchVehicleAssignment();
+                a.setVehicleId(vid);
+                a.setStatus("DISPATCHED");
+                list.add(a);
+            }
+            return list;
+        });
+        when(dispatchOrderMapper.update(any())).thenAnswer(inv -> {
+            DispatchOrder o = inv.getArgument(0);
+            order.setStatus(o.getStatus());
+            order.setVehicleId(o.getVehicleId());
+            order.setRescuerId(o.getRescuerId());
+            return 1;
+        });
+
+        assertTrue(service.create(order, 7L));
+        verify(assignmentMapper, times(2)).insert(any());
+    }
+
+    @Test
+    void createWithBadVehicleDoesNotLeavePartialAssign() {
+        DispatchOrder order = new DispatchOrder();
+        order.setAccidentAddress("A");
+        order.setRescueReason("B");
+        order.setPlateNo("?B00003");
+        order.setVehicleIds(List.of(1L, 99L));
+        Role d = new Role(); d.setRoleCode("DISPATCHER");
+        Role t = new Role(); t.setRoleCode("TOW_DRIVER");
+        when(userMapper.findRolesByUserId(7L)).thenReturn(List.of(d));
+        when(userMapper.findRolesByUserId(3L)).thenReturn(List.of(t));
+        RescueVehicle v1 = new RescueVehicle();
+        v1.setId(1L); v1.setStatus("IDLE"); v1.setDriverUserId(3L);
+        when(rescueVehicleService.requireAssignable(1L)).thenReturn(v1);
+        when(rescueVehicleService.requireAssignable(99L))
+                .thenThrow(new RuntimeException("?????"));
+        when(dispatchOrderMapper.insert(any())).thenAnswer(inv -> {
+            DispatchOrder o = inv.getArgument(0);
+            o.setId(12L);
+            return 1;
+        });
+        when(dispatchOrderMapper.findById(12L)).thenAnswer(inv -> {
+            DispatchOrder o = new DispatchOrder();
+            o.setId(12L);
+            o.setStatus("PENDING");
+            return o;
+        });
+        when(assignmentMapper.countByOrderIdAndVehicleId(eq(12L), anyLong())).thenReturn(0);
+        when(assignmentMapper.insert(any())).thenAnswer(inv -> {
+            DispatchVehicleAssignment a = inv.getArgument(0);
+            a.setId(1L);
+            return 1;
+        });
+        when(assignmentMapper.findByOrderId(12L)).thenReturn(List.of());
+        when(dispatchOrderMapper.update(any())).thenReturn(1);
+
+        assertThrows(RuntimeException.class, () -> service.create(order, 7L));
     }
 
     @Test
@@ -291,17 +452,23 @@ class DispatchOrderServiceTest {
     }
 
     @Test
-    void createRejectsInvalidRescuerRole() {
+    void createIgnoresClientRescuerWithoutVehicles() {
         DispatchOrder order = new DispatchOrder();
         order.setAccidentAddress("A");
         order.setRescueReason("B");
-        order.setPlateNo("粤B00006");
+        order.setPlateNo("?B00006");
         order.setRescuerId(3L);
         Role d = new Role(); d.setRoleCode("DISPATCHER");
         when(userMapper.findRolesByUserId(7L)).thenReturn(List.of(d));
-        Role bad = new Role(); bad.setRoleCode("ADMIN");
-        when(userMapper.findRolesByUserId(3L)).thenReturn(List.of(bad));
-        assertThrows(RuntimeException.class, () -> service.create(order, 7L));
+        when(dispatchOrderMapper.insert(any())).thenAnswer(inv -> {
+            DispatchOrder o = inv.getArgument(0);
+            o.setId(1L);
+            return 1;
+        });
+        assertTrue(service.create(order, 7L));
+        assertEquals("PENDING", order.getStatus());
+        assertNull(order.getRescuerId());
+        verify(userMapper, never()).findRolesByUserId(3L);
     }
 
     @Test
@@ -309,11 +476,23 @@ class DispatchOrderServiceTest {
         DispatchOrder order = new DispatchOrder();
         order.setAccidentAddress("A");
         order.setRescueReason("B");
-        order.setPlateNo("粤B00007");
+        order.setPlateNo("?B00007");
         order.setVehicleId(404L);
         Role d = new Role(); d.setRoleCode("DISPATCHER");
         when(userMapper.findRolesByUserId(7L)).thenReturn(List.of(d));
-        when(rescueVehicleService.requirePrefillable(404L)).thenThrow(new RuntimeException("车辆不存在"));
+        when(dispatchOrderMapper.insert(any())).thenAnswer(inv -> {
+            DispatchOrder o = inv.getArgument(0);
+            o.setId(13L);
+            return 1;
+        });
+        when(dispatchOrderMapper.findById(13L)).thenAnswer(inv -> {
+            DispatchOrder o = new DispatchOrder();
+            o.setId(13L);
+            o.setStatus("PENDING");
+            return o;
+        });
+        when(assignmentMapper.countByOrderIdAndVehicleId(13L, 404L)).thenReturn(0);
+        when(rescueVehicleService.requireAssignable(404L)).thenThrow(new RuntimeException("?????"));
         assertThrows(RuntimeException.class, () -> service.create(order, 7L));
     }
 
@@ -322,13 +501,25 @@ class DispatchOrderServiceTest {
         DispatchOrder order = new DispatchOrder();
         order.setAccidentAddress("A");
         order.setRescueReason("B");
-        order.setPlateNo("粤B00008");
+        order.setPlateNo("?B00008");
         order.setVehicleId(1L);
         Role d = new Role(); d.setRoleCode("DISPATCHER");
         when(userMapper.findRolesByUserId(7L)).thenReturn(List.of(d));
-        when(rescueVehicleService.requirePrefillable(1L)).thenThrow(new RuntimeException("车辆已离线，无法派单"));
+        when(dispatchOrderMapper.insert(any())).thenAnswer(inv -> {
+            DispatchOrder o = inv.getArgument(0);
+            o.setId(14L);
+            return 1;
+        });
+        when(dispatchOrderMapper.findById(14L)).thenAnswer(inv -> {
+            DispatchOrder o = new DispatchOrder();
+            o.setId(14L);
+            o.setStatus("PENDING");
+            return o;
+        });
+        when(assignmentMapper.countByOrderIdAndVehicleId(14L, 1L)).thenReturn(0);
+        when(rescueVehicleService.requireAssignable(1L)).thenThrow(new RuntimeException("??????????"));
         RuntimeException ex = assertThrows(RuntimeException.class, () -> service.create(order, 7L));
-        assertTrue(ex.getMessage().contains("离线"));
+        assertTrue(ex.getMessage().contains("??"));
     }
 
     @Test
@@ -348,7 +539,7 @@ class DispatchOrderServiceTest {
         v.setId(1L);
         v.setStatus("IDLE");
         v.setDriverUserId(3L);
-        when(rescueVehicleService.requirePrefillable(1L)).thenReturn(v);
+        when(rescueVehicleService.requireAssignable(1L)).thenReturn(v);
 
         DispatchOrder patch = new DispatchOrder();
         patch.setId(9L);
@@ -535,7 +726,7 @@ class DispatchOrderServiceTest {
         v.setId(1L);
         v.setStatus("IDLE");
         v.setDriverUserId(3L);
-        when(rescueVehicleService.requirePrefillable(1L)).thenReturn(v);
+        when(rescueVehicleService.requireAssignable(1L)).thenReturn(v);
 
         DispatchOrder patch = new DispatchOrder();
         patch.setId(9L);

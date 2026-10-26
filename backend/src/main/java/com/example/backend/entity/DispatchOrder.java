@@ -45,4 +45,6 @@ public class DispatchOrder {
     private DispatchOrderEvaluation evaluation;
     private List<DispatchVehicleAssignment> assignments;
     private List<DispatchAccidentVehicle> accidentVehicles;
+    /** Request-only: vehicles to assign on create. Not a DB column. */
+    private List<Long> vehicleIds;
 }
