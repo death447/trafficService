@@ -176,14 +176,28 @@ const distanceByVehicleId = computed(() => {
   return map
 })
 
-/** IDLE vehicles: nearby distance order first, then the rest */
+/** Vehicle ids that already have DISPATCHED/ACCEPTED assignments (from nearby payload). */
+const busyNearbyIds = computed(() => {
+  const ids = new Set()
+  for (const item of [...nearbyFresh.value, ...nearbyStale.value]) {
+    if (item?.hasActiveAssignment && item.vehicle?.id != null) {
+      ids.add(item.vehicle.id)
+    }
+  }
+  return ids
+})
+
+/** IDLE and not already on an active dispatch: nearby distance order first, then the rest */
 const idleVehicles = computed(() => {
   const byId = new Map(
-    vehicles.value.filter((v) => v.status === 'IDLE').map((v) => [v.id, v])
+    vehicles.value
+      .filter((v) => v.status === 'IDLE' && !busyNearbyIds.value.has(v.id))
+      .map((v) => [v.id, v])
   )
   const ordered = []
   const seen = new Set()
   for (const item of [...nearbyFresh.value, ...nearbyStale.value]) {
+    if (item?.hasActiveAssignment) continue
     const id = item.vehicle?.id
     if (id == null || seen.has(id) || !byId.has(id)) continue
     ordered.push(byId.get(id))
@@ -251,8 +265,10 @@ function syncVehicleMarkers() {
   const AMap = window.AMap
   const icon = createVehicleMapIcon(AMap)
   for (const item of [...nearbyFresh.value, ...nearbyStale.value]) {
+    if (item?.hasActiveAssignment) continue
     const v = item.vehicle
     if (v?.longitude == null || v?.latitude == null) continue
+    if (v.status && v.status !== 'IDLE') continue
     const marker = new AMap.Marker({
       position: [Number(v.longitude), Number(v.latitude)],
       map,
@@ -301,6 +317,11 @@ async function refreshNearby() {
       nearbyHint.value = '暂无实时定位车辆，已按历史坐标标注可派车辆'
     }
     syncVehicleMarkers()
+    // 若当前所选车已在进行中派单，清空选择
+    if (form.vehicleId && busyNearbyIds.value.has(Number(form.vehicleId))) {
+      form.vehicleId = ''
+      form.rescuerId = ''
+    }
   } catch (e) {
     nearbyFresh.value = []
     nearbyStale.value = []

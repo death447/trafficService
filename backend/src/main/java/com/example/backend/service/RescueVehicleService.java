@@ -83,6 +83,15 @@ public class RescueVehicleService {
         return vehicle;
     }
 
+    /** Prefill on create/edit: assignable and must not already have an active assignment. */
+    public RescueVehicle requirePrefillable(Long id) {
+        RescueVehicle vehicle = requireAssignable(id);
+        if (assignmentMapper.countActiveByVehicleId(id) > 0) {
+            throw new RuntimeException("该车辆已有进行中的派单，无法选择");
+        }
+        return vehicle;
+    }
+
     public List<RescueVehicle> findAll() {
         return vehicleMapper.findAll().stream()
                 .peek(this::enrichDriver)

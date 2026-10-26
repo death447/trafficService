@@ -124,7 +124,7 @@ class DispatchOrderServiceTest {
         v.setId(1L);
         v.setStatus("IDLE");
         v.setDriverUserId(3L);
-        when(rescueVehicleService.requireAssignable(1L)).thenReturn(v);
+        when(rescueVehicleService.requirePrefillable(1L)).thenReturn(v);
         when(dispatchOrderMapper.insert(any())).thenAnswer(inv -> {
             DispatchOrder o = inv.getArgument(0);
             o.setId(1L);
@@ -313,7 +313,7 @@ class DispatchOrderServiceTest {
         order.setVehicleId(404L);
         Role d = new Role(); d.setRoleCode("DISPATCHER");
         when(userMapper.findRolesByUserId(7L)).thenReturn(List.of(d));
-        when(rescueVehicleService.requireAssignable(404L)).thenThrow(new RuntimeException("车辆不存在"));
+        when(rescueVehicleService.requirePrefillable(404L)).thenThrow(new RuntimeException("车辆不存在"));
         assertThrows(RuntimeException.class, () -> service.create(order, 7L));
     }
 
@@ -326,7 +326,7 @@ class DispatchOrderServiceTest {
         order.setVehicleId(1L);
         Role d = new Role(); d.setRoleCode("DISPATCHER");
         when(userMapper.findRolesByUserId(7L)).thenReturn(List.of(d));
-        when(rescueVehicleService.requireAssignable(1L)).thenThrow(new RuntimeException("车辆已离线，无法派单"));
+        when(rescueVehicleService.requirePrefillable(1L)).thenThrow(new RuntimeException("车辆已离线，无法派单"));
         RuntimeException ex = assertThrows(RuntimeException.class, () -> service.create(order, 7L));
         assertTrue(ex.getMessage().contains("离线"));
     }
@@ -348,7 +348,7 @@ class DispatchOrderServiceTest {
         v.setId(1L);
         v.setStatus("IDLE");
         v.setDriverUserId(3L);
-        when(rescueVehicleService.requireAssignable(1L)).thenReturn(v);
+        when(rescueVehicleService.requirePrefillable(1L)).thenReturn(v);
 
         DispatchOrder patch = new DispatchOrder();
         patch.setId(9L);
@@ -535,7 +535,7 @@ class DispatchOrderServiceTest {
         v.setId(1L);
         v.setStatus("IDLE");
         v.setDriverUserId(3L);
-        when(rescueVehicleService.requireAssignable(1L)).thenReturn(v);
+        when(rescueVehicleService.requirePrefillable(1L)).thenReturn(v);
 
         DispatchOrder patch = new DispatchOrder();
         patch.setId(9L);

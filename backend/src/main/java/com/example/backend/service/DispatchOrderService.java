@@ -281,7 +281,7 @@ public class DispatchOrderService {
         order.setDispatcherId(dispatcherId);
 
         if (order.getVehicleId() != null) {
-            RescueVehicle vehicle = rescueVehicleService.requireAssignable(order.getVehicleId());
+            RescueVehicle vehicle = rescueVehicleService.requirePrefillable(order.getVehicleId());
             // 施救员由车辆绑定关系带出，不允许单独指定；预填不建赋值、不占车
             order.setRescuerId(vehicle.getDriverUserId());
         }
