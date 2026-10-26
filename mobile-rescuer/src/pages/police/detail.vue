@@ -7,9 +7,17 @@
       </view>
       <view class="line">事故地址：{{ order.accidentAddress || '-' }}</view>
       <view class="line">救援事由：{{ order.rescueReason || '-' }}</view>
-      <view class="line">事故车牌：{{ order.plateNo || '-' }}</view>
-      <view class="line">事故联系人：{{ order.partyName || '-' }}</view>
-      <view class="line">联系方式：{{ order.partyPhone || '-' }}</view>
+      <view class="section-title" style="margin-top: 8px">事故车辆</view>
+      <view
+        v-for="(av, idx) in accidentVehicleRows"
+        :key="av.id || idx"
+        class="line"
+      >
+        {{ av.plateNo || '-' }}
+        · {{ av.vehicleTypeName || '未选车型' }}
+        · {{ av.partyName || '-' }}
+        · {{ av.partyPhone || '-' }}
+      </view>
       <view class="line">派单时间：{{ formatTime(order.dispatchedAt) }}</view>
       <view class="line">接单时间：{{ formatTime(order.acceptedAt) }}</view>
       <view class="line" v-if="order.checkedInAt">
@@ -146,6 +154,20 @@ const hasAccidentCoords = computed(
 )
 const canShowMap = computed(() => amapReady && hasAccidentCoords.value)
 const canRate = computed(() => canRatePoliceTask(order.value?.status, !!evaluation.value))
+const accidentVehicleRows = computed(() => {
+  const o = order.value
+  if (!o) return []
+  if (o.accidentVehicles?.length) return o.accidentVehicles
+  if (o.plateNo || o.partyName || o.partyPhone || o.vehicleTypeName) {
+    return [{
+      plateNo: o.plateNo,
+      vehicleTypeName: o.vehicleTypeName,
+      partyName: o.partyName,
+      partyPhone: o.partyPhone
+    }]
+  }
+  return [{ plateNo: '-', vehicleTypeName: '-', partyName: '-', partyPhone: '-' }]
+})
 
 function statusText(s) {
   const map = {

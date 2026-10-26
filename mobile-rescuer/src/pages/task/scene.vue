@@ -89,8 +89,9 @@ async function load() {
       form.damageDesc = fr.damageDesc || ''
       form.sceneRemark = fr.sceneRemark || ''
     } else {
-      form.plateNo = order?.plateNo || ''
-      form.vehicleType = order?.vehicleTypeName || ''
+      const first = order?.accidentVehicles?.[0] || order
+      form.plateNo = first?.plateNo || ''
+      form.vehicleType = first?.vehicleTypeName || ''
       form.damageDesc = fr?.damageDesc || ''
       form.sceneRemark = fr?.sceneRemark || ''
     }
