@@ -22,6 +22,7 @@ public interface DispatchAccidentVehicleMapper {
 
     @Select("SELECT a.* FROM dispatch_accident_vehicle a "
             + "INNER JOIN dispatch_order o ON o.id = a.dispatch_order_id "
-            + "WHERE o.status IN ('PENDING','DISPATCHED','ACCEPTED')")
+            + "WHERE o.status IN ('PENDING','DISPATCHED','ACCEPTED') "
+            + "ORDER BY o.id DESC, a.sort_order ASC, a.id ASC")
     List<DispatchAccidentVehicle> findAllOnActiveOrders();
 }

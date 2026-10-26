@@ -6,12 +6,14 @@ import com.example.backend.dto.DetainInRequest;
 import com.example.backend.dto.DetainUpdateRequest;
 import com.example.backend.entity.DetainMedia;
 import com.example.backend.entity.DetainedVehicle;
+import com.example.backend.entity.DispatchAccidentVehicle;
 import com.example.backend.entity.DispatchMedia;
 import com.example.backend.entity.DispatchOrder;
 import com.example.backend.entity.ParkingArea;
 import com.example.backend.entity.ParkingLot;
 import com.example.backend.mapper.DetainMediaMapper;
 import com.example.backend.mapper.DetainedVehicleMapper;
+import com.example.backend.mapper.DispatchAccidentVehicleMapper;
 import com.example.backend.mapper.DispatchMediaMapper;
 import com.example.backend.mapper.DispatchOrderMapper;
 import com.example.backend.mapper.ParkingLotMapper;
@@ -53,6 +55,9 @@ public class DetainedVehicleService {
     private DispatchOrderMapper dispatchOrderMapper;
 
     @Autowired
+    private DispatchAccidentVehicleMapper accidentVehicleMapper;
+
+    @Autowired
     private DetainMediaMapper detainMediaMapper;
 
     @Autowired
@@ -75,30 +80,35 @@ public class DetainedVehicleService {
         if (needle.length() < 2) {
             throw new RuntimeException("请输入车牌");
         }
-        List<DispatchOrder> rows = dispatchOrderMapper.findActiveWithPlate();
+        List<DispatchAccidentVehicle> vehicles = accidentVehicleMapper.findAllOnActiveOrders();
         List<ActiveDispatchSummary> out = new ArrayList<>();
-        for (DispatchOrder row : rows) {
-            if (needle.equals(PlateNos.normalize(row.getPlateNo()))) {
-                ActiveDispatchSummary s = new ActiveDispatchSummary();
-                s.setId(row.getId());
-                s.setOrderNo(row.getOrderNo());
-                s.setStatus(row.getStatus());
-                s.setPlateNo(row.getPlateNo());
-                s.setVehicleTypeName(row.getVehicleTypeName());
-                s.setAccidentAddress(row.getAccidentAddress());
-                s.setCheckedInAt(row.getCheckedInAt());
-                List<String> paths = new ArrayList<>();
-                List<DispatchMedia> medias = dispatchMediaMapper.findByOrderIdAndBizType(row.getId(), "DAMAGE");
-                if (medias != null) {
-                    for (DispatchMedia m : medias) {
-                        if (m != null && m.getFilePath() != null && !m.getFilePath().isBlank()) {
-                            paths.add(m.getFilePath());
-                        }
+        for (DispatchAccidentVehicle av : vehicles) {
+            if (!needle.equals(PlateNos.normalize(av.getPlateNo()))) {
+                continue;
+            }
+            DispatchOrder row = dispatchOrderMapper.findById(av.getDispatchOrderId());
+            if (row == null) {
+                continue;
+            }
+            ActiveDispatchSummary s = new ActiveDispatchSummary();
+            s.setId(row.getId());
+            s.setOrderNo(row.getOrderNo());
+            s.setStatus(row.getStatus());
+            s.setPlateNo(av.getPlateNo());
+            s.setVehicleTypeName(av.getVehicleTypeName());
+            s.setAccidentAddress(row.getAccidentAddress());
+            s.setCheckedInAt(row.getCheckedInAt());
+            List<String> paths = new ArrayList<>();
+            List<DispatchMedia> medias = dispatchMediaMapper.findByOrderIdAndBizType(row.getId(), "DAMAGE");
+            if (medias != null) {
+                for (DispatchMedia m : medias) {
+                    if (m != null && m.getFilePath() != null && !m.getFilePath().isBlank()) {
+                        paths.add(m.getFilePath());
                     }
                 }
-                s.setDamagePhotoPaths(paths);
-                out.add(s);
             }
+            s.setDamagePhotoPaths(paths);
+            out.add(s);
         }
         return out;
     }

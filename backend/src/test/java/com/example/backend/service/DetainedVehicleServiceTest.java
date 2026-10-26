@@ -5,11 +5,13 @@ import com.example.backend.dto.DetainInRequest;
 import com.example.backend.dto.DetainUpdateRequest;
 import com.example.backend.entity.DetainMedia;
 import com.example.backend.entity.DetainedVehicle;
+import com.example.backend.entity.DispatchAccidentVehicle;
 import com.example.backend.entity.DispatchMedia;
 import com.example.backend.entity.DispatchOrder;
 import com.example.backend.entity.ParkingLot;
 import com.example.backend.mapper.DetainMediaMapper;
 import com.example.backend.mapper.DetainedVehicleMapper;
+import com.example.backend.mapper.DispatchAccidentVehicleMapper;
 import com.example.backend.mapper.DispatchMediaMapper;
 import com.example.backend.mapper.DispatchOrderMapper;
 import org.junit.jupiter.api.Test;
@@ -31,6 +33,7 @@ class DetainedVehicleServiceTest {
     @Mock ParkingLotService parkingLotService;
     @Mock ParkingAreaService parkingAreaService;
     @Mock DispatchOrderMapper dispatchOrderMapper;
+    @Mock DispatchAccidentVehicleMapper accidentVehicleMapper;
     @Mock DetainMediaMapper detainMediaMapper;
     @Mock DispatchMediaMapper dispatchMediaMapper;
     @Mock LocalFileStorageService fileStorageService;
@@ -159,16 +162,18 @@ class DetainedVehicleServiceTest {
         RuntimeException ex = assertThrows(RuntimeException.class,
                 () -> service.listActiveOrdersByPlate(" ·A. "));
         assertEquals("请输入车牌", ex.getMessage());
-        verify(dispatchOrderMapper, never()).findActiveWithPlate();
+        verify(accidentVehicleMapper, never()).findAllOnActiveOrders();
     }
 
     @Test
     void listActiveOrdersMatchesNormalizedPlateNewestFirst() {
-        when(dispatchOrderMapper.findActiveWithPlate()).thenReturn(List.of(
-                order(3L, "ACCEPTED", "粤B12345"),
-                order(2L, "PENDING", "粤b·12345"),
-                order(1L, "DISPATCHED", "粤A00000")
+        when(accidentVehicleMapper.findAllOnActiveOrders()).thenReturn(List.of(
+                accidentVehicle(3L, "粤B12345", "小型汽车"),
+                accidentVehicle(2L, "粤b·12345", "小型汽车"),
+                accidentVehicle(1L, "粤A00000", "小型汽车")
         ));
+        when(dispatchOrderMapper.findById(3L)).thenReturn(order(3L, "ACCEPTED", "粤B12345"));
+        when(dispatchOrderMapper.findById(2L)).thenReturn(order(2L, "PENDING", "粤b·12345"));
 
         List<ActiveDispatchSummary> list = service.listActiveOrdersByPlate(" 粤B.12345 ");
 
@@ -179,24 +184,43 @@ class DetainedVehicleServiceTest {
     }
 
     @Test
+    void listActiveOrdersMatchesSecondAccidentVehiclePlate() {
+        when(accidentVehicleMapper.findAllOnActiveOrders()).thenReturn(List.of(
+                accidentVehicle(10L, "粤B11111", "轿车"),
+                accidentVehicle(10L, "粤B22222", "货车")
+        ));
+        DispatchOrder row = order(10L, "DISPATCHED", "粤B11111");
+        row.setVehicleTypeName("轿车");
+        when(dispatchOrderMapper.findById(10L)).thenReturn(row);
+
+        List<ActiveDispatchSummary> list = service.listActiveOrdersByPlate("粤B22222");
+
+        assertEquals(1, list.size());
+        assertEquals(10L, list.get(0).getId());
+        assertEquals("粤B22222", list.get(0).getPlateNo());
+        assertEquals("货车", list.get(0).getVehicleTypeName());
+    }
+
+    @Test
     void listActiveOrdersReturnsEmptyWhenNoMatch() {
-        when(dispatchOrderMapper.findActiveWithPlate()).thenReturn(List.of(
-                order(1L, "PENDING", "粤A1")
+        when(accidentVehicleMapper.findAllOnActiveOrders()).thenReturn(List.of(
+                accidentVehicle(1L, "粤A1", "小型汽车")
         ));
         assertTrue(service.listActiveOrdersByPlate("粤B99999").isEmpty());
+        verify(dispatchOrderMapper, never()).findById(any());
     }
 
     @Test
     void listActiveOrdersIncludesCheckinAndDamagePathsNotPark() {
         DispatchOrder row = order(3L, "ACCEPTED", "粤B12345");
         row.setCheckedInAt(LocalDateTime.of(2026, 9, 9, 16, 38, 15));
-        when(dispatchOrderMapper.findActiveWithPlate()).thenReturn(List.of(row));
+        when(accidentVehicleMapper.findAllOnActiveOrders()).thenReturn(List.of(
+                accidentVehicle(3L, "粤B12345", "小型汽车")
+        ));
+        when(dispatchOrderMapper.findById(3L)).thenReturn(row);
         DispatchMedia dmg = new DispatchMedia();
         dmg.setFilePath("dispatch/3/a.jpg");
         dmg.setBizType("DAMAGE");
-        DispatchMedia park = new DispatchMedia();
-        park.setFilePath("dispatch/3/p.jpg");
-        park.setBizType("PARK");
         when(dispatchMediaMapper.findByOrderIdAndBizType(3L, "DAMAGE")).thenReturn(List.of(dmg));
 
         List<ActiveDispatchSummary> list = service.listActiveOrdersByPlate("粤B12345");
@@ -208,9 +232,10 @@ class DetainedVehicleServiceTest {
 
     @Test
     void listActiveOrdersNullCheckinAndEmptyPhotos() {
-        when(dispatchOrderMapper.findActiveWithPlate()).thenReturn(List.of(
-                order(2L, "PENDING", "粤B12345")
+        when(accidentVehicleMapper.findAllOnActiveOrders()).thenReturn(List.of(
+                accidentVehicle(2L, "粤B12345", "小型汽车")
         ));
+        when(dispatchOrderMapper.findById(2L)).thenReturn(order(2L, "PENDING", "粤B12345"));
         when(dispatchMediaMapper.findByOrderIdAndBizType(2L, "DAMAGE")).thenReturn(List.of());
 
         ActiveDispatchSummary s = service.listActiveOrdersByPlate("粤B12345").get(0);
@@ -416,6 +441,14 @@ class DetainedVehicleServiceTest {
         o.setVehicleTypeName("小型汽车");
         o.setAccidentAddress("测试路" + id);
         return o;
+    }
+
+    private static DispatchAccidentVehicle accidentVehicle(long orderId, String plate, String typeName) {
+        DispatchAccidentVehicle v = new DispatchAccidentVehicle();
+        v.setDispatchOrderId(orderId);
+        v.setPlateNo(plate);
+        v.setVehicleTypeName(typeName);
+        return v;
     }
 
     private static DetainedVehicle inYard(Long id, String plate) {
