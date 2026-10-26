@@ -245,7 +245,8 @@ export async function createPolygonEditor(container, { path = [], onChange } = {
         fillColor: '#6b7280',
         fillOpacity: 0.32,
         zIndex: 10,
-        bubble: false,
+        // 点击需落到地图上才能继续加点（参考层不可挡住）
+        bubble: true,
         clickable: false
       })
       refPolygons.push(poly)
@@ -259,6 +260,8 @@ export async function createPolygonEditor(container, { path = [], onChange } = {
           position: [center.lng, center.lat],
           map,
           zIndex: 11,
+          bubble: true,
+          clickable: false,
           style: {
             'background-color': 'rgba(255,255,255,0.92)',
             border: '1px solid #4b5563',
@@ -267,7 +270,8 @@ export async function createPolygonEditor(container, { path = [], onChange } = {
             'font-size': '13px',
             'font-weight': '600',
             color: '#1f2937',
-            'white-space': 'nowrap'
+            'white-space': 'nowrap',
+            'pointer-events': 'none'
           }
         })
         refTexts.push(text)
@@ -289,7 +293,10 @@ export async function createPolygonEditor(container, { path = [], onChange } = {
         strokeColor: '#1f6fa8',
         fillColor: '#3aa0df',
         fillOpacity: 0.25,
-        zIndex: 20
+        zIndex: 20,
+        // 围栏闭合后内部仍要能点地图追加顶点
+        bubble: true,
+        clickable: false
       })
     } else {
       polygon.setPath(pathLL)
@@ -311,6 +318,7 @@ export async function createPolygonEditor(container, { path = [], onChange } = {
     setPath: apply,
     setReferenceDistricts,
     clearReferenceDistricts,
+    fitReferenceView,
     undo() {
       if (!polygon) return
       const current = polygon.getPath().map((ll) => ({ lng: ll.lng, lat: ll.lat }))
