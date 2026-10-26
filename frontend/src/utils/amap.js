@@ -169,6 +169,17 @@ export async function createPickerMap(container, { lng, lat, onPicked, searchInp
 const JIAXING_MUNICIPAL_CENTER = [120.755486, 30.746849]
 const JIAXING_MUNICIPAL_ZOOM = 12
 
+function ringCentroid(ring) {
+  if (!ring?.length) return null
+  let lng = 0
+  let lat = 0
+  for (const p of ring) {
+    lng += Number(p.lng)
+    lat += Number(p.lat)
+  }
+  return { lng: lng / ring.length, lat: lat / ring.length }
+}
+
 /** 多边形围栏编辑：点击追加顶点；无 Key 时由页面用 textarea 编辑 JSON */
 export async function createPolygonEditor(container, { path = [], onChange } = {}) {
   const AMap = await loadAmap()
@@ -177,6 +188,66 @@ export async function createPolygonEditor(container, { path = [], onChange } = {
     center: JIAXING_MUNICIPAL_CENTER
   })
   let polygon
+  const refPolygons = []
+  const refTexts = []
+
+  const clearReferenceDistricts = () => {
+    if (refPolygons.length) {
+      map.remove(refPolygons)
+      refPolygons.length = 0
+    }
+    if (refTexts.length) {
+      map.remove(refTexts)
+      refTexts.length = 0
+    }
+  }
+
+  const setReferenceDistricts = (items = []) => {
+    clearReferenceDistricts()
+    for (const item of items) {
+      const ring = item?.path
+      if (!Array.isArray(ring) || ring.length < 3) continue
+      const pathLL = ring.map((p) => [p.lng, p.lat])
+      const poly = new AMap.Polygon({
+        path: pathLL,
+        map,
+        strokeWeight: 1,
+        strokeColor: '#888888',
+        fillColor: '#999999',
+        fillOpacity: 0.12,
+        zIndex: 10,
+        bubble: false,
+        clickable: false
+      })
+      refPolygons.push(poly)
+      const center = ringCentroid(ring)
+      const label = item?.name != null && String(item.name).trim() !== ''
+        ? String(item.name).trim()
+        : ''
+      if (center && label) {
+        const text = new AMap.Text({
+          text: label,
+          position: [center.lng, center.lat],
+          map,
+          zIndex: 11,
+          style: {
+            'background-color': 'rgba(255,255,255,0.85)',
+            border: '1px solid #bbb',
+            'border-radius': '2px',
+            padding: '1px 4px',
+            'font-size': '12px',
+            color: '#555',
+            'white-space': 'nowrap'
+          }
+        })
+        refTexts.push(text)
+      }
+    }
+    if (!polygon && refPolygons.length) {
+      map.setFitView(refPolygons)
+    }
+  }
+
   const apply = (ring, { fitView = false } = {}) => {
     const pathLL = ring.map((p) => [p.lng, p.lat])
     if (!polygon) {
@@ -186,7 +257,8 @@ export async function createPolygonEditor(container, { path = [], onChange } = {
         strokeWeight: 2,
         strokeColor: '#1f6fa8',
         fillColor: '#3aa0df',
-        fillOpacity: 0.25
+        fillOpacity: 0.25,
+        zIndex: 20
       })
     } else {
       polygon.setPath(pathLL)
@@ -206,6 +278,8 @@ export async function createPolygonEditor(container, { path = [], onChange } = {
   return {
     map,
     setPath: apply,
+    setReferenceDistricts,
+    clearReferenceDistricts,
     undo() {
       if (!polygon) return
       const current = polygon.getPath().map((ll) => ({ lng: ll.lng, lat: ll.lat }))
@@ -227,6 +301,7 @@ export async function createPolygonEditor(container, { path = [], onChange } = {
       onChange?.([])
     },
     destroy() {
+      clearReferenceDistricts()
       if (map && typeof map.destroy === 'function') map.destroy()
     }
   }
