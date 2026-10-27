@@ -72,3 +72,28 @@ export function deleteMedia(id, mediaId) {
 export function completeTask(id) {
   return request({ url: `${PREFIX}/tasks/${id}/complete`, method: 'POST' })
 }
+
+export function listRescuerParkingLots() {
+  return request({ url: `${PREFIX}/parking-lots` })
+}
+
+export function listRescuerParkingAreas(lotId) {
+  return request({ url: `${PREFIX}/parking-lots/${lotId}/areas` })
+}
+
+export function detainInTask(id, data) {
+  return request({ url: `${PREFIX}/tasks/${id}/detain-in`, method: 'POST', data })
+}
+
+export function getTaskDetain(id) {
+  return request({ url: `${PREFIX}/tasks/${id}/detain` })
+}
+
+export function uploadDetainPhoto(detainId, filePath) {
+  return uploadFile({
+    url: `${PREFIX}/detain/${detainId}/media`,
+    filePath,
+    name: 'file',
+    formData: { bizType: 'PARK' }
+  })
+}
