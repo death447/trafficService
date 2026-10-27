@@ -44,11 +44,12 @@
       </label>
       <label>
         扣留部门
-        <input
-          v-model.trim="filters.detainDept"
-          placeholder="部门关键词"
-          @keyup.enter="onQuery"
-        />
+        <select v-model="filters.detainDept">
+          <option value="">全部</option>
+          <option v-for="item in enabledDetainDepts" :key="item.id" :value="item.name">
+            {{ item.name }}
+          </option>
+        </select>
       </label>
       <div class="filter-actions">
         <button type="button" @click="onQuery">查询</button>
@@ -214,7 +215,12 @@
         </label>
         <label>
           扣留部门
-          <input v-model.trim="form.detainDept" />
+          <select v-model="form.detainDept">
+            <option value="">未填</option>
+            <option v-for="name in formDetainDeptOptions" :key="name" :value="name">
+              {{ name }}
+            </option>
+          </select>
         </label>
         <label>
           施救人员
@@ -231,7 +237,12 @@
         </label>
         <label>
           施救方式
-          <input v-model.trim="form.rescueMethod" />
+          <select v-model="form.rescueMethod">
+            <option value="">未填</option>
+            <option v-for="name in formRescueMethodOptions" :key="name" :value="name">
+              {{ name }}
+            </option>
+          </select>
         </label>
         <label>
           施救时间
@@ -276,6 +287,7 @@ import {
   listDetainMedia
 } from '../../api/detain'
 import { listParkings, listParkingAreas } from '../../api/parking'
+import { listEnabledDict } from '../../api/dict'
 import PaginationBar from '../../components/PaginationBar.vue'
 
 const vehicles = ref([])
@@ -318,6 +330,9 @@ const form = reactive({
   rescueAddress: '',
   remark: ''
 })
+const enabledDetainDepts = ref([])
+const enabledRescueMethods = ref([])
+
 const formAreas = ref([])
 const formMedias = ref([])
 
@@ -343,6 +358,23 @@ const formParkingOptions = computed(() => {
   }
   const current = parkingLots.value.find((lot) => String(lot.id) === currentId)
   return current ? [current, ...enabled] : enabled
+})
+
+/** Edit: include the record's current text even if it is not in the dictionary. */
+const formDetainDeptOptions = computed(() => {
+  const names = enabledDetainDepts.value.map((row) => row.name)
+  if (form.detainDept && !names.includes(form.detainDept)) {
+    return [form.detainDept, ...names]
+  }
+  return names
+})
+
+const formRescueMethodOptions = computed(() => {
+  const names = enabledRescueMethods.value.map((row) => row.name)
+  if (form.rescueMethod && !names.includes(form.rescueMethod)) {
+    return [form.rescueMethod, ...names]
+  }
+  return names
 })
 
 function statusLabel(status) {
@@ -454,6 +486,20 @@ async function loadParkings() {
     parkingLots.value = res.data?.list || []
   } catch {
     parkingLots.value = []
+  }
+}
+
+async function loadDictOptions() {
+  try {
+    const [deptRes, methodRes] = await Promise.all([
+      listEnabledDict('DETAIN_DEPT'),
+      listEnabledDict('RESCUE_METHOD')
+    ])
+    enabledDetainDepts.value = deptRes.data || []
+    enabledRescueMethods.value = methodRes.data || []
+  } catch {
+    enabledDetainDepts.value = []
+    enabledRescueMethods.value = []
   }
 }
 
@@ -576,6 +622,7 @@ async function onClear(row) {
 
 onMounted(async () => {
   await loadParkings()
+  await loadDictOptions()
   await loadList()
 })
 </script>
