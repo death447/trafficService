@@ -77,12 +77,6 @@
       "style": { "navigationBarTitleText": "任务评价" }
     },
     {
-      "path": "pages/detain/checkin",
-      "style": {
-        "navigationBarTitleText": "入库"
-      }
-    },
-    {
       "path": "pages/detain/detail",
       "style": {
         "navigationBarTitleText": "扣车详情"

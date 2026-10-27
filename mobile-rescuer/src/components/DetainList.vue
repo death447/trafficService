@@ -2,7 +2,6 @@
   <view>
     <view class="header">
       <view class="btn-ghost" @click="goScan">扫码</view>
-      <view v-if="canAdd" class="btn-primary" @click="goCheckin">入库</view>
     </view>
 
     <view class="card filters">
@@ -19,7 +18,7 @@
 
     <view v-if="loading && !list.length" class="muted center">加载中…</view>
     <view v-else-if="loadFailed && !list.length" class="muted center">加载失败</view>
-    <view v-else-if="!list.length" class="muted center">暂无在库车辆，可点右上角入库</view>
+    <view v-else-if="!list.length" class="muted center">暂无在库车辆</view>
     <view v-else>
       <view class="card item" v-for="item in list" :key="item.id" @click="goDetail(item.id)">
         <view class="row-between">
@@ -39,7 +38,6 @@
 <script setup>
 import { onMounted, onUnmounted, ref } from 'vue'
 import { listDetains } from '../api/detain'
-import { getUserState } from '../stores/user'
 import { confirmInputValue, normalizeHangtagText } from '../utils/workspace.js'
 
 const PAGE_SIZE = 10
@@ -51,22 +49,13 @@ const total = ref(0)
 const list = ref([])
 const loading = ref(false)
 const loadFailed = ref(false)
-const canAdd = ref(false)
 
 function formatTime(value) {
   if (!value) return '-'
   return String(value).replace('T', ' ').slice(0, 19)
 }
 
-function refreshPerms() {
-  const perms = getUserState().permissions || []
-  canAdd.value = perms.includes('detain:add')
-}
-
-refreshPerms()
-
 async function load(append = false) {
-  refreshPerms()
   loading.value = true
   try {
     const params = { page: page.value, size: PAGE_SIZE, status: 'IN_YARD' }
@@ -120,10 +109,6 @@ function onQuery() {
 
 function goScan() {
   uni.navigateTo({ url: '/pages/detain/scan' })
-}
-
-function goCheckin() {
-  uni.navigateTo({ url: '/pages/detain/checkin' })
 }
 
 function goDetail(id) {
