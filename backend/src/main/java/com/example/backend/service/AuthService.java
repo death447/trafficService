@@ -4,6 +4,7 @@ import com.example.backend.dto.LoginRequest;
 import com.example.backend.dto.LoginResponse;
 import com.example.backend.dto.MeResponse;
 import com.example.backend.dto.RescuerProfileUpdateRequest;
+import com.example.backend.entity.Permission;
 import com.example.backend.entity.Role;
 import com.example.backend.entity.User;
 import com.example.backend.mapper.UserMapper;
@@ -74,13 +75,20 @@ public class AuthService {
         return toMe(user);
     }
 
-    private static MeResponse toMe(User user) {
+    private MeResponse toMe(User user) {
+        List<String> permissions = userMapper.findPermissionsByUserId(user.getId()).stream()
+                .map(Permission::getPermissionCode)
+                .collect(Collectors.toList());
+        List<String> roles = userMapper.findRolesByUserId(user.getId()).stream()
+                .map(Role::getRoleCode).collect(Collectors.toList());
         return MeResponse.builder()
                 .id(user.getId())
                 .username(user.getUsername())
                 .realName(user.getRealName())
                 .phone(user.getPhone())
                 .email(user.getEmail())
+                .permissions(permissions)
+                .roles(roles)
                 .build();
     }
 }

@@ -167,13 +167,18 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from './stores/user'
 
 const route = useRoute()
 const router = useRouter()
 const store = useUserStore()
+
+onMounted(() => {
+  // 兼容已登录的旧会话：权限可能在本机缓存里缺失，启动后与服务端同步
+  store.refreshPermissions().catch(() => {})
+})
 
 const isBareShell = computed(
   () =>

@@ -114,11 +114,24 @@ const router = createRouter({
   routes
 })
 
-router.beforeEach((to, from, next) => {
+let permissionsSynced = false
+
+router.beforeEach(async (to, from, next) => {
   const store = useUserStore()
   if (to.path !== '/login' && !store.token) {
     next('/login')
-  } else if (to.meta.permissions) {
+    return
+  }
+  // 权限可能被管理员在登录后调整过，进入应用时以服务端为准同步一次
+  if (store.token && !permissionsSynced) {
+    permissionsSynced = true
+    try {
+      await store.refreshPermissions()
+    } catch (e) {
+      // 同步失败时沿用本地缓存，避免阻塞导航
+    }
+  }
+  if (to.meta.permissions) {
     const ok = to.meta.permissions.every((p) => store.hasPermission(p))
     ok ? next() : next('/403')
   } else {

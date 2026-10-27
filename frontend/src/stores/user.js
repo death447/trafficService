@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { loginApi } from '../api/auth'
+import { loginApi, getMeApi } from '../api/auth'
 
 export const useUserStore = defineStore('user', {
   state: () => ({
@@ -34,6 +34,28 @@ export const useUserStore = defineStore('user', {
       localStorage.removeItem('username')
       localStorage.removeItem('permissions')
       localStorage.removeItem('roles')
+    },
+    /** 权限可能在登录后被管理员调整，启动时以服务端为准刷新一次。 */
+    async refreshPermissions() {
+      if (!this.token) return
+      const res = await getMeApi()
+      const data = res.data || {}
+      if (Array.isArray(data.permissions)) {
+        this.permissions = data.permissions
+        localStorage.setItem('permissions', JSON.stringify(this.permissions))
+      }
+      if (Array.isArray(data.roles)) {
+        this.roles = data.roles
+        localStorage.setItem('roles', JSON.stringify(this.roles))
+      }
+      if (data.username) {
+        this.username = data.username
+        localStorage.setItem('username', this.username)
+      }
+      if (data.id != null) {
+        this.userId = data.id
+        localStorage.setItem('userId', String(this.userId))
+      }
     },
     hasPermission(code) {
       return this.permissions.includes(code)
