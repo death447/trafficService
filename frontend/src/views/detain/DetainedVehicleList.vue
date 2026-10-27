@@ -3,9 +3,8 @@
     <div class="page-header">
       <div>
         <h1>扣留车辆</h1>
-        <p class="subtitle">入库、出库、清理与吊牌打印</p>
+        <p class="subtitle">出库、清理与吊牌打印</p>
       </div>
-      <button v-auth="'detain:add'" type="button" @click="openCreate">入库</button>
     </div>
 
     <div class="panel filters">
@@ -142,18 +141,14 @@
 
     <div v-if="formVisible" class="modal" @click.self="formVisible = false">
       <form class="modal-card" @submit.prevent="onSubmit">
-        <h2>{{ editingId ? '编辑扣留车辆' : '车辆入库' }}</h2>
-        <label v-if="!editingId">
-          扣押编码
-          <input v-model.trim="form.detainNo" required placeholder="强制扣押凭证编码" />
-        </label>
-        <label v-else>
+        <h2>编辑扣留车辆</h2>
+        <label>
           扣押编码
           <input :value="form.detainNo" disabled />
         </label>
         <label>
           入场编号
-          <input :value="editingId ? form.entryNo : '提交后生成'" disabled />
+          <input :value="form.entryNo" disabled />
         </label>
         <label>
           车牌
@@ -275,7 +270,6 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import {
   listDetains,
-  checkInDetain,
   updateDetain,
   checkOutDetain,
   clearDetain,
@@ -337,10 +331,10 @@ const enabledParkings = computed(() =>
   parkingLots.value.filter((lot) => lot.status === 'ENABLED')
 )
 
-/** Edit: include current lot even if DISABLED; create: ENABLED only. Reject other disabled lots. */
+/** Edit: include current lot even if DISABLED; reject other disabled lots. */
 const formParkingOptions = computed(() => {
   const enabled = enabledParkings.value
-  if (!editingId.value || !form.parkingLotId) {
+  if (!form.parkingLotId) {
     return enabled
   }
   const currentId = String(form.parkingLotId)
@@ -485,12 +479,6 @@ async function loadList() {
   }
 }
 
-function openCreate() {
-  editingId.value = null
-  resetForm()
-  formVisible.value = true
-}
-
 function openEdit(row) {
   editingId.value = row.id
   resetForm()
@@ -542,9 +530,6 @@ function payload() {
     rescueAddress: form.rescueAddress || null,
     remark: form.remark || null
   }
-  if (!editingId.value) {
-    data.detainNo = form.detainNo
-  }
   if (form.dispatchOrderId) {
     data.dispatchOrderId = Number(form.dispatchOrderId)
   } else {
@@ -557,11 +542,7 @@ async function onSubmit() {
   formError.value = ''
   saving.value = true
   try {
-    if (editingId.value) {
-      await updateDetain(editingId.value, payload())
-    } else {
-      await checkInDetain(payload())
-    }
+    await updateDetain(editingId.value, payload())
     formVisible.value = false
     await loadList()
   } catch (e) {
