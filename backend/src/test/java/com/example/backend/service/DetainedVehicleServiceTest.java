@@ -312,6 +312,61 @@ class DetainedVehicleServiceTest {
     }
 
     @Test
+    void checkInAcceptsPlateOfSecondAccidentVehicle() {
+        DetainInRequest req = new DetainInRequest();
+        req.setDetainNo("DV-MULTI");
+        req.setPlateNo("粤B22222");
+        req.setParkingLotId(1L);
+        req.setDispatchOrderId(11L);
+        ParkingLot lot = new ParkingLot();
+        lot.setId(1L);
+        lot.setStatus("ENABLED");
+        when(parkingLotService.requireEnabled(1L)).thenReturn(lot);
+        when(detainedVehicleMapper.findByDetainNo("DV-MULTI")).thenReturn(null);
+        when(detainedVehicleMapper.countInYardByPlateNo("粤B22222")).thenReturn(0);
+        when(dispatchOrderMapper.findById(11L)).thenReturn(order(11L, "ACCEPTED", "粤B11111"));
+        when(accidentVehicleMapper.findByOrderId(11L)).thenReturn(List.of(
+                accidentVehicle(11L, "粤B11111", "小型汽车"),
+                accidentVehicle(11L, "粤B22222", "小型汽车")));
+        when(detainedVehicleMapper.countByEntryNoPrefix(org.mockito.ArgumentMatchers.anyString())).thenReturn(0);
+        when(detainedVehicleMapper.insert(any(DetainedVehicle.class))).thenAnswer(inv -> {
+            DetainedVehicle v = inv.getArgument(0);
+            v.setId(102L);
+            return 1;
+        });
+        when(dispatchMediaMapper.findByOrderIdAndBizType(11L, "DAMAGE")).thenReturn(List.of());
+
+        DetainedVehicle created = service.checkIn(req, 4L);
+
+        assertEquals("粤B22222", created.getPlateNo());
+        assertEquals(11L, created.getDispatchOrderId());
+    }
+
+    @Test
+    void checkInRejectsPlateMissingFromOrderAccidentVehicles() {
+        DetainInRequest req = new DetainInRequest();
+        req.setDetainNo("DV-NONE");
+        req.setPlateNo("粤B99999");
+        req.setParkingLotId(1L);
+        req.setDispatchOrderId(12L);
+        ParkingLot lot = new ParkingLot();
+        lot.setId(1L);
+        lot.setStatus("ENABLED");
+        when(parkingLotService.requireEnabled(1L)).thenReturn(lot);
+        when(detainedVehicleMapper.findByDetainNo("DV-NONE")).thenReturn(null);
+        when(detainedVehicleMapper.countInYardByPlateNo("粤B99999")).thenReturn(0);
+        when(dispatchOrderMapper.findById(12L)).thenReturn(order(12L, "ACCEPTED", "粤B11111"));
+        when(accidentVehicleMapper.findByOrderId(12L)).thenReturn(List.of(
+                accidentVehicle(12L, "粤B11111", "小型汽车"),
+                accidentVehicle(12L, "粤B22222", "小型汽车")));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> service.checkIn(req, 4L));
+
+        assertTrue(ex.getMessage().contains("车牌"));
+        verify(detainedVehicleMapper, never()).insert(any());
+    }
+
+    @Test
     void checkInCopiesDamagePhotosToSceneAndSkipsMissing() {
         DetainInRequest req = new DetainInRequest();
         req.setDetainNo("DV-CP");

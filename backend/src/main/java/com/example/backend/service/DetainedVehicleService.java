@@ -136,17 +136,7 @@ public class DetainedVehicleService {
             throw new RuntimeException("该车牌已有在库扣留车辆");
         }
         if (req.getDispatchOrderId() != null) {
-            DispatchOrder order = dispatchOrderMapper.findById(req.getDispatchOrderId());
-            if (order == null) {
-                throw new RuntimeException("关联救援工单不存在");
-            }
-            String st = order.getStatus();
-            if (!"PENDING".equals(st) && !"DISPATCHED".equals(st) && !"ACCEPTED".equals(st)) {
-                throw new RuntimeException("工单已结束，无法关联");
-            }
-            if (!PlateNos.normalize(plate).equals(PlateNos.normalize(order.getPlateNo()))) {
-                throw new RuntimeException("工单车牌与入库车牌不一致");
-            }
+            validateOrderLink(req.getDispatchOrderId(), plate);
         }
         validateArea(req.getParkingAreaId(), req.getParkingLotId());
         validateEnums(req.getHasKey(), req.getRescueReason());
@@ -339,6 +329,30 @@ public class DetainedVehicleService {
             return;
         }
         parkingAreaService.requireEnabledForLot(parkingAreaId, parkingLotId);
+    }
+
+    private void validateOrderLink(Long dispatchOrderId, String plate) {
+        DispatchOrder order = dispatchOrderMapper.findById(dispatchOrderId);
+        if (order == null) {
+            throw new RuntimeException("关联救援工单不存在");
+        }
+        String st = order.getStatus();
+        if (!"PENDING".equals(st) && !"DISPATCHED".equals(st) && !"ACCEPTED".equals(st)) {
+            throw new RuntimeException("工单已结束，无法关联");
+        }
+        String needle = PlateNos.normalize(plate);
+        List<DispatchAccidentVehicle> vehicles = accidentVehicleMapper.findByOrderId(dispatchOrderId);
+        if (vehicles != null && !vehicles.isEmpty()) {
+            for (DispatchAccidentVehicle av : vehicles) {
+                if (av != null && needle.equals(PlateNos.normalize(av.getPlateNo()))) {
+                    return;
+                }
+            }
+            throw new RuntimeException("工单车牌与入库车牌不一致");
+        }
+        if (!needle.equals(PlateNos.normalize(order.getPlateNo()))) {
+            throw new RuntimeException("工单车牌与入库车牌不一致");
+        }
     }
 
     private void validateEnums(String hasKey, String rescueReason) {
