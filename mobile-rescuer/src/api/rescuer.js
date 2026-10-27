@@ -56,12 +56,14 @@ export function listMedia(id) {
   return request({ url: `${PREFIX}/tasks/${id}/media` })
 }
 
-export function uploadMedia(id, filePath, bizType) {
+export function uploadMedia(id, filePath, bizType, accidentVehicleId) {
+  const formData = { bizType }
+  if (accidentVehicleId != null) formData.accidentVehicleId = accidentVehicleId
   return uploadFile({
     url: `${PREFIX}/tasks/${id}/media`,
     filePath,
     name: 'file',
-    formData: { bizType }
+    formData
   })
 }
 

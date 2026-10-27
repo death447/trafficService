@@ -36,6 +36,7 @@ class PoliceMobileServiceTest {
     @Mock DispatchFieldRecordMapper fieldRecordMapper;
     @Mock DispatchMediaMapper mediaMapper;
     @Mock DispatchOrderEvaluationMapper evaluationMapper;
+    @Mock com.example.backend.support.SceneVehicleAssembler sceneVehicleAssembler;
     @InjectMocks PoliceMobileService service;
 
     @Test

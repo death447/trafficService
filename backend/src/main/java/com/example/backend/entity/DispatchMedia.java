@@ -9,6 +9,7 @@ public class DispatchMedia {
     private Long id;
     private Long dispatchOrderId;
     private Long assignmentId;
+    private Long accidentVehicleId;
     private String bizType;
     private String filePath;
     private Integer sortOrder;

@@ -9,8 +9,7 @@ import java.util.List;
 @Data
 public class DispatchOrder {
     private Long id;
-    private String orderNo;
-    private String accidentAddress;
+    private String orderNo;    private String accidentAddress;
     private BigDecimal longitude;
     private BigDecimal latitude;
     private String rescueReason;
@@ -45,6 +44,7 @@ public class DispatchOrder {
     private DispatchOrderEvaluation evaluation;
     private List<DispatchVehicleAssignment> assignments;
     private List<DispatchAccidentVehicle> accidentVehicles;
+    private List<com.example.backend.dto.SceneVehicleVO> sceneVehicles;
     /** Request-only: vehicles to assign on create. Not a DB column. */
     private List<Long> vehicleIds;
 }

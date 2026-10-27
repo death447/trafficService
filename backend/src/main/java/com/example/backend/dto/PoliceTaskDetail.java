@@ -14,4 +14,5 @@ public class PoliceTaskDetail {
     private DispatchFieldRecord fieldRecord;
     private List<DispatchMedia> medias;
     private DispatchOrderEvaluation evaluation;
+    private List<SceneVehicleVO> sceneVehicles;
 }

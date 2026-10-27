@@ -39,13 +39,34 @@
 
     <view class="card" v-if="fieldRecord">
       <view class="section-title">现场摘要</view>
-      <view class="line">车牌：{{ fieldRecord.plateNo || '-' }}</view>
-      <view class="line">车型：{{ fieldRecord.vehicleType || '-' }}</view>
-      <view class="line">受损：{{ fieldRecord.damageDesc || '-' }}</view>
+
+      <view v-if="sceneVehicles.length" class="scene-block">
+        <view v-for="v in sceneVehicles" :key="v.id || v.accidentVehicleId" class="scene-vehicle">
+          <view class="scene-plate">{{ v.plateNo || '-' }}</view>
+          <view class="line">车型：{{ v.vehicleType || '-' }}</view>
+          <view class="line">受损：{{ v.damageDesc || '-' }}</view>
+          <view v-if="v.medias && v.medias.length" class="media-grid">
+            <image
+              v-for="m in v.medias"
+              :key="m.id"
+              class="thumb"
+              :src="mediaUrl(m.filePath)"
+              mode="aspectFill"
+              @click="previewMedias(v.medias, m.filePath)"
+            />
+          </view>
+        </view>
+      </view>
+      <view v-else>
+        <view class="line">车牌：{{ fieldRecord.plateNo || '-' }}</view>
+        <view class="line">车型：{{ fieldRecord.vehicleType || '-' }}</view>
+        <view class="line">受损：{{ fieldRecord.damageDesc || '-' }}</view>
+      </view>
+
       <view class="line">停放：{{ fieldRecord.parkAddress || '-' }}</view>
 
       <view v-if="damageMedias.length || parkMedias.length" class="media-block">
-        <view v-if="damageMedias.length" class="media-section">
+        <view v-if="!sceneVehicles.length && damageMedias.length" class="media-section">
           <view class="section-title media-title">受损照片</view>
           <view class="media-grid">
             <image
@@ -179,6 +200,7 @@ const id = ref(null)
 const order = ref(null)
 const fieldRecord = ref(null)
 const evaluation = ref(null)
+const sceneVehicles = ref([])
 const damageMedias = ref([])
 const parkMedias = ref([])
 const reasonPanel = ref(null)
@@ -265,6 +287,7 @@ async function load({ silent = false } = {}) {
       const res = await getTask(id.value)
       order.value = res.data?.order || null
       fieldRecord.value = res.data?.fieldRecord || null
+      sceneVehicles.value = res.data?.sceneVehicles || []
       evaluation.value = res.data?.evaluation || null
       assignedVehicle.value = res.data?.assignedVehicle || null
       pollHint.value = ''
@@ -283,6 +306,7 @@ async function load({ silent = false } = {}) {
     ])
     order.value = res.data?.order || null
     fieldRecord.value = res.data?.fieldRecord || null
+    sceneVehicles.value = res.data?.sceneVehicles || []
     evaluation.value = res.data?.evaluation || null
     assignedVehicle.value = res.data?.assignedVehicle || null
     const all = mediaRes.data || []
@@ -302,6 +326,7 @@ async function load({ silent = false } = {}) {
     destroyMap()
     order.value = null
     fieldRecord.value = null
+    sceneVehicles.value = []
     evaluation.value = null
     assignedVehicle.value = null
     damageMedias.value = []
@@ -698,6 +723,19 @@ async function onComplete() {
 .star.on { color: #f5a623; }
 .media-block {
   margin-top: 20rpx;
+}
+.scene-block {
+  margin-bottom: 8rpx;
+}
+.scene-vehicle + .scene-vehicle {
+  margin-top: 24rpx;
+  padding-top: 20rpx;
+  border-top: 1px solid #eee;
+}
+.scene-plate {
+  font-size: 30rpx;
+  font-weight: 600;
+  margin-bottom: 8rpx;
 }
 .media-section + .media-section {
   margin-top: 20rpx;

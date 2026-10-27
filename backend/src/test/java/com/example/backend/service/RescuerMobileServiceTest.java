@@ -5,6 +5,8 @@ import com.example.backend.dto.DetainInRequest;
 import com.example.backend.dto.LocationReportRequest;
 import com.example.backend.dto.LocationReportResponse;
 import com.example.backend.dto.SceneRequest;
+import com.example.backend.dto.SceneVehicleItem;
+import com.example.backend.dto.SceneVehicleVO;
 import com.example.backend.entity.DetainMedia;
 import com.example.backend.entity.DetainedVehicle;
 import com.example.backend.entity.DispatchAccidentVehicle;
@@ -12,6 +14,7 @@ import com.example.backend.entity.DispatchFieldRecord;
 import com.example.backend.entity.DispatchMedia;
 import com.example.backend.entity.DispatchOrder;
 import com.example.backend.entity.DispatchOrderEvaluation;
+import com.example.backend.entity.DispatchSceneVehicle;
 import com.example.backend.entity.DispatchVehicleAssignment;
 import com.example.backend.entity.ParkingArea;
 import com.example.backend.entity.ParkingLot;
@@ -62,6 +65,8 @@ class RescuerMobileServiceTest {
     @Mock ParkingLotService parkingLotService;
     @Mock ParkingAreaService parkingAreaService;
     @Mock EntryNoGenerator entryNoGenerator;
+    @Mock com.example.backend.mapper.DispatchSceneVehicleMapper sceneVehicleMapper;
+    @Mock com.example.backend.support.SceneVehicleAssembler sceneVehicleAssembler;
     @InjectMocks RescuerMobileService service;
 
     private DispatchVehicleAssignment assignment(String status) {
@@ -542,5 +547,176 @@ class RescuerMobileServiceTest {
 
         assertEquals(1, lots.size());
         assertEquals(2L, lots.get(0).getId());
+    }
+
+    @Test
+    void saveSceneWritesOneRowPerAccidentVehicleAndSummarizesFirst() {
+        DispatchOrder order = new DispatchOrder();
+        order.setId(1L);
+        when(dispatchOrderMapper.findById(1L)).thenReturn(order);
+        when(assignmentMapper.findByOrderIdAndRescuerId(1L, 9L)).thenReturn(assignment("ACCEPTED"));
+        when(accidentVehicleMapper.findByOrderId(1L)).thenReturn(List.of(
+                accidentVehicle(91L, "浙F00091"), accidentVehicle(92L, "浙F00092")));
+        when(fieldRecordMapper.findByAssignmentId(50L)).thenReturn(null);
+        when(fieldRecordMapper.insert(any(DispatchFieldRecord.class))).thenReturn(1);
+
+        SceneRequest req = new SceneRequest();
+        req.setSceneRemark("现场备注A");
+        req.setVehicles(List.of(
+                sceneItem(91L, "浙F00091", "轿车", "前保险杠破损"),
+                sceneItem(92L, "浙F00092", "货车", "左后视镜碎裂")));
+
+        service.saveScene(9L, 1L, req);
+
+        verify(sceneVehicleMapper).deleteByOrderId(1L);
+        ArgumentCaptor<DispatchSceneVehicle> captor = ArgumentCaptor.forClass(DispatchSceneVehicle.class);
+        verify(sceneVehicleMapper, times(2)).insert(captor.capture());
+        List<DispatchSceneVehicle> rows = captor.getAllValues();
+        assertEquals(91L, rows.get(0).getAccidentVehicleId());
+        assertEquals("浙F00091", rows.get(0).getPlateNo());
+        assertEquals("前保险杠破损", rows.get(0).getDamageDesc());
+        assertEquals(0, rows.get(0).getSortOrder());
+        assertEquals(92L, rows.get(1).getAccidentVehicleId());
+        assertEquals(1, rows.get(1).getSortOrder());
+        assertEquals(50L, rows.get(0).getAssignmentId());
+
+        ArgumentCaptor<DispatchFieldRecord> frCaptor = ArgumentCaptor.forClass(DispatchFieldRecord.class);
+        verify(fieldRecordMapper).insert(frCaptor.capture());
+        assertEquals("浙F00091", frCaptor.getValue().getPlateNo());
+        assertEquals("轿车", frCaptor.getValue().getVehicleType());
+        assertEquals("前保险杠破损", frCaptor.getValue().getDamageDesc());
+        assertEquals("现场备注A", frCaptor.getValue().getSceneRemark());
+        assertNotNull(frCaptor.getValue().getSceneSubmittedAt());
+    }
+
+    @Test
+    void saveSceneRejectsPlateNotInOrderAccidentVehicles() {
+        DispatchOrder order = new DispatchOrder();
+        order.setId(1L);
+        when(dispatchOrderMapper.findById(1L)).thenReturn(order);
+        when(assignmentMapper.findByOrderIdAndRescuerId(1L, 9L)).thenReturn(assignment("ACCEPTED"));
+        when(accidentVehicleMapper.findByOrderId(1L)).thenReturn(List.of(accidentVehicle(91L, "浙F00091")));
+
+        SceneRequest req = new SceneRequest();
+        req.setVehicles(List.of(sceneItem(91L, "浙F99999", "轿车", "破损")));
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> service.saveScene(9L, 1L, req));
+
+        assertTrue(ex.getMessage().contains("事故车"));
+        verify(sceneVehicleMapper, never()).deleteByOrderId(any());
+        verify(sceneVehicleMapper, never()).insert(any());
+    }
+
+    @Test
+    void saveSceneFallsBackToSingleFieldWhenVehiclesAbsent() {
+        DispatchOrder order = new DispatchOrder();
+        order.setId(1L);
+        when(dispatchOrderMapper.findById(1L)).thenReturn(order);
+        when(assignmentMapper.findByOrderIdAndRescuerId(1L, 9L)).thenReturn(assignment("ACCEPTED"));
+        when(fieldRecordMapper.findByAssignmentId(50L)).thenReturn(null);
+        when(fieldRecordMapper.insert(any(DispatchFieldRecord.class))).thenReturn(1);
+
+        SceneRequest req = new SceneRequest();
+        req.setPlateNo("浙F00091");
+        req.setVehicleType("轿车");
+        req.setDamageDesc("旧客户端提交");
+
+        service.saveScene(9L, 1L, req);
+
+        verify(sceneVehicleMapper, never()).deleteByOrderId(any());
+        verify(sceneVehicleMapper, never()).insert(any());
+        ArgumentCaptor<DispatchFieldRecord> frCaptor = ArgumentCaptor.forClass(DispatchFieldRecord.class);
+        verify(fieldRecordMapper).insert(frCaptor.capture());
+        assertEquals("浙F00091", frCaptor.getValue().getPlateNo());
+        assertEquals("旧客户端提交", frCaptor.getValue().getDamageDesc());
+    }
+
+    @Test
+    void addMediaStoresAccidentVehicleForDamage() throws Exception {
+        DispatchOrder order = new DispatchOrder();
+        order.setId(1L);
+        when(dispatchOrderMapper.findById(1L)).thenReturn(order);
+        when(assignmentMapper.findByOrderIdAndRescuerId(1L, 9L)).thenReturn(assignment("ACCEPTED"));
+        when(accidentVehicleMapper.findByOrderId(1L)).thenReturn(List.of(accidentVehicle(91L, "浙F00091")));
+        when(fileStorageService.storeDispatchMedia(eq(1L), any())).thenReturn("dispatch/1/a.jpg");
+        when(mediaMapper.insert(any(DispatchMedia.class))).thenReturn(1);
+
+        MockMultipartFile file = new MockMultipartFile("file", "a.jpg", "image/jpeg", new byte[]{1, 2, 3});
+
+        DispatchMedia media = service.addMedia(9L, 1L, "DAMAGE", 91L, file);
+
+        assertEquals(91L, media.getAccidentVehicleId());
+        assertEquals("DAMAGE", media.getBizType());
+    }
+
+    @Test
+    void addMediaRejectsForeignAccidentVehicle() {
+        DispatchOrder order = new DispatchOrder();
+        order.setId(1L);
+        when(dispatchOrderMapper.findById(1L)).thenReturn(order);
+        when(assignmentMapper.findByOrderIdAndRescuerId(1L, 9L)).thenReturn(assignment("ACCEPTED"));
+        when(accidentVehicleMapper.findByOrderId(1L)).thenReturn(List.of(accidentVehicle(91L, "浙F00091")));
+
+        MockMultipartFile file = new MockMultipartFile("file", "a.jpg", "image/jpeg", new byte[]{1, 2, 3});
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> service.addMedia(9L, 1L, "DAMAGE", 999L, file));
+
+        assertEquals("事故车辆不属于该工单", ex.getMessage());
+        verifyNoInteractions(fileStorageService);
+        verify(mediaMapper, never()).insert(any());
+    }
+
+    @Test
+    void addMediaRejectsAccidentVehicleForParkPhotos() {
+        DispatchOrder order = new DispatchOrder();
+        order.setId(1L);
+        when(dispatchOrderMapper.findById(1L)).thenReturn(order);
+        when(assignmentMapper.findByOrderIdAndRescuerId(1L, 9L)).thenReturn(assignment("ACCEPTED"));
+
+        MockMultipartFile file = new MockMultipartFile("file", "a.jpg", "image/jpeg", new byte[]{1, 2, 3});
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> service.addMedia(9L, 1L, "PARK", 91L, file));
+
+        assertTrue(ex.getMessage().contains("仅受损照片"));
+        verifyNoInteractions(fileStorageService);
+    }
+
+    @Test
+    void getTaskReturnsSceneVehiclesFromAssembler() {
+        DispatchOrder order = new DispatchOrder();
+        order.setId(1L);
+        when(dispatchOrderMapper.findById(1L)).thenReturn(order);
+        when(assignmentMapper.findByOrderIdAndRescuerId(1L, 9L)).thenReturn(assignment("ACCEPTED"));
+        when(accidentVehicleMapper.findByOrderId(1L)).thenReturn(List.of(accidentVehicle(91L, "浙F00091")));
+        when(fieldRecordMapper.findByAssignmentId(50L)).thenReturn(null);
+        when(fieldRecordMapper.findByOrderId(1L)).thenReturn(null);
+        when(evaluationMapper.findByOrderId(1L)).thenReturn(null);
+        SceneVehicleVO vo = new SceneVehicleVO();
+        vo.setAccidentVehicleId(91L);
+        vo.setPlateNo("浙F00091");
+        when(sceneVehicleAssembler.assemble(1L)).thenReturn(List.of(vo));
+
+        var detail = service.getTask(9L, 1L);
+
+        assertEquals(1, detail.getSceneVehicles().size());
+        assertEquals("浙F00091", detail.getSceneVehicles().get(0).getPlateNo());
+    }
+
+    private static DispatchAccidentVehicle accidentVehicle(Long accidentVehicleId, String plate) {
+        DispatchAccidentVehicle v = new DispatchAccidentVehicle();
+        v.setId(accidentVehicleId);
+        v.setPlateNo(plate);
+        return v;
+    }
+
+    private static SceneVehicleItem sceneItem(Long accidentVehicleId, String plate, String type, String damage) {
+        SceneVehicleItem item = new SceneVehicleItem();
+        item.setAccidentVehicleId(accidentVehicleId);
+        item.setPlateNo(plate);
+        item.setVehicleType(type);
+        item.setDamageDesc(damage);
+        return item;
     }
 }

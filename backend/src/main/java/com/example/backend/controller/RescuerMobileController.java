@@ -242,10 +242,11 @@ public class RescuerMobileController {
     public Result<DispatchMedia> addMedia(
             @PathVariable Long id,
             @RequestParam MultipartFile file,
-            @RequestParam String bizType) {
+            @RequestParam String bizType,
+            @RequestParam(required = false) Long accidentVehicleId) {
         try {
             requireMediaAuthority(bizType);
-            return Result.success(rescuerMobileService.addMedia(currentUserId(), id, bizType, file));
+            return Result.success(rescuerMobileService.addMedia(currentUserId(), id, bizType, accidentVehicleId, file));
         } catch (RuntimeException e) {
             return Result.error(e.getMessage());
         }

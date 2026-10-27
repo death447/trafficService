@@ -37,6 +37,8 @@ public class PoliceMobileService {
     private DispatchMediaMapper mediaMapper;
     @Autowired
     private DispatchOrderEvaluationMapper evaluationMapper;
+    @Autowired
+    private com.example.backend.support.SceneVehicleAssembler sceneVehicleAssembler;
 
     public Map<String, Object> list(PageParams pp) {
         long total = dispatchOrderMapper.count(null, null, null, null);
@@ -62,6 +64,7 @@ public class PoliceMobileService {
         List<DispatchMedia> medias = mediaMapper.findByOrderId(id);
         detail.setMedias(medias == null ? List.of() : medias);
         detail.setEvaluation(evaluationMapper.findByOrderId(id));
+        detail.setSceneVehicles(sceneVehicleAssembler.assemble(id));
         return detail;
     }
 

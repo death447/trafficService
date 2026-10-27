@@ -70,6 +70,9 @@ public class DispatchOrderService {
     @Autowired
     private DispatchAccidentVehicleMapper accidentVehicleMapper;
 
+    @Autowired
+    private com.example.backend.support.SceneVehicleAssembler sceneVehicleAssembler;
+
     public DispatchOrder findById(Long id) {
         DispatchOrder order = dispatchOrderMapper.findById(id);
         if (order != null) {
@@ -77,6 +80,7 @@ public class DispatchOrderService {
             order.setFieldRecord(fieldRecordMapper.findByOrderId(id));
             order.setMedias(mediaMapper.findByOrderId(id));
             order.setEvaluation(evaluationMapper.findByOrderId(id));
+            order.setSceneVehicles(sceneVehicleAssembler.assemble(id));
         }
         return order;
     }

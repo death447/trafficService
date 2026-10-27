@@ -10,12 +10,14 @@ import com.example.backend.dto.ParkRequest;
 import com.example.backend.dto.RescuerProfileUpdateRequest;
 import com.example.backend.dto.RescuerTaskDetail;
 import com.example.backend.dto.SceneRequest;
+import com.example.backend.dto.SceneVehicleItem;
 import com.example.backend.entity.DetainMedia;
 import com.example.backend.entity.DetainedVehicle;
 import com.example.backend.entity.DispatchAccidentVehicle;
 import com.example.backend.entity.DispatchFieldRecord;
 import com.example.backend.entity.DispatchMedia;
 import com.example.backend.entity.DispatchOrder;
+import com.example.backend.entity.DispatchSceneVehicle;
 import com.example.backend.entity.DispatchVehicleAssignment;
 import com.example.backend.entity.ParkingArea;
 import com.example.backend.entity.ParkingLot;
@@ -28,10 +30,12 @@ import com.example.backend.mapper.DispatchFieldRecordMapper;
 import com.example.backend.mapper.DispatchMediaMapper;
 import com.example.backend.mapper.DispatchOrderEvaluationMapper;
 import com.example.backend.mapper.DispatchOrderMapper;
+import com.example.backend.mapper.DispatchSceneVehicleMapper;
 import com.example.backend.mapper.DispatchVehicleAssignmentMapper;
 import com.example.backend.mapper.RescueVehicleMapper;
 import com.example.backend.mapper.UserMapper;
 import com.example.backend.support.EntryNoGenerator;
+import com.example.backend.support.SceneVehicleAssembler;
 import com.example.backend.util.PlateNos;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -99,6 +103,12 @@ public class RescuerMobileService {
     @Autowired
     private EntryNoGenerator entryNoGenerator;
 
+    @Autowired
+    private DispatchSceneVehicleMapper sceneVehicleMapper;
+
+    @Autowired
+    private SceneVehicleAssembler sceneVehicleAssembler;
+
     public List<DispatchOrder> listTasks(Long userId, String tab) {
         Set<String> statuses;
         if ("todo".equals(tab)) {
@@ -141,6 +151,7 @@ public class RescuerMobileService {
         }
         detail.setFieldRecord(fr);
         detail.setEvaluation(evaluationMapper.findByOrderId(orderId));
+        detail.setSceneVehicles(sceneVehicleAssembler.assemble(orderId));
         RescueVehicle vehicle = rescueVehicleMapper.findById(assignment.getVehicleId());
         if (vehicle != null) {
             AssignedVehicleSnapshot snap = new AssignedVehicleSnapshot();
@@ -158,14 +169,67 @@ public class RescuerMobileService {
     public void saveScene(Long userId, Long orderId, SceneRequest req) {
         DispatchVehicleAssignment assignment = requireAssignmentAccepted(orderId, userId);
         DispatchFieldRecord record = getOrCreateRecord(orderId, assignment.getId());
-        if (req != null) {
+        List<SceneVehicleItem> items = req == null ? null : req.getVehicles();
+        if (items != null && !items.isEmpty()) {
+            validateSceneVehicles(orderId, items);
+            sceneVehicleMapper.deleteByOrderId(orderId);
+            int order = 0;
+            for (SceneVehicleItem item : items) {
+                if (item == null) {
+                    continue;
+                }
+                DispatchSceneVehicle row = new DispatchSceneVehicle();
+                row.setDispatchOrderId(orderId);
+                row.setAssignmentId(assignment.getId());
+                row.setAccidentVehicleId(item.getAccidentVehicleId());
+                row.setPlateNo(trimToNull(item.getPlateNo()));
+                row.setVehicleType(trimToNull(item.getVehicleType()));
+                row.setDamageDesc(trimToNull(item.getDamageDesc()));
+                row.setSortOrder(order++);
+                sceneVehicleMapper.insert(row);
+            }
+            SceneVehicleItem first = items.stream().filter(java.util.Objects::nonNull).findFirst().orElse(null);
+            if (first != null) {
+                record.setPlateNo(trimToNull(first.getPlateNo()));
+                record.setVehicleType(trimToNull(first.getVehicleType()));
+                record.setDamageDesc(trimToNull(first.getDamageDesc()));
+            }
+        } else if (req != null) {
             record.setPlateNo(req.getPlateNo());
             record.setVehicleType(req.getVehicleType());
             record.setDamageDesc(req.getDamageDesc());
+        }
+        if (req != null) {
             record.setSceneRemark(req.getSceneRemark());
         }
         record.setSceneSubmittedAt(LocalDateTime.now());
         upsert(record);
+    }
+
+    private void validateSceneVehicles(Long orderId, List<SceneVehicleItem> items) {        List<DispatchAccidentVehicle> vehicles = accidentVehicleMapper.findByOrderId(orderId);
+        if (vehicles == null || vehicles.isEmpty()) {
+            return;
+        }
+        for (SceneVehicleItem item : items) {
+            if (item == null) {
+                continue;
+            }
+            String plate = trimToNull(item.getPlateNo());
+            if (plate == null) {
+                continue;
+            }
+            if (!matchesAccidentVehicle(orderId, plate)) {
+                throw new RuntimeException("车牌与工单事故车不一致：" + plate);
+            }
+        }
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     @Transactional
@@ -292,6 +356,18 @@ public class RescuerMobileService {
         return false;
     }
 
+    private void requireOrderAccidentVehicle(Long orderId, Long accidentVehicleId) {
+        List<DispatchAccidentVehicle> vehicles = accidentVehicleMapper.findByOrderId(orderId);
+        if (vehicles != null) {
+            for (DispatchAccidentVehicle av : vehicles) {
+                if (av != null && accidentVehicleId.equals(av.getId())) {
+                    return;
+                }
+            }
+        }
+        throw new RuntimeException("事故车辆不属于该工单");
+    }
+
     private String buildParkAddress(DetainInRequest req) {
         ParkingLot lot = parkingLotService.findById(req.getParkingLotId());
         StringBuilder sb = new StringBuilder(lot != null && lot.getName() != null ? lot.getName() : "停车场");
@@ -309,9 +385,20 @@ public class RescuerMobileService {
 
     @Transactional
     public DispatchMedia addMedia(Long userId, Long orderId, String bizType, MultipartFile file) {
+        return addMedia(userId, orderId, bizType, null, file);
+    }
+
+    @Transactional
+    public DispatchMedia addMedia(Long userId, Long orderId, String bizType, Long accidentVehicleId, MultipartFile file) {
         DispatchVehicleAssignment assignment = requireAssignmentAccepted(orderId, userId);
         if (bizType == null || !MEDIA_BIZ_TYPES.contains(bizType)) {
             throw new RuntimeException("媒体类型无效，仅支持 DAMAGE/PARK");
+        }
+        if (accidentVehicleId != null) {
+            if (!"DAMAGE".equals(bizType)) {
+                throw new RuntimeException("仅受损照片可关联事故车辆");
+            }
+            requireOrderAccidentVehicle(orderId, accidentVehicleId);
         }
         if (file == null || file.isEmpty()) {
             throw new RuntimeException("请上传文件");
@@ -325,6 +412,7 @@ public class RescuerMobileService {
         DispatchMedia media = new DispatchMedia();
         media.setDispatchOrderId(orderId);
         media.setAssignmentId(assignment.getId());
+        media.setAccidentVehicleId(accidentVehicleId);
         media.setBizType(bizType);
         media.setFilePath(relativePath);
         media.setSortOrder(0);

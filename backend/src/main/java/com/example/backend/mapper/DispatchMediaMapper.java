@@ -8,8 +8,8 @@ import java.util.List;
 @Mapper
 public interface DispatchMediaMapper {
 
-    @Insert("INSERT INTO dispatch_media (dispatch_order_id, assignment_id, biz_type, file_path, sort_order, uploaded_by) " +
-            "VALUES (#{dispatchOrderId}, #{assignmentId}, #{bizType}, #{filePath}, #{sortOrder}, #{uploadedBy})")
+    @Insert("INSERT INTO dispatch_media (dispatch_order_id, assignment_id, accident_vehicle_id, biz_type, file_path, sort_order, uploaded_by) " +
+            "VALUES (#{dispatchOrderId}, #{assignmentId}, #{accidentVehicleId}, #{bizType}, #{filePath}, #{sortOrder}, #{uploadedBy})")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(DispatchMedia media);
 

@@ -90,6 +90,54 @@
           <div v-if="hasSceneCollection" class="panel info-panel scene-panel">
             <h2 class="section-title">现场采集</h2>
             <div class="info-grid">
+              <div v-if="fieldRecord?.sceneSubmittedAt">
+                <span class="label">采集时间</span>
+                <strong>{{ formatTime(fieldRecord.sceneSubmittedAt) }}</strong>
+              </div>
+              <div class="span-2">
+                <span class="label">现场备注</span>
+                <strong>{{ fieldRecord?.sceneRemark || '—' }}</strong>
+              </div>
+            </div>
+
+            <div v-if="sceneVehicles.length" class="scene-vehicle-list">
+              <div
+                v-for="v in sceneVehicles"
+                :key="v.id || v.accidentVehicleId"
+                class="scene-vehicle"
+              >
+                <div class="info-grid">
+                  <div>
+                    <span class="label">车牌号码</span>
+                    <strong>{{ v.plateNo || '—' }}</strong>
+                  </div>
+                  <div>
+                    <span class="label">车型</span>
+                    <strong>{{ v.vehicleType || '—' }}</strong>
+                  </div>
+                  <div class="span-2">
+                    <span class="label">受损描述</span>
+                    <strong>{{ v.damageDesc || '—' }}</strong>
+                  </div>
+                  <div v-if="v.medias && v.medias.length" class="span-2">
+                    <span class="label">受损照片</span>
+                    <div class="photo-grid">
+                      <button
+                        v-for="m in v.medias"
+                        :key="m.id"
+                        type="button"
+                        class="photo-thumb"
+                        @click="previewSrc = mediaUrl(m.filePath)"
+                      >
+                        <img :src="mediaUrl(m.filePath)" :alt="m.filePath || '受损照片'" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div v-else class="info-grid">
               <div>
                 <span class="label">车牌号码</span>
                 <strong>{{ fieldRecord?.plateNo || '—' }}</strong>
@@ -98,17 +146,9 @@
                 <span class="label">车型</span>
                 <strong>{{ fieldRecord?.vehicleType || '—' }}</strong>
               </div>
-              <div v-if="fieldRecord?.sceneSubmittedAt">
-                <span class="label">采集时间</span>
-                <strong>{{ formatTime(fieldRecord.sceneSubmittedAt) }}</strong>
-              </div>
               <div class="span-2">
                 <span class="label">受损描述</span>
                 <strong>{{ fieldRecord?.damageDesc || '—' }}</strong>
-              </div>
-              <div class="span-2">
-                <span class="label">现场备注</span>
-                <strong>{{ fieldRecord?.sceneRemark || '—' }}</strong>
               </div>
               <div v-if="damageMedias.length" class="span-2">
                 <span class="label">受损照片</span>
@@ -506,6 +546,7 @@ function removeEditAccidentVehicle(idx) {
 }
 
 const fieldRecord = computed(() => order.value?.fieldRecord || null)
+const sceneVehicles = computed(() => order.value?.sceneVehicles || [])
 const evaluation = computed(() => order.value?.evaluation || null)
 const showEvalBlock = computed(
   () => !!evaluation.value || order.value?.status === 'COMPLETED'
@@ -518,7 +559,7 @@ const hasSceneCollection = computed(() => {
   const hasText = Boolean(
     fr && (fr.plateNo || fr.vehicleType || fr.damageDesc || fr.sceneRemark || fr.sceneSubmittedAt)
   )
-  return hasText || damageMedias.value.length > 0
+  return hasText || damageMedias.value.length > 0 || sceneVehicles.value.length > 0
 })
 
 function mediaUrl(filePath) {
@@ -1224,6 +1265,15 @@ onBeforeUnmount(() => {
 
 .scene-panel .photo-grid {
   margin-top: 0.15rem;
+}
+
+.scene-vehicle-list {
+  margin-top: 0.85rem;
+}
+.scene-vehicle + .scene-vehicle {
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid #e6ebf2;
 }
 
 .subsection-header {

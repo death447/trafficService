@@ -40,12 +40,33 @@
 
     <view class="card" v-if="fieldRecord">
       <view class="section-title">现场摘要</view>
-      <view class="line">车牌：{{ fieldRecord.plateNo || '-' }}</view>
-      <view class="line">车型：{{ fieldRecord.vehicleType || '-' }}</view>
-      <view class="line">受损：{{ fieldRecord.damageDesc || '-' }}</view>
+
+      <view v-if="sceneVehicles.length" class="scene-block">
+        <view v-for="v in sceneVehicles" :key="v.id || v.accidentVehicleId" class="scene-vehicle">
+          <view class="scene-plate">{{ v.plateNo || '-' }}</view>
+          <view class="line">车型：{{ v.vehicleType || '-' }}</view>
+          <view class="line">受损：{{ v.damageDesc || '-' }}</view>
+          <view v-if="v.medias && v.medias.length" class="media-grid">
+            <image
+              v-for="m in v.medias"
+              :key="m.id"
+              class="thumb"
+              :src="mediaUrl(m.filePath)"
+              mode="aspectFill"
+              @click="previewMedias(v.medias, m.filePath)"
+            />
+          </view>
+        </view>
+      </view>
+      <view v-else>
+        <view class="line">车牌：{{ fieldRecord.plateNo || '-' }}</view>
+        <view class="line">车型：{{ fieldRecord.vehicleType || '-' }}</view>
+        <view class="line">受损：{{ fieldRecord.damageDesc || '-' }}</view>
+      </view>
+
       <view class="line">停放：{{ fieldRecord.parkAddress || '-' }}</view>
       <view v-if="damageMedias.length || parkMedias.length" class="media-block">
-        <view v-if="damageMedias.length" class="media-section">
+        <view v-if="!sceneVehicles.length && damageMedias.length" class="media-section">
           <view class="section-title media-title">受损照片</view>
           <view class="media-grid">
             <image
@@ -142,6 +163,7 @@ const id = ref('')
 const order = ref(null)
 const fieldRecord = ref(null)
 const evaluation = ref(null)
+const sceneVehicles = ref([])
 const damageMedias = ref([])
 const parkMedias = ref([])
 const mapError = ref('')
@@ -235,6 +257,7 @@ async function load() {
     const data = res.data || {}
     order.value = data.order || null
     fieldRecord.value = data.fieldRecord || null
+    sceneVehicles.value = data.sceneVehicles || []
     evaluation.value = data.evaluation || null
     const medias = data.medias || []
     damageMedias.value = medias.filter((m) => m.bizType === 'DAMAGE')
@@ -271,6 +294,16 @@ onUnload(() => {
 .map-box { height: 360rpx; width: 100%; }
 .map-placeholder { padding: 24rpx 0; color: #888; }
 .media-grid { display: flex; flex-wrap: wrap; gap: 12rpx; }
+.scene-block { margin-bottom: 8rpx; }
+.scene-vehicle + .scene-vehicle {
+  margin-top: 24rpx;
+  padding-top: 20rpx;
+  border-top: 1px solid #eee;
+}
+.scene-plate { font-size: 30rpx; font-weight: 600; margin-bottom: 8rpx; }
+.media-block { margin-top: 20rpx; }
+.media-section + .media-section { margin-top: 20rpx; }
+.media-title { margin-bottom: 12rpx; }
 .thumb { width: 160rpx; height: 160rpx; border-radius: 8rpx; }
 .actions { margin-top: 24rpx; }
 .error { color: #c62828; }

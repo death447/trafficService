@@ -225,10 +225,27 @@ CREATE TABLE `dispatch_field_record` (
   KEY `idx_dispatch_order_id` (`dispatch_order_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='工单现场与入库登记';
 
+CREATE TABLE `dispatch_scene_vehicle` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `dispatch_order_id` BIGINT NOT NULL,
+  `assignment_id` BIGINT DEFAULT NULL COMMENT '所属赋值',
+  `accident_vehicle_id` BIGINT DEFAULT NULL COMMENT '对应 dispatch_accident_vehicle.id',
+  `plate_no` VARCHAR(20) DEFAULT NULL,
+  `vehicle_type` VARCHAR(50) DEFAULT NULL,
+  `damage_desc` VARCHAR(1000) DEFAULT NULL,
+  `sort_order` INT NOT NULL DEFAULT 0,
+  `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_order_accident_vehicle` (`dispatch_order_id`, `accident_vehicle_id`),
+  KEY `idx_order_id` (`dispatch_order_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='工单现场采集-逐车';
+
 CREATE TABLE `dispatch_media` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
   `dispatch_order_id` BIGINT NOT NULL,
   `assignment_id` BIGINT DEFAULT NULL COMMENT '所属赋值',
+  `accident_vehicle_id` BIGINT DEFAULT NULL COMMENT '所属事故车',
   `biz_type` VARCHAR(20) NOT NULL COMMENT 'DAMAGE/PARK',
   `file_path` VARCHAR(500) NOT NULL,
   `sort_order` INT DEFAULT 0,
@@ -236,7 +253,8 @@ CREATE TABLE `dispatch_media` (
   `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_order_biz` (`dispatch_order_id`, `biz_type`),
-  KEY `idx_assignment_id` (`assignment_id`)
+  KEY `idx_assignment_id` (`assignment_id`),
+  KEY `idx_accident_vehicle_id` (`accident_vehicle_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='工单现场媒体';
 
 CREATE TABLE `district` (

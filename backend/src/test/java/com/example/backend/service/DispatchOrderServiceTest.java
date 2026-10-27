@@ -44,6 +44,7 @@ class DispatchOrderServiceTest {
     @Mock DispatchOrderEvaluationMapper evaluationMapper;
     @Mock DispatchVehicleAssignmentMapper assignmentMapper;
     @Mock DispatchAccidentVehicleMapper accidentVehicleMapper;
+    @Mock com.example.backend.support.SceneVehicleAssembler sceneVehicleAssembler;
     @InjectMocks DispatchOrderService service;
 
     private DispatchOrder basePendingOrder() {
