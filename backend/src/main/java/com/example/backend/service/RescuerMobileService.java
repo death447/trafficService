@@ -223,7 +223,7 @@ public class RescuerMobileService {
 
     public String previewEntryNo(Long userId, Long orderId) {
         requireAssignment(orderId, userId);
-        return entryNoGenerator.generate(orderId);
+        return entryNoGenerator.generate();
     }
 
     public List<ParkingLot> listEnabledParkingLots() {

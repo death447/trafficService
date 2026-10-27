@@ -145,7 +145,7 @@ public class DetainedVehicleService {
 
         DetainedVehicle v = new DetainedVehicle();
         v.setDetainNo(detainNo);
-        v.setEntryNo(resolveEntryNo(req.getEntryNo(), req.getDispatchOrderId()));
+        v.setEntryNo(resolveEntryNo(req.getEntryNo()));
         v.setPlateNo(plate);
         v.setParkingLotId(req.getParkingLotId());
         v.setDispatchOrderId(req.getDispatchOrderId());
@@ -306,15 +306,15 @@ public class DetainedVehicleService {
         return v;
     }
 
-    private String resolveEntryNo(String candidate, Long orderId) {
+    private String resolveEntryNo(String candidate) {
         if (candidate != null) {
             String trimmed = candidate.trim();
-            if (entryNoGenerator.matches(trimmed, orderId) && detainedVehicleMapper.findByEntryNo(trimmed) == null) {
+            if (entryNoGenerator.matches(trimmed) && detainedVehicleMapper.findByEntryNo(trimmed) == null) {
                 return trimmed;
             }
         }
         for (int i = 0; i < 5; i++) {
-            String generated = entryNoGenerator.generate(orderId);
+            String generated = entryNoGenerator.generate();
             if (detainedVehicleMapper.findByEntryNo(generated) == null) {
                 return generated;
             }

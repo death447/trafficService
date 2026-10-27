@@ -1,6 +1,6 @@
 # 入库入场编码页面预生成 Implementation Plan
 
-**Goal:** 移动端入库登记第三步在进入页面时展示后端预生成的入场编码（`yyyyMMddHH` + 工单ID 4 位 + 随机 5 位），提交时优先使用，冲突自动换码。
+**Goal:** 移动端入库登记第三步在进入页面时展示后端预生成的入场编码（`yyyyMMddHH` + 随机 5 位，共 15 位），提交时优先使用，冲突自动换码。
 
 **Architecture:** 新增 `EntryNoGenerator` 收敛编码格式；`DetainedVehicleService.checkIn` 改为「优先采用传入编码、否则生成并重试至唯一」；新增 `GET /api/mobile/rescuer/tasks/{id}/entry-no` 供移动端预取；移动端 `park.vue` 展示并在提交时回传。
 
@@ -23,9 +23,9 @@
 - Create: `backend/src/main/java/com/example/backend/support/EntryNoGenerator.java`
 - Test: `backend/src/test/java/com/example/backend/support/EntryNoGeneratorTest.java`
 
-**Produces:** `String generate(Long orderId)`、`boolean matches(String code, Long orderId)`。
+**Produces:** `String generate()`、`boolean matches(String code)`。
 
-- [ ] Step 1: 写 `EntryNoGeneratorTest`（长度19/纯数字/小时前缀/工单因子/后4位/随机性/matches 负例），跑测试确认失败
+- [ ] Step 1: 写 `EntryNoGeneratorTest`（长度15/纯数字/小时前缀/随机性/matches 负例），跑测试确认失败
 - [ ] Step 2: 实现 `EntryNoGenerator`
 - [ ] Step 3: 跑测试确认通过
 
@@ -56,9 +56,9 @@
 - Modify: `backend/src/main/java/com/example/backend/controller/RescuerMobileController.java`
 - Test: `backend/src/test/java/com/example/backend/service/RescuerMobileServiceTest.java`
 
-- [ ] Step 1: `RescuerMobileService.generateEntryNo(userId, orderId)`：`requireAssignment` 后 `entryNoGenerator.generate(orderId)`
+- [ ] Step 1: `RescuerMobileService.generateEntryNo(userId, orderId)`：`requireAssignment` 后 `entryNoGenerator.generate()`
 - [ ] Step 2: 控制器加 `GET /tasks/{id}/entry-no`
-- [ ] Step 3: 补测试（成功返回19位、非本人工单抛错）
+- [ ] Step 3: 补测试（成功返回15位、非本人工单抛错）
 - [ ] Step 4: 跑测试
 
 ### Task 5: 移动端展示与提交

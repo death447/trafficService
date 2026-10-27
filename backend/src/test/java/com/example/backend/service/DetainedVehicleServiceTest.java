@@ -491,14 +491,14 @@ class DetainedVehicleServiceTest {
         req.setPlateNo("粤B12345");
         req.setParkingLotId(1L);
         req.setDispatchOrderId(17L);
-        req.setEntryNo("2026102714001748291");
+        req.setEntryNo("202610271418370");
         ParkingLot lot = new ParkingLot();
         lot.setId(1L);
         lot.setStatus("ENABLED");
         when(parkingLotService.requireEnabled(1L)).thenReturn(lot);
         when(detainedVehicleMapper.findByDetainNo("DV-EN1")).thenReturn(null);
         when(detainedVehicleMapper.countInYardByPlateNo("粤B12345")).thenReturn(0);
-        when(detainedVehicleMapper.findByEntryNo("2026102714001748291")).thenReturn(null);
+        when(detainedVehicleMapper.findByEntryNo("202610271418370")).thenReturn(null);
         when(dispatchOrderMapper.findById(17L)).thenReturn(order(17L, "ACCEPTED", "粤B12345"));
         when(detainedVehicleMapper.insert(any(DetainedVehicle.class))).thenAnswer(inv -> {
             DetainedVehicle v = inv.getArgument(0);
@@ -509,11 +509,11 @@ class DetainedVehicleServiceTest {
 
         DetainedVehicle created = service.checkIn(req, 4L);
 
-        assertEquals("2026102714001748291", created.getEntryNo());
+        assertEquals("202610271418370", created.getEntryNo());
     }
 
     @Test
-    void checkInRegeneratesWhenSubmittedEntryNoHasWrongOrderFactor() {
+    void checkInRegeneratesWhenSubmittedEntryNoHasWrongLength() {
         DetainInRequest req = new DetainInRequest();
         req.setDetainNo("DV-EN2");
         req.setPlateNo("粤B12345");
@@ -536,8 +536,7 @@ class DetainedVehicleServiceTest {
 
         DetainedVehicle created = service.checkIn(req, 4L);
 
-        assertEquals(19, created.getEntryNo().length());
-        assertEquals("0017", created.getEntryNo().substring(10, 14));
+        assertEquals(15, created.getEntryNo().length());
         assertNotEquals("2026102714001848291", created.getEntryNo());
     }
 
@@ -548,14 +547,14 @@ class DetainedVehicleServiceTest {
         req.setPlateNo("粤B12345");
         req.setParkingLotId(1L);
         req.setDispatchOrderId(17L);
-        req.setEntryNo("2026102714001748291");
+        req.setEntryNo("202610271418370");
         ParkingLot lot = new ParkingLot();
         lot.setId(1L);
         lot.setStatus("ENABLED");
         when(parkingLotService.requireEnabled(1L)).thenReturn(lot);
         when(detainedVehicleMapper.findByDetainNo("DV-EN3")).thenReturn(null);
         when(detainedVehicleMapper.countInYardByPlateNo("粤B12345")).thenReturn(0);
-        when(detainedVehicleMapper.findByEntryNo("2026102714001748291")).thenReturn(new DetainedVehicle());
+        when(detainedVehicleMapper.findByEntryNo("202610271418370")).thenReturn(new DetainedVehicle());
         when(dispatchOrderMapper.findById(17L)).thenReturn(order(17L, "ACCEPTED", "粤B12345"));
         when(detainedVehicleMapper.insert(any(DetainedVehicle.class))).thenAnswer(inv -> {
             DetainedVehicle v = inv.getArgument(0);
@@ -566,8 +565,8 @@ class DetainedVehicleServiceTest {
 
         DetainedVehicle created = service.checkIn(req, 4L);
 
-        assertNotEquals("2026102714001748291", created.getEntryNo());
-        assertEquals(19, created.getEntryNo().length());
+        assertNotEquals("202610271418370", created.getEntryNo());
+        assertEquals(15, created.getEntryNo().length());
     }
 
     private static DispatchOrder order(long id, String status, String plate) {

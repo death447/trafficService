@@ -361,13 +361,13 @@ class RescuerMobileServiceTest {
         DetainInRequest req = new DetainInRequest();
         req.setPlateNo("粤B11111");
         req.setParkingLotId(2L);
-        req.setEntryNo("2026102714001748291");
+        req.setEntryNo("202610271418370");
 
         service.detainIn(9L, 1L, req);
 
         ArgumentCaptor<DetainInRequest> reqCaptor = ArgumentCaptor.forClass(DetainInRequest.class);
         verify(detainedVehicleService).checkIn(reqCaptor.capture(), eq(9L));
-        assertEquals("2026102714001748291", reqCaptor.getValue().getEntryNo());
+        assertEquals("202610271418370", reqCaptor.getValue().getEntryNo());
     }
 
     @Test
@@ -376,9 +376,9 @@ class RescuerMobileServiceTest {
         order.setId(1L);
         when(dispatchOrderMapper.findById(1L)).thenReturn(order);
         when(assignmentMapper.findByOrderIdAndRescuerId(1L, 9L)).thenReturn(assignment("ACCEPTED"));
-        when(entryNoGenerator.generate(1L)).thenReturn("2026102714001748291");
+        when(entryNoGenerator.generate()).thenReturn("202610271418370");
 
-        assertEquals("2026102714001748291", service.previewEntryNo(9L, 1L));
+        assertEquals("202610271418370", service.previewEntryNo(9L, 1L));
     }
 
     @Test

@@ -158,7 +158,7 @@
           <view class="field-input picker-value" :class="{ placeholder: !entryNo }">
             {{ entryNo || '提交后生成' }}
           </view>
-          <view class="hint">年月日时 + 工单号 + 随机数，提交时以入库结果为准</view>
+          <view class="hint">年月日时 + 随机数，提交时以入库结果为准</view>
         </view>
         <view class="field">
           <view class="field-label">停放场地 *</view>
