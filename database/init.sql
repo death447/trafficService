@@ -471,9 +471,9 @@ INSERT INTO `role_permission` (`role_id`, `permission_id`) VALUES (3, 18);
 INSERT INTO `role_permission` (`role_id`, `permission_id`)
 SELECT 3, id FROM `permission` WHERE id BETWEEN 53 AND 62 OR id = 67;
 
--- PARKING_ADMIN 拥有停车场与扣留车辆管理
+-- PARKING_ADMIN 拥有停车场与扣留车辆管理（扣留入库 48 已移至救援员移动端）
 INSERT INTO `role_permission` (`role_id`, `permission_id`)
-SELECT 4, id FROM `permission` WHERE id = 19 OR id BETWEEN 42 AND 52;
+SELECT 4, id FROM `permission` WHERE id = 19 OR (id BETWEEN 42 AND 52 AND id <> 48);
 
 -- admin 用户密码为 BCrypt(admin123)
 INSERT INTO `user` (`username`, `email`, `password`, `phone`, `real_name`, `status`) VALUES
