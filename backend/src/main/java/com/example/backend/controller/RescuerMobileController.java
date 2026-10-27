@@ -3,6 +3,7 @@ package com.example.backend.controller;
 import com.example.backend.common.Result;
 import com.example.backend.dto.BindVehicleRequest;
 import com.example.backend.dto.CheckinRequest;
+import com.example.backend.dto.DetainInRequest;
 import com.example.backend.dto.LocationReportRequest;
 import com.example.backend.dto.LocationReportResponse;
 import com.example.backend.dto.ParkRequest;
@@ -10,8 +11,12 @@ import com.example.backend.dto.RejectRequest;
 import com.example.backend.dto.RescuerProfileUpdateRequest;
 import com.example.backend.dto.RescuerTaskDetail;
 import com.example.backend.dto.SceneRequest;
+import com.example.backend.entity.DetainMedia;
+import com.example.backend.entity.DetainedVehicle;
 import com.example.backend.entity.DispatchMedia;
 import com.example.backend.entity.DispatchOrder;
+import com.example.backend.entity.ParkingArea;
+import com.example.backend.entity.ParkingLot;
 import com.example.backend.entity.RescueVehicle;
 import com.example.backend.entity.User;
 import com.example.backend.mapper.UserMapper;
@@ -165,6 +170,58 @@ public class RescuerMobileController {
         try {
             rescuerMobileService.savePark(currentUserId(), id, request);
             return Result.success(null);
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    @GetMapping("/parking-lots")
+    @PreAuthorize("hasAuthority('rescuer:park')")
+    public Result<List<ParkingLot>> listParkingLots() {
+        try {
+            return Result.success(rescuerMobileService.listEnabledParkingLots());
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    @GetMapping("/parking-lots/{lotId}/areas")
+    @PreAuthorize("hasAuthority('rescuer:park')")
+    public Result<List<ParkingArea>> listParkingAreas(@PathVariable Long lotId) {
+        try {
+            return Result.success(rescuerMobileService.listParkingAreas(lotId));
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    @PostMapping("/tasks/{id}/detain-in")
+    @PreAuthorize("hasAuthority('rescuer:park')")
+    public Result<DetainedVehicle> detainIn(@PathVariable Long id, @RequestBody DetainInRequest request) {
+        try {
+            return Result.success(rescuerMobileService.detainIn(currentUserId(), id, request));
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    @GetMapping("/tasks/{id}/detain")
+    @PreAuthorize("hasAuthority('rescuer:park')")
+    public Result<DetainedVehicle> getTaskDetain(@PathVariable Long id) {
+        try {
+            return Result.success(rescuerMobileService.getTaskDetain(currentUserId(), id));
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    @PostMapping("/detain/{detainId}/media")
+    @PreAuthorize("hasAuthority('rescuer:park')")
+    public Result<DetainMedia> addDetainMedia(@PathVariable Long detainId,
+                                              @RequestParam MultipartFile file,
+                                              @RequestParam String bizType) {
+        try {
+            return Result.success(rescuerMobileService.addDetainMedia(currentUserId(), detainId, bizType, file));
         } catch (RuntimeException e) {
             return Result.error(e.getMessage());
         }
