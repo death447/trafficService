@@ -82,7 +82,17 @@
       <view v-show="step === 2" class="card">
         <view class="field">
           <view class="field-label">扣押部门</view>
-          <input class="field-input" v-model="form.detainDept" placeholder="请填写扣押部门" />
+          <picker
+            mode="selector"
+            :range="detainDeptNames"
+            :value="detainDeptIndex"
+            :disabled="!detainDeptNames.length"
+            @change="onDetainDeptPick"
+          >
+            <view class="field-input picker-value" :class="{ placeholder: !form.detainDept }">
+              {{ form.detainDept || (detainDeptNames.length ? '请选择扣押部门' : '暂无配置') }}
+            </view>
+          </picker>
         </view>
         <view class="field">
           <view class="field-label">施救人员</view>
@@ -102,7 +112,17 @@
         </view>
         <view class="field">
           <view class="field-label">施救方式</view>
-          <input class="field-input" v-model="form.rescueMethod" placeholder="请填写施救方式" />
+          <picker
+            mode="selector"
+            :range="rescueMethodNames"
+            :value="rescueMethodIndex"
+            :disabled="!rescueMethodNames.length"
+            @change="onRescueMethodPick"
+          >
+            <view class="field-input picker-value" :class="{ placeholder: !form.rescueMethod }">
+              {{ form.rescueMethod || (rescueMethodNames.length ? '请选择施救方式' : '暂无配置') }}
+            </view>
+          </picker>
         </view>
         <view class="field">
           <view class="field-label">施救时间</view>
@@ -223,7 +243,8 @@ import {
   listRescuerParkingAreas,
   detainInTask,
   getTaskDetain,
-  uploadDetainPhoto
+  uploadDetainPhoto,
+  listDictOptions
 } from '../../api/rescuer'
 import { getMe } from '../../api/auth'
 import { mediaUrl } from '../../utils/request'
@@ -242,6 +263,8 @@ const step = ref(1)
 const existing = ref(null)
 const lots = ref([])
 const areas = ref([])
+const detainDepts = ref([])
+const rescueMethods = ref([])
 const damagePhotos = ref([])
 const parkPhotos = ref([])
 const submitting = ref(false)
@@ -294,6 +317,16 @@ const selectedAreaName = computed(() => {
   const area = areas.value.find((row) => String(row.id) === String(form.parkingAreaId))
   return area ? area.name : ''
 })
+const detainDeptNames = computed(() => detainDepts.value.map((row) => row.name))
+const rescueMethodNames = computed(() => rescueMethods.value.map((row) => row.name))
+const detainDeptIndex = computed(() => {
+  const idx = detainDeptNames.value.indexOf(form.detainDept)
+  return idx < 0 ? 0 : idx
+})
+const rescueMethodIndex = computed(() => {
+  const idx = rescueMethodNames.value.indexOf(form.rescueMethod)
+  return idx < 0 ? 0 : idx
+})
 const primaryLabel = computed(() => {
   if (submitting.value) return '提交中…'
   if (step.value < 3) return '下一步'
@@ -314,7 +347,7 @@ function formatTime(value) {
 onLoad(async (q) => {
   if (!requirePageAccess('rescuer')) return
   id.value = q.id
-  await Promise.all([loadTask(), loadLots(), loadMe(), loadExisting()])
+  await Promise.all([loadTask(), loadLots(), loadMe(), loadExisting(), loadDicts()])
 })
 
 async function loadTask() {
@@ -375,6 +408,20 @@ async function loadLots() {
   }
 }
 
+async function loadDicts() {
+  try {
+    const [deptRes, methodRes] = await Promise.all([
+      listDictOptions('DETAIN_DEPT'),
+      listDictOptions('RESCUE_METHOD')
+    ])
+    detainDepts.value = deptRes.data || []
+    rescueMethods.value = methodRes.data || []
+  } catch (_) {
+    detainDepts.value = []
+    rescueMethods.value = []
+  }
+}
+
 async function loadAreas(lotId) {
   areas.value = []
   form.parkingAreaId = ''
@@ -390,6 +437,16 @@ async function loadAreas(lotId) {
 function onColorPick(e) {
   const i = Number(e.detail.value)
   form.vehicleColor = colorNames[i] || ''
+}
+
+function onDetainDeptPick(e) {
+  const idx = Number(e.detail.value)
+  form.detainDept = detainDeptNames.value[idx] || ''
+}
+
+function onRescueMethodPick(e) {
+  const idx = Number(e.detail.value)
+  form.rescueMethod = rescueMethodNames.value[idx] || ''
 }
 
 function onLotChange(e) {

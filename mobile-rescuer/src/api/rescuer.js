@@ -97,3 +97,7 @@ export function uploadDetainPhoto(detainId, filePath) {
     formData: { bizType: 'PARK' }
   })
 }
+
+export function listDictOptions(type) {
+  return request({ url: '/dict/enabled', data: { type }, showError: false })
+}
