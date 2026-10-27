@@ -1,19 +1,28 @@
 package com.example.backend.service;
 
+import com.example.backend.common.PageParams;
 import com.example.backend.dto.AssignedVehicleSnapshot;
 import com.example.backend.dto.BindVehicleRequest;
+import com.example.backend.dto.DetainInRequest;
 import com.example.backend.dto.LocationReportRequest;
 import com.example.backend.dto.LocationReportResponse;
 import com.example.backend.dto.ParkRequest;
 import com.example.backend.dto.RescuerProfileUpdateRequest;
 import com.example.backend.dto.RescuerTaskDetail;
 import com.example.backend.dto.SceneRequest;
+import com.example.backend.entity.DetainMedia;
+import com.example.backend.entity.DetainedVehicle;
+import com.example.backend.entity.DispatchAccidentVehicle;
 import com.example.backend.entity.DispatchFieldRecord;
 import com.example.backend.entity.DispatchMedia;
 import com.example.backend.entity.DispatchOrder;
 import com.example.backend.entity.DispatchVehicleAssignment;
+import com.example.backend.entity.ParkingArea;
+import com.example.backend.entity.ParkingLot;
 import com.example.backend.entity.RescueVehicle;
 import com.example.backend.entity.User;
+import com.example.backend.mapper.DetainMediaMapper;
+import com.example.backend.mapper.DetainedVehicleMapper;
 import com.example.backend.mapper.DispatchAccidentVehicleMapper;
 import com.example.backend.mapper.DispatchFieldRecordMapper;
 import com.example.backend.mapper.DispatchMediaMapper;
@@ -22,6 +31,7 @@ import com.example.backend.mapper.DispatchOrderMapper;
 import com.example.backend.mapper.DispatchVehicleAssignmentMapper;
 import com.example.backend.mapper.RescueVehicleMapper;
 import com.example.backend.mapper.UserMapper;
+import com.example.backend.util.PlateNos;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,7 +39,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -67,6 +79,21 @@ public class RescuerMobileService {
 
     @Autowired
     private LocalFileStorageService fileStorageService;
+
+    @Autowired
+    private DetainedVehicleService detainedVehicleService;
+
+    @Autowired
+    private DetainedVehicleMapper detainedVehicleMapper;
+
+    @Autowired
+    private DetainMediaMapper detainMediaMapper;
+
+    @Autowired
+    private ParkingLotService parkingLotService;
+
+    @Autowired
+    private ParkingAreaService parkingAreaService;
 
     public List<DispatchOrder> listTasks(Long userId, String tab) {
         Set<String> statuses;
@@ -147,6 +174,128 @@ public class RescuerMobileService {
         }
         record.setParkSubmittedAt(LocalDateTime.now());
         upsert(record);
+    }
+
+    @Transactional
+    public DetainedVehicle detainIn(Long userId, Long orderId, DetainInRequest req) {
+        if (req == null) {
+            throw new RuntimeException("入库参数无效");
+        }
+        DispatchVehicleAssignment assignment = requireAssignmentAccepted(orderId, userId);
+        DispatchOrder order = dispatchOrderMapper.findById(orderId);
+        if (order == null) {
+            throw new RuntimeException("工单不存在");
+        }
+        String plate = req.getPlateNo() == null ? "" : req.getPlateNo().trim();
+        if (plate.isEmpty()) {
+            throw new RuntimeException("车牌不能为空");
+        }
+        if (!matchesAccidentVehicle(orderId, plate)) {
+            throw new RuntimeException("车牌与工单事故车不一致");
+        }
+        User user = userMapper.findById(userId);
+        String rescuerName = null;
+        if (user != null) {
+            rescuerName = user.getRealName() != null && !user.getRealName().isBlank()
+                    ? user.getRealName() : user.getUsername();
+        }
+        req.setDispatchOrderId(orderId);
+        req.setRescuerName(rescuerName);
+
+        DetainedVehicle created = detainedVehicleService.checkIn(req, userId);
+
+        DispatchFieldRecord record = getOrCreateRecord(orderId, assignment.getId());
+        record.setParkAddress(buildParkAddress(req));
+        record.setParkRemark(req.getRemark());
+        record.setParkSubmittedAt(LocalDateTime.now());
+        upsert(record);
+        return created;
+    }
+
+    public DetainedVehicle getTaskDetain(Long userId, Long orderId) {
+        requireAssignment(orderId, userId);
+        return detainedVehicleMapper.findInYardByDispatchOrderId(orderId);
+    }
+
+    public List<ParkingLot> listEnabledParkingLots() {
+        PageParams pp = PageParams.normalize(1, 100);
+        Map<String, Object> result = parkingLotService.list(null, "ENABLED", pp);
+        Object rows = result == null ? null : result.get("list");
+        if (rows instanceof List<?> list) {
+            List<ParkingLot> lots = new ArrayList<>();
+            for (Object row : list) {
+                if (row instanceof ParkingLot lot) {
+                    lots.add(lot);
+                }
+            }
+            return lots;
+        }
+        return List.of();
+    }
+
+    public List<ParkingArea> listParkingAreas(Long lotId) {
+        return parkingAreaService.list(lotId, "ENABLED");
+    }
+
+    @Transactional
+    public DetainMedia addDetainMedia(Long userId, Long detainId, String bizType, MultipartFile file) {
+        DetainedVehicle dv = detainedVehicleMapper.findById(detainId);
+        if (dv == null) {
+            throw new RuntimeException("扣留车辆不存在");
+        }
+        if (dv.getDispatchOrderId() == null) {
+            throw new RuntimeException("扣留车辆未关联工单");
+        }
+        requireAssignmentAccepted(dv.getDispatchOrderId(), userId);
+        if (!"PARK".equals(bizType)) {
+            throw new RuntimeException("媒体类型无效，仅支持 PARK");
+        }
+        if (file == null || file.isEmpty()) {
+            throw new RuntimeException("请上传文件");
+        }
+        String relativePath;
+        try {
+            relativePath = fileStorageService.storeDetainMedia(detainId, file);
+        } catch (IOException e) {
+            throw new RuntimeException("文件保存失败");
+        }
+        DetainMedia media = new DetainMedia();
+        media.setDetainId(detainId);
+        media.setBizType("PARK");
+        media.setFilePath(relativePath);
+        media.setSortOrder(0);
+        media.setUploadedBy(userId);
+        detainMediaMapper.insert(media);
+        return media;
+    }
+
+    private boolean matchesAccidentVehicle(Long orderId, String plate) {
+        List<DispatchAccidentVehicle> vehicles = accidentVehicleMapper.findByOrderId(orderId);
+        if (vehicles == null || vehicles.isEmpty()) {
+            return false;
+        }
+        String needle = PlateNos.normalize(plate);
+        for (DispatchAccidentVehicle av : vehicles) {
+            if (av != null && needle.equals(PlateNos.normalize(av.getPlateNo()))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String buildParkAddress(DetainInRequest req) {
+        ParkingLot lot = parkingLotService.findById(req.getParkingLotId());
+        StringBuilder sb = new StringBuilder(lot != null && lot.getName() != null ? lot.getName() : "停车场");
+        if (req.getParkingAreaId() != null) {
+            ParkingArea area = parkingAreaService.findById(req.getParkingAreaId());
+            if (area != null && area.getName() != null) {
+                sb.append('/').append(area.getName());
+            }
+        }
+        if (req.getStallNo() != null && !req.getStallNo().isBlank()) {
+            sb.append(" 车位").append(req.getStallNo().trim());
+        }
+        return sb.toString();
     }
 
     @Transactional

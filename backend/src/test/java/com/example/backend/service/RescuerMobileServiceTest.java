@@ -1,14 +1,24 @@
 package com.example.backend.service;
 
 import com.example.backend.dto.BindVehicleRequest;
+import com.example.backend.dto.DetainInRequest;
 import com.example.backend.dto.LocationReportRequest;
 import com.example.backend.dto.LocationReportResponse;
 import com.example.backend.dto.SceneRequest;
+import com.example.backend.entity.DetainMedia;
+import com.example.backend.entity.DetainedVehicle;
+import com.example.backend.entity.DispatchAccidentVehicle;
+import com.example.backend.entity.DispatchFieldRecord;
 import com.example.backend.entity.DispatchMedia;
 import com.example.backend.entity.DispatchOrder;
 import com.example.backend.entity.DispatchOrderEvaluation;
 import com.example.backend.entity.DispatchVehicleAssignment;
+import com.example.backend.entity.ParkingArea;
+import com.example.backend.entity.ParkingLot;
 import com.example.backend.entity.RescueVehicle;
+import com.example.backend.entity.User;
+import com.example.backend.mapper.DetainMediaMapper;
+import com.example.backend.mapper.DetainedVehicleMapper;
 import com.example.backend.mapper.DispatchFieldRecordMapper;
 import com.example.backend.mapper.DispatchMediaMapper;
 import com.example.backend.mapper.DispatchOrderEvaluationMapper;
@@ -16,6 +26,7 @@ import com.example.backend.mapper.DispatchOrderMapper;
 import com.example.backend.mapper.DispatchVehicleAssignmentMapper;
 import com.example.backend.mapper.RescueVehicleMapper;
 import com.example.backend.mapper.UserMapper;
+import com.example.backend.common.PageParams;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -25,6 +36,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
 
 import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -42,6 +55,11 @@ class RescuerMobileServiceTest {
     @Mock RescueVehicleMapper rescueVehicleMapper;
     @Mock UserMapper userMapper;
     @Mock LocalFileStorageService fileStorageService;
+    @Mock DetainedVehicleMapper detainedVehicleMapper;
+    @Mock DetainMediaMapper detainMediaMapper;
+    @Mock DetainedVehicleService detainedVehicleService;
+    @Mock ParkingLotService parkingLotService;
+    @Mock ParkingAreaService parkingAreaService;
     @InjectMocks RescuerMobileService service;
 
     private DispatchVehicleAssignment assignment(String status) {
@@ -256,5 +274,216 @@ class RescuerMobileServiceTest {
         assertNotNull(resp.getLocationUpdatedAt());
         verify(rescueVehicleMapper).updateLocation(eq(7L),
                 eq(req.getLng()), eq(req.getLat()), any());
+    }
+
+    @Test
+    void detainInForcesOrderAndRescuerNameAndWritesParkAddress() {
+        DispatchOrder order = new DispatchOrder();
+        order.setId(1L);
+        order.setStatus("ACCEPTED");
+        when(dispatchOrderMapper.findById(1L)).thenReturn(order);
+        when(assignmentMapper.findByOrderIdAndRescuerId(1L, 9L)).thenReturn(assignment("ACCEPTED"));
+        DispatchAccidentVehicle first = new DispatchAccidentVehicle();
+        first.setDispatchOrderId(1L);
+        first.setPlateNo("粤B11111");
+        DispatchAccidentVehicle second = new DispatchAccidentVehicle();
+        second.setDispatchOrderId(1L);
+        second.setPlateNo("粤B22222");
+        when(accidentVehicleMapper.findByOrderId(1L)).thenReturn(List.of(first, second));
+
+        User user = new User();
+        user.setId(9L);
+        user.setUsername("towdriver");
+        user.setRealName("施救员演示");
+        when(userMapper.findById(9L)).thenReturn(user);
+
+        DetainedVehicle created = new DetainedVehicle();
+        created.setId(33L);
+        when(detainedVehicleService.checkIn(any(DetainInRequest.class), eq(9L))).thenReturn(created);
+        when(fieldRecordMapper.findByAssignmentId(50L)).thenReturn(null);
+        when(fieldRecordMapper.insert(any(DispatchFieldRecord.class))).thenReturn(1);
+
+        ParkingLot lot = new ParkingLot();
+        lot.setId(2L);
+        lot.setName("福田停车场");
+        when(parkingLotService.findById(2L)).thenReturn(lot);
+        ParkingArea area = new ParkingArea();
+        area.setId(3L);
+        area.setName("A区");
+        when(parkingAreaService.findById(3L)).thenReturn(area);
+
+        DetainInRequest req = new DetainInRequest();
+        req.setPlateNo("粤B22222");
+        req.setParkingLotId(2L);
+        req.setParkingAreaId(3L);
+        req.setStallNo("A-01");
+        req.setRemark("入库备注");
+        req.setRescuerName("伪造姓名");
+
+        DetainedVehicle result = service.detainIn(9L, 1L, req);
+
+        assertEquals(33L, result.getId());
+        ArgumentCaptor<DetainInRequest> reqCaptor = ArgumentCaptor.forClass(DetainInRequest.class);
+        verify(detainedVehicleService).checkIn(reqCaptor.capture(), eq(9L));
+        assertEquals(1L, reqCaptor.getValue().getDispatchOrderId());
+        assertEquals("施救员演示", reqCaptor.getValue().getRescuerName());
+
+        ArgumentCaptor<DispatchFieldRecord> frCaptor = ArgumentCaptor.forClass(DispatchFieldRecord.class);
+        verify(fieldRecordMapper).insert(frCaptor.capture());
+        assertEquals("福田停车场/A区 车位A-01", frCaptor.getValue().getParkAddress());
+        assertEquals("入库备注", frCaptor.getValue().getParkRemark());
+        assertEquals(1L, frCaptor.getValue().getDispatchOrderId());
+        assertEquals(50L, frCaptor.getValue().getAssignmentId());
+        assertNotNull(frCaptor.getValue().getParkSubmittedAt());
+    }
+
+    @Test
+    void detainInRejectsPlateNotInOrderAccidentVehicles() {
+        DispatchOrder order = new DispatchOrder();
+        order.setId(1L);
+        order.setStatus("ACCEPTED");
+        when(dispatchOrderMapper.findById(1L)).thenReturn(order);
+        when(assignmentMapper.findByOrderIdAndRescuerId(1L, 9L)).thenReturn(assignment("ACCEPTED"));
+        DispatchAccidentVehicle only = new DispatchAccidentVehicle();
+        only.setDispatchOrderId(1L);
+        only.setPlateNo("粤B11111");
+        when(accidentVehicleMapper.findByOrderId(1L)).thenReturn(List.of(only));
+
+        DetainInRequest req = new DetainInRequest();
+        req.setPlateNo("粤B99999");
+        req.setParkingLotId(2L);
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> service.detainIn(9L, 1L, req));
+
+        assertTrue(ex.getMessage().contains("事故车"));
+        verifyNoInteractions(detainedVehicleService);
+    }
+
+    @Test
+    void detainInFailsWhenAssignmentNotAccepted() {
+        DispatchOrder order = new DispatchOrder();
+        order.setId(1L);
+        order.setStatus("DISPATCHED");
+        when(dispatchOrderMapper.findById(1L)).thenReturn(order);
+        when(assignmentMapper.findByOrderIdAndRescuerId(1L, 9L)).thenReturn(assignment("DISPATCHED"));
+
+        DetainInRequest req = new DetainInRequest();
+        req.setPlateNo("粤B11111");
+        req.setParkingLotId(2L);
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> service.detainIn(9L, 1L, req));
+
+        assertTrue(ex.getMessage().contains("接单"));
+        verifyNoInteractions(detainedVehicleService);
+    }
+
+    @Test
+    void getTaskDetainReturnsInYardRecord() {
+        DispatchOrder order = new DispatchOrder();
+        order.setId(1L);
+        when(dispatchOrderMapper.findById(1L)).thenReturn(order);
+        when(assignmentMapper.findByOrderIdAndRescuerId(1L, 9L)).thenReturn(assignment("ACCEPTED"));
+        DetainedVehicle dv = new DetainedVehicle();
+        dv.setId(33L);
+        dv.setDispatchOrderId(1L);
+        dv.setStatus("IN_YARD");
+        when(detainedVehicleMapper.findInYardByDispatchOrderId(1L)).thenReturn(dv);
+
+        DetainedVehicle found = service.getTaskDetain(9L, 1L);
+
+        assertNotNull(found);
+        assertEquals(33L, found.getId());
+    }
+
+    @Test
+    void getTaskDetainReturnsNullWhenMissing() {
+        DispatchOrder order = new DispatchOrder();
+        order.setId(1L);
+        when(dispatchOrderMapper.findById(1L)).thenReturn(order);
+        when(assignmentMapper.findByOrderIdAndRescuerId(1L, 9L)).thenReturn(assignment("COMPLETED"));
+        when(detainedVehicleMapper.findInYardByDispatchOrderId(1L)).thenReturn(null);
+
+        assertNull(service.getTaskDetain(9L, 1L));
+    }
+
+    @Test
+    void addDetainMediaRejectsDetainOfOtherRescuer() {
+        DetainedVehicle dv = new DetainedVehicle();
+        dv.setId(33L);
+        dv.setDispatchOrderId(1L);
+        when(detainedVehicleMapper.findById(33L)).thenReturn(dv);
+        DispatchOrder order = new DispatchOrder();
+        order.setId(1L);
+        when(dispatchOrderMapper.findById(1L)).thenReturn(order);
+        when(assignmentMapper.findByOrderIdAndRescuerId(1L, 9L)).thenReturn(null);
+
+        MockMultipartFile file = new MockMultipartFile("file", "a.jpg", "image/jpeg", new byte[]{1, 2, 3});
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> service.addDetainMedia(9L, 33L, "PARK", file));
+
+        assertTrue(ex.getMessage().contains("无权"));
+        verifyNoInteractions(fileStorageService);
+        verify(detainMediaMapper, never()).insert(any());
+    }
+
+    @Test
+    void addDetainMediaRejectsSceneBizType() {
+        DetainedVehicle dv = new DetainedVehicle();
+        dv.setId(33L);
+        dv.setDispatchOrderId(1L);
+        when(detainedVehicleMapper.findById(33L)).thenReturn(dv);
+        DispatchOrder order = new DispatchOrder();
+        order.setId(1L);
+        order.setStatus("ACCEPTED");
+        when(dispatchOrderMapper.findById(1L)).thenReturn(order);
+        when(assignmentMapper.findByOrderIdAndRescuerId(1L, 9L)).thenReturn(assignment("ACCEPTED"));
+
+        MockMultipartFile file = new MockMultipartFile("file", "a.jpg", "image/jpeg", new byte[]{1, 2, 3});
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> service.addDetainMedia(9L, 33L, "SCENE", file));
+
+        assertTrue(ex.getMessage().contains("PARK"));
+        verifyNoInteractions(fileStorageService);
+    }
+
+    @Test
+    void addDetainMediaStoresParkPhoto() throws Exception {
+        DetainedVehicle dv = new DetainedVehicle();
+        dv.setId(33L);
+        dv.setDispatchOrderId(1L);
+        when(detainedVehicleMapper.findById(33L)).thenReturn(dv);
+        DispatchOrder order = new DispatchOrder();
+        order.setId(1L);
+        order.setStatus("ACCEPTED");
+        when(dispatchOrderMapper.findById(1L)).thenReturn(order);
+        when(assignmentMapper.findByOrderIdAndRescuerId(1L, 9L)).thenReturn(assignment("ACCEPTED"));
+        when(fileStorageService.storeDetainMedia(eq(33L), any())).thenReturn("detain/33/a.jpg");
+        when(detainMediaMapper.insert(any(DetainMedia.class))).thenReturn(1);
+
+        MockMultipartFile file = new MockMultipartFile("file", "a.jpg", "image/jpeg", new byte[]{1, 2, 3});
+
+        DetainMedia media = service.addDetainMedia(9L, 33L, "PARK", file);
+
+        assertEquals("PARK", media.getBizType());
+        assertEquals("detain/33/a.jpg", media.getFilePath());
+        assertEquals(33L, media.getDetainId());
+        assertEquals(9L, media.getUploadedBy());
+        verify(detainMediaMapper).insert(any(DetainMedia.class));
+    }
+
+    @Test
+    void listEnabledParkingLotsReadsFromServiceResult() {
+        ParkingLot lot = new ParkingLot();
+        lot.setId(2L);
+        lot.setName("福田停车场");
+        when(parkingLotService.list(isNull(), eq("ENABLED"), any(PageParams.class)))
+                .thenReturn(Map.of("list", List.of(lot)));
+
+        List<ParkingLot> lots = service.listEnabledParkingLots();
+
+        assertEquals(1, lots.size());
+        assertEquals(2L, lots.get(0).getId());
     }
 }

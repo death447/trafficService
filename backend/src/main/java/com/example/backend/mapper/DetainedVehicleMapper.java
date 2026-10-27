@@ -73,6 +73,9 @@ public interface DetainedVehicleMapper {
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(DetainedVehicle v);
 
+    @Select("SELECT * FROM detained_vehicle WHERE dispatch_order_id = #{orderId} AND status = 'IN_YARD' ORDER BY id DESC LIMIT 1")
+    DetainedVehicle findInYardByDispatchOrderId(Long orderId);
+
     @Update("UPDATE detained_vehicle SET plate_no=#{plateNo}, vehicle_type=#{vehicleType}, brand_model=#{brandModel}, " +
             "vehicle_color=#{vehicleColor}, mileage=#{mileage}, important_equipment=#{importantEquipment}, " +
             "has_key=#{hasKey}, parking_lot_id=#{parkingLotId}, parking_area_id=#{parkingAreaId}, stall_no=#{stallNo}, " +
