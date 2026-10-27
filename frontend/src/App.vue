@@ -126,6 +126,15 @@
           <span class="nav-ico">型</span>
           车型管理
         </router-link>
+        <router-link
+          v-auth="'dict:manage'"
+          to="/dicts"
+          class="nav-item"
+          active-class="active"
+        >
+          <span class="nav-ico">典</span>
+          字典管理
+        </router-link>
       </nav>
 
       <div class="sidebar-foot">
@@ -189,6 +198,7 @@ const pageTitle = computed(() => {
     '/detained-vehicles': '扣留车辆',
     '/schedules': '排班管理',
     '/vehicle-types': '车型管理',
+    '/dicts': '字典管理',
     '/reports': '报表',
     '/403': '访问受限'
   }

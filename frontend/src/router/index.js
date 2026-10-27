@@ -100,6 +100,12 @@ const routes = [
     name: 'VehicleTypeList',
     component: () => import('../views/vehicleType/VehicleTypeList.vue'),
     meta: { permissions: ['vehicle-type:manage'] }
+  },
+  {
+    path: '/dicts',
+    name: 'DictList',
+    component: () => import('../views/dict/DictList.vue'),
+    meta: { permissions: ['dict:manage'] }
   }
 ]
 
