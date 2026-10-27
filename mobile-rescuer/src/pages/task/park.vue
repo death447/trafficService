@@ -155,7 +155,10 @@
       <view v-show="step === 3" class="card">
         <view class="field">
           <view class="field-label">入场编号</view>
-          <view class="field-input picker-value placeholder">提交后生成</view>
+          <view class="field-input picker-value" :class="{ placeholder: !entryNo }">
+            {{ entryNo || '提交后生成' }}
+          </view>
+          <view class="hint">年月日时 + 工单号 + 随机数，提交时以入库结果为准</view>
         </view>
         <view class="field">
           <view class="field-label">停放场地 *</view>
@@ -243,6 +246,7 @@ import {
   listRescuerParkingAreas,
   detainInTask,
   getTaskDetain,
+  getTaskEntryNo,
   uploadDetainPhoto,
   listDictOptions
 } from '../../api/rescuer'
@@ -261,6 +265,7 @@ const id = ref(null)
 const accidentVehicles = ref([])
 const step = ref(1)
 const existing = ref(null)
+const entryNo = ref('')
 const lots = ref([])
 const areas = ref([])
 const detainDepts = ref([])
@@ -348,6 +353,7 @@ onLoad(async (q) => {
   if (!requirePageAccess('rescuer')) return
   id.value = q.id
   await Promise.all([loadTask(), loadLots(), loadMe(), loadExisting(), loadDicts()])
+  loadEntryNo()
 })
 
 async function loadTask() {
@@ -395,6 +401,15 @@ async function loadExisting() {
     existing.value = res.data || null
   } catch (_) {
     existing.value = null
+  }
+}
+
+async function loadEntryNo() {
+  try {
+    const res = await getTaskEntryNo(id.value)
+    entryNo.value = res.data || ''
+  } catch (_) {
+    entryNo.value = ''
   }
 }
 
@@ -557,6 +572,7 @@ async function onSubmit() {
     return
   }
   const body = { detainNo, plateNo: plate, parkingLotId: lotId }
+  if (entryNo.value) body.entryNo = entryNo.value
   if (form.parkingAreaId) body.parkingAreaId = Number(form.parkingAreaId)
   const put = (key, val) => {
     const s = String(val || '').trim()

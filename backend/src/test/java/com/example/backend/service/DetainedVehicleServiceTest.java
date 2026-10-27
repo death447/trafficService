@@ -14,10 +14,12 @@ import com.example.backend.mapper.DetainedVehicleMapper;
 import com.example.backend.mapper.DispatchAccidentVehicleMapper;
 import com.example.backend.mapper.DispatchMediaMapper;
 import com.example.backend.mapper.DispatchOrderMapper;
+import com.example.backend.support.EntryNoGenerator;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
@@ -37,6 +39,7 @@ class DetainedVehicleServiceTest {
     @Mock DetainMediaMapper detainMediaMapper;
     @Mock DispatchMediaMapper dispatchMediaMapper;
     @Mock LocalFileStorageService fileStorageService;
+    @Spy EntryNoGenerator entryNoGenerator;
     @InjectMocks DetainedVehicleService service;
 
     @Test
@@ -52,7 +55,6 @@ class DetainedVehicleServiceTest {
         when(parkingLotService.requireEnabled(1L)).thenReturn(lot);
         when(detainedVehicleMapper.findByDetainNo("凭证001")).thenReturn(null);
         when(detainedVehicleMapper.countInYardByPlateNo("粤B停01")).thenReturn(0);
-        when(detainedVehicleMapper.countByEntryNoPrefix(org.mockito.ArgumentMatchers.anyString())).thenReturn(0);
         when(detainedVehicleMapper.insert(any(DetainedVehicle.class))).thenAnswer(inv -> {
             DetainedVehicle v = inv.getArgument(0);
             v.setId(88L);
@@ -298,7 +300,6 @@ class DetainedVehicleServiceTest {
         when(parkingLotService.requireEnabled(1L)).thenReturn(lot);
         when(detainedVehicleMapper.findByDetainNo("DV-OK")).thenReturn(null);
         when(detainedVehicleMapper.countInYardByPlateNo("粤B12345")).thenReturn(0);
-        when(detainedVehicleMapper.countByEntryNoPrefix(org.mockito.ArgumentMatchers.anyString())).thenReturn(0);
         when(dispatchOrderMapper.findById(7L)).thenReturn(order(7L, "ACCEPTED", "粤b·12345"));
         when(detainedVehicleMapper.insert(any(DetainedVehicle.class))).thenAnswer(inv -> {
             DetainedVehicle v = inv.getArgument(0);
@@ -328,7 +329,6 @@ class DetainedVehicleServiceTest {
         when(accidentVehicleMapper.findByOrderId(11L)).thenReturn(List.of(
                 accidentVehicle(11L, "粤B11111", "小型汽车"),
                 accidentVehicle(11L, "粤B22222", "小型汽车")));
-        when(detainedVehicleMapper.countByEntryNoPrefix(org.mockito.ArgumentMatchers.anyString())).thenReturn(0);
         when(detainedVehicleMapper.insert(any(DetainedVehicle.class))).thenAnswer(inv -> {
             DetainedVehicle v = inv.getArgument(0);
             v.setId(102L);
@@ -379,7 +379,6 @@ class DetainedVehicleServiceTest {
         when(parkingLotService.requireEnabled(1L)).thenReturn(lot);
         when(detainedVehicleMapper.findByDetainNo("DV-CP")).thenReturn(null);
         when(detainedVehicleMapper.countInYardByPlateNo("粤B12345")).thenReturn(0);
-        when(detainedVehicleMapper.countByEntryNoPrefix(org.mockito.ArgumentMatchers.anyString())).thenReturn(0);
         when(dispatchOrderMapper.findById(7L)).thenReturn(order(7L, "ACCEPTED", "粤B12345"));
         when(detainedVehicleMapper.insert(any(DetainedVehicle.class))).thenAnswer(inv -> {
             DetainedVehicle v = inv.getArgument(0);
@@ -418,7 +417,6 @@ class DetainedVehicleServiceTest {
         when(parkingLotService.requireEnabled(1L)).thenReturn(lot);
         when(detainedVehicleMapper.findByDetainNo("DV-IO")).thenReturn(null);
         when(detainedVehicleMapper.countInYardByPlateNo("粤B12345")).thenReturn(0);
-        when(detainedVehicleMapper.countByEntryNoPrefix(org.mockito.ArgumentMatchers.anyString())).thenReturn(0);
         when(dispatchOrderMapper.findById(7L)).thenReturn(order(7L, "ACCEPTED", "粤B12345"));
         when(detainedVehicleMapper.insert(any(DetainedVehicle.class))).thenAnswer(inv -> {
             DetainedVehicle v = inv.getArgument(0);
@@ -448,7 +446,6 @@ class DetainedVehicleServiceTest {
         when(parkingLotService.requireEnabled(1L)).thenReturn(lot);
         when(detainedVehicleMapper.findByDetainNo("DV-NO")).thenReturn(null);
         when(detainedVehicleMapper.countInYardByPlateNo("粤B停01")).thenReturn(0);
-        when(detainedVehicleMapper.countByEntryNoPrefix(org.mockito.ArgumentMatchers.anyString())).thenReturn(0);
         when(detainedVehicleMapper.insert(any(DetainedVehicle.class))).thenAnswer(inv -> {
             DetainedVehicle v = inv.getArgument(0);
             v.setId(88L);
@@ -485,6 +482,92 @@ class DetainedVehicleServiceTest {
         assertNull(v.getDetainDept());
         assertEquals("新备注", v.getRemark());
         assertEquals(99L, v.getParkingLotId());
+    }
+
+    @Test
+    void checkInUsesSubmittedEntryNoWhenFormatAndUniquenessPass() {
+        DetainInRequest req = new DetainInRequest();
+        req.setDetainNo("DV-EN1");
+        req.setPlateNo("粤B12345");
+        req.setParkingLotId(1L);
+        req.setDispatchOrderId(17L);
+        req.setEntryNo("2026102714001748291");
+        ParkingLot lot = new ParkingLot();
+        lot.setId(1L);
+        lot.setStatus("ENABLED");
+        when(parkingLotService.requireEnabled(1L)).thenReturn(lot);
+        when(detainedVehicleMapper.findByDetainNo("DV-EN1")).thenReturn(null);
+        when(detainedVehicleMapper.countInYardByPlateNo("粤B12345")).thenReturn(0);
+        when(detainedVehicleMapper.findByEntryNo("2026102714001748291")).thenReturn(null);
+        when(dispatchOrderMapper.findById(17L)).thenReturn(order(17L, "ACCEPTED", "粤B12345"));
+        when(detainedVehicleMapper.insert(any(DetainedVehicle.class))).thenAnswer(inv -> {
+            DetainedVehicle v = inv.getArgument(0);
+            v.setId(201L);
+            return 1;
+        });
+        when(dispatchMediaMapper.findByOrderIdAndBizType(17L, "DAMAGE")).thenReturn(List.of());
+
+        DetainedVehicle created = service.checkIn(req, 4L);
+
+        assertEquals("2026102714001748291", created.getEntryNo());
+    }
+
+    @Test
+    void checkInRegeneratesWhenSubmittedEntryNoHasWrongOrderFactor() {
+        DetainInRequest req = new DetainInRequest();
+        req.setDetainNo("DV-EN2");
+        req.setPlateNo("粤B12345");
+        req.setParkingLotId(1L);
+        req.setDispatchOrderId(17L);
+        req.setEntryNo("2026102714001848291");
+        ParkingLot lot = new ParkingLot();
+        lot.setId(1L);
+        lot.setStatus("ENABLED");
+        when(parkingLotService.requireEnabled(1L)).thenReturn(lot);
+        when(detainedVehicleMapper.findByDetainNo("DV-EN2")).thenReturn(null);
+        when(detainedVehicleMapper.countInYardByPlateNo("粤B12345")).thenReturn(0);
+        when(dispatchOrderMapper.findById(17L)).thenReturn(order(17L, "ACCEPTED", "粤B12345"));
+        when(detainedVehicleMapper.insert(any(DetainedVehicle.class))).thenAnswer(inv -> {
+            DetainedVehicle v = inv.getArgument(0);
+            v.setId(202L);
+            return 1;
+        });
+        when(dispatchMediaMapper.findByOrderIdAndBizType(17L, "DAMAGE")).thenReturn(List.of());
+
+        DetainedVehicle created = service.checkIn(req, 4L);
+
+        assertEquals(19, created.getEntryNo().length());
+        assertEquals("0017", created.getEntryNo().substring(10, 14));
+        assertNotEquals("2026102714001848291", created.getEntryNo());
+    }
+
+    @Test
+    void checkInRegeneratesWhenSubmittedEntryNoIsTaken() {
+        DetainInRequest req = new DetainInRequest();
+        req.setDetainNo("DV-EN3");
+        req.setPlateNo("粤B12345");
+        req.setParkingLotId(1L);
+        req.setDispatchOrderId(17L);
+        req.setEntryNo("2026102714001748291");
+        ParkingLot lot = new ParkingLot();
+        lot.setId(1L);
+        lot.setStatus("ENABLED");
+        when(parkingLotService.requireEnabled(1L)).thenReturn(lot);
+        when(detainedVehicleMapper.findByDetainNo("DV-EN3")).thenReturn(null);
+        when(detainedVehicleMapper.countInYardByPlateNo("粤B12345")).thenReturn(0);
+        when(detainedVehicleMapper.findByEntryNo("2026102714001748291")).thenReturn(new DetainedVehicle());
+        when(dispatchOrderMapper.findById(17L)).thenReturn(order(17L, "ACCEPTED", "粤B12345"));
+        when(detainedVehicleMapper.insert(any(DetainedVehicle.class))).thenAnswer(inv -> {
+            DetainedVehicle v = inv.getArgument(0);
+            v.setId(203L);
+            return 1;
+        });
+        when(dispatchMediaMapper.findByOrderIdAndBizType(17L, "DAMAGE")).thenReturn(List.of());
+
+        DetainedVehicle created = service.checkIn(req, 4L);
+
+        assertNotEquals("2026102714001748291", created.getEntryNo());
+        assertEquals(19, created.getEntryNo().length());
     }
 
     private static DispatchOrder order(long id, String status, String plate) {

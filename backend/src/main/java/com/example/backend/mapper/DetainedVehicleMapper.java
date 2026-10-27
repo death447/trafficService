@@ -60,8 +60,8 @@ public interface DetainedVehicleMapper {
     @Select("SELECT * FROM detained_vehicle WHERE detain_no = #{detainNo}")
     DetainedVehicle findByDetainNo(String detainNo);
 
-    @Select("SELECT COUNT(*) FROM detained_vehicle WHERE entry_no LIKE CONCAT(#{prefix}, '%')")
-    int countByEntryNoPrefix(String prefix);
+    @Select("SELECT * FROM detained_vehicle WHERE entry_no = #{entryNo}")
+    DetainedVehicle findByEntryNo(String entryNo);
 
     @Insert("INSERT INTO detained_vehicle (detain_no, entry_no, plate_no, vehicle_type, brand_model, vehicle_color, " +
             "mileage, important_equipment, has_key, parking_lot_id, parking_area_id, stall_no, dispatch_order_id, " +

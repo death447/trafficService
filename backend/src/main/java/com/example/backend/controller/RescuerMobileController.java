@@ -215,6 +215,16 @@ public class RescuerMobileController {
         }
     }
 
+    @GetMapping("/tasks/{id}/entry-no")
+    @PreAuthorize("hasAuthority('rescuer:park')")
+    public Result<String> previewEntryNo(@PathVariable Long id) {
+        try {
+            return Result.success(rescuerMobileService.previewEntryNo(currentUserId(), id));
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
     @PostMapping("/detain/{detainId}/media")
     @PreAuthorize("hasAuthority('rescuer:park')")
     public Result<DetainMedia> addDetainMedia(@PathVariable Long detainId,

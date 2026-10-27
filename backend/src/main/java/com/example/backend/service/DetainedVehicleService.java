@@ -17,6 +17,7 @@ import com.example.backend.mapper.DispatchAccidentVehicleMapper;
 import com.example.backend.mapper.DispatchMediaMapper;
 import com.example.backend.mapper.DispatchOrderMapper;
 import com.example.backend.mapper.ParkingLotMapper;
+import com.example.backend.support.EntryNoGenerator;
 import com.example.backend.util.PlateNos;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -24,9 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -65,6 +64,9 @@ public class DetainedVehicleService {
 
     @Autowired
     private LocalFileStorageService fileStorageService;
+
+    @Autowired
+    private EntryNoGenerator entryNoGenerator;
 
     public Map<String, Object> list(String plateNo, String detainNo, String status,
                                   Long parkingLotId, String detainDept, PageParams pp) {
@@ -143,7 +145,7 @@ public class DetainedVehicleService {
 
         DetainedVehicle v = new DetainedVehicle();
         v.setDetainNo(detainNo);
-        v.setEntryNo(generateEntryNo());
+        v.setEntryNo(resolveEntryNo(req.getEntryNo(), req.getDispatchOrderId()));
         v.setPlateNo(plate);
         v.setParkingLotId(req.getParkingLotId());
         v.setDispatchOrderId(req.getDispatchOrderId());
@@ -304,10 +306,20 @@ public class DetainedVehicleService {
         return v;
     }
 
-    private String generateEntryNo() {
-        String prefix = LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE);
-        int seq = detainedVehicleMapper.countByEntryNoPrefix(prefix) + 1;
-        return prefix + String.format("%04d", seq);
+    private String resolveEntryNo(String candidate, Long orderId) {
+        if (candidate != null) {
+            String trimmed = candidate.trim();
+            if (entryNoGenerator.matches(trimmed, orderId) && detainedVehicleMapper.findByEntryNo(trimmed) == null) {
+                return trimmed;
+            }
+        }
+        for (int i = 0; i < 5; i++) {
+            String generated = entryNoGenerator.generate(orderId);
+            if (detainedVehicleMapper.findByEntryNo(generated) == null) {
+                return generated;
+            }
+        }
+        throw new RuntimeException("入场编号生成失败，请重试");
     }
 
     private String requireTrimmedPlate(String plateNo) {

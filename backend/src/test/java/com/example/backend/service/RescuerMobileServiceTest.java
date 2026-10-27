@@ -26,6 +26,7 @@ import com.example.backend.mapper.DispatchOrderMapper;
 import com.example.backend.mapper.DispatchVehicleAssignmentMapper;
 import com.example.backend.mapper.RescueVehicleMapper;
 import com.example.backend.mapper.UserMapper;
+import com.example.backend.support.EntryNoGenerator;
 import com.example.backend.common.PageParams;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -60,6 +61,7 @@ class RescuerMobileServiceTest {
     @Mock DetainedVehicleService detainedVehicleService;
     @Mock ParkingLotService parkingLotService;
     @Mock ParkingAreaService parkingAreaService;
+    @Mock EntryNoGenerator entryNoGenerator;
     @InjectMocks RescuerMobileService service;
 
     private DispatchVehicleAssignment assignment(String status) {
@@ -335,6 +337,61 @@ class RescuerMobileServiceTest {
         assertEquals(1L, frCaptor.getValue().getDispatchOrderId());
         assertEquals(50L, frCaptor.getValue().getAssignmentId());
         assertNotNull(frCaptor.getValue().getParkSubmittedAt());
+    }
+
+    @Test
+    void detainInPassesThroughSubmittedEntryNo() {
+        DispatchOrder order = new DispatchOrder();
+        order.setId(1L);
+        order.setStatus("ACCEPTED");
+        when(dispatchOrderMapper.findById(1L)).thenReturn(order);
+        when(assignmentMapper.findByOrderIdAndRescuerId(1L, 9L)).thenReturn(assignment("ACCEPTED"));
+        DispatchAccidentVehicle only = new DispatchAccidentVehicle();
+        only.setDispatchOrderId(1L);
+        only.setPlateNo("粤B11111");
+        when(accidentVehicleMapper.findByOrderId(1L)).thenReturn(List.of(only));
+        when(userMapper.findById(9L)).thenReturn(null);
+
+        DetainedVehicle created = new DetainedVehicle();
+        created.setId(34L);
+        when(detainedVehicleService.checkIn(any(DetainInRequest.class), eq(9L))).thenReturn(created);
+        when(fieldRecordMapper.findByAssignmentId(50L)).thenReturn(null);
+        when(fieldRecordMapper.insert(any(DispatchFieldRecord.class))).thenReturn(1);
+
+        DetainInRequest req = new DetainInRequest();
+        req.setPlateNo("粤B11111");
+        req.setParkingLotId(2L);
+        req.setEntryNo("2026102714001748291");
+
+        service.detainIn(9L, 1L, req);
+
+        ArgumentCaptor<DetainInRequest> reqCaptor = ArgumentCaptor.forClass(DetainInRequest.class);
+        verify(detainedVehicleService).checkIn(reqCaptor.capture(), eq(9L));
+        assertEquals("2026102714001748291", reqCaptor.getValue().getEntryNo());
+    }
+
+    @Test
+    void previewEntryNoReturnsGeneratedCodeForOwnTask() {
+        DispatchOrder order = new DispatchOrder();
+        order.setId(1L);
+        when(dispatchOrderMapper.findById(1L)).thenReturn(order);
+        when(assignmentMapper.findByOrderIdAndRescuerId(1L, 9L)).thenReturn(assignment("ACCEPTED"));
+        when(entryNoGenerator.generate(1L)).thenReturn("2026102714001748291");
+
+        assertEquals("2026102714001748291", service.previewEntryNo(9L, 1L));
+    }
+
+    @Test
+    void previewEntryNoRejectsForeignTask() {
+        DispatchOrder order = new DispatchOrder();
+        order.setId(1L);
+        when(dispatchOrderMapper.findById(1L)).thenReturn(order);
+        when(assignmentMapper.findByOrderIdAndRescuerId(1L, 9L)).thenReturn(null);
+
+        RuntimeException ex = assertThrows(RuntimeException.class, () -> service.previewEntryNo(9L, 1L));
+
+        assertEquals("无权操作该工单", ex.getMessage());
+        verifyNoInteractions(entryNoGenerator);
     }
 
     @Test

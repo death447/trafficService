@@ -31,6 +31,7 @@ import com.example.backend.mapper.DispatchOrderMapper;
 import com.example.backend.mapper.DispatchVehicleAssignmentMapper;
 import com.example.backend.mapper.RescueVehicleMapper;
 import com.example.backend.mapper.UserMapper;
+import com.example.backend.support.EntryNoGenerator;
 import com.example.backend.util.PlateNos;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -94,6 +95,9 @@ public class RescuerMobileService {
 
     @Autowired
     private ParkingAreaService parkingAreaService;
+
+    @Autowired
+    private EntryNoGenerator entryNoGenerator;
 
     public List<DispatchOrder> listTasks(Long userId, String tab) {
         Set<String> statuses;
@@ -215,6 +219,11 @@ public class RescuerMobileService {
     public DetainedVehicle getTaskDetain(Long userId, Long orderId) {
         requireAssignment(orderId, userId);
         return detainedVehicleMapper.findInYardByDispatchOrderId(orderId);
+    }
+
+    public String previewEntryNo(Long userId, Long orderId) {
+        requireAssignment(orderId, userId);
+        return entryNoGenerator.generate(orderId);
     }
 
     public List<ParkingLot> listEnabledParkingLots() {

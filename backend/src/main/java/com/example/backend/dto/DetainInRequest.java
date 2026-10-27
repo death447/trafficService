@@ -7,6 +7,7 @@ import java.time.LocalDateTime;
 @Data
 public class DetainInRequest {
     private String detainNo;
+    private String entryNo;
     private String plateNo;
     private String vehicleType;
     private String brandModel;

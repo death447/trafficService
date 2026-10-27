@@ -89,6 +89,10 @@ export function getTaskDetain(id) {
   return request({ url: `${PREFIX}/tasks/${id}/detain` })
 }
 
+export function getTaskEntryNo(id) {
+  return request({ url: `${PREFIX}/tasks/${id}/entry-no`, showError: false })
+}
+
 export function uploadDetainPhoto(detainId, filePath) {
   return uploadFile({
     url: `${PREFIX}/detain/${detainId}/media`,
