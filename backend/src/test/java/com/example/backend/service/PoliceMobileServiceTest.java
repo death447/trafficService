@@ -32,6 +32,7 @@ import static org.mockito.Mockito.when;
 class PoliceMobileServiceTest {
 
     @Mock DispatchOrderMapper dispatchOrderMapper;
+    @Mock com.example.backend.mapper.DispatchAccidentVehicleMapper accidentVehicleMapper;
     @Mock DispatchFieldRecordMapper fieldRecordMapper;
     @Mock DispatchMediaMapper mediaMapper;
     @Mock DispatchOrderEvaluationMapper evaluationMapper;
@@ -88,6 +89,7 @@ class PoliceMobileServiceTest {
         m.setBizType("DAMAGE");
         m.setFilePath("dispatch/8/a.jpg");
         when(dispatchOrderMapper.findById(8L)).thenReturn(order);
+        when(accidentVehicleMapper.findByOrderId(8L)).thenReturn(List.of());
         when(fieldRecordMapper.findByOrderId(8L)).thenReturn(rec);
         when(mediaMapper.findByOrderId(8L)).thenReturn(List.of(m));
         when(evaluationMapper.findByOrderId(8L)).thenReturn(null);
